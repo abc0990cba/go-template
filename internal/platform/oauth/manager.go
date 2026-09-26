@@ -1,0 +1,175 @@
+// Package oauth implements the provider side of OAuth2 login: building
+// authorization URLs, exchanging authorization codes, and fetching the
+// provider profile of the authenticated user.
+package oauth
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"strings"
+
+	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/github"
+	"golang.org/x/oauth2/google"
+
+	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/model"
+)
+
+// Manager holds the per-provider OAuth2 configuration and an HTTP client
+// bounded by the configured external timeout.
+type Manager struct {
+	httpClient *http.Client
+	providers  map[string]Provider
+}
+
+// Provider bundles the oauth2 config for one identity provider with the
+// endpoints needed to fetch the user profile after the exchange.
+type Provider struct {
+	Config      *oauth2.Config
+	UserInfoURL string
+	EmailURL    string
+}
+
+// NewManager builds the Google and GitHub provider set from configuration.
+func NewManager(cfg config.Config) *Manager {
+	return &Manager{
+		httpClient: &http.Client{Timeout: cfg.ExternalTimeout},
+		providers: map[string]Provider{
+			"google": {
+				Config: &oauth2.Config{
+					ClientID:     cfg.GoogleClientID,
+					ClientSecret: cfg.GoogleSecret,
+					RedirectURL:  strings.TrimRight(cfg.BaseURL, "/") + "/auth/google/callback",
+					Scopes:       []string{"openid", "email", "profile"},
+					Endpoint:     google.Endpoint,
+				},
+				UserInfoURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+			},
+			"github": {
+				Config: &oauth2.Config{
+					ClientID:     cfg.GitHubClientID,
+					ClientSecret: cfg.GitHubSecret,
+					RedirectURL:  strings.TrimRight(cfg.BaseURL, "/") + "/auth/github/callback",
+					Scopes:       []string{"read:user", "user:email"},
+					Endpoint:     github.Endpoint,
+				},
+				UserInfoURL: "https://api.github.com/user",
+				EmailURL:    "https://api.github.com/user/emails",
+			},
+		},
+	}
+}
+
+// IsConfigured reports whether the provider has both a client id and secret.
+func (m *Manager) IsConfigured(provider string) bool {
+	providerConfig, ok := m.providers[provider]
+	return ok && providerConfig.Config.ClientID != "" && providerConfig.Config.ClientSecret != ""
+}
+
+// AuthCodeURL returns the redirect target that starts the authorization code
+// flow for the provider, embedding state as the CSRF token.
+func (m *Manager) AuthCodeURL(provider, state string) (string, error) {
+	providerConfig, ok := m.providers[provider]
+	if !ok {
+		return "", fmt.Errorf("unknown oauth provider %q", provider)
+	}
+	if !m.IsConfigured(provider) {
+		return "", fmt.Errorf("%s oauth is not configured", provider)
+	}
+	return providerConfig.Config.AuthCodeURL(state, oauth2.AccessTypeOffline), nil
+}
+
+// ExchangeProfile swaps an authorization code for a token and fetches the
+// provider profile of the authenticated user.
+func (m *Manager) ExchangeProfile(ctx context.Context, provider, code string) (model.OAuthProfile, error) {
+	providerConfig, ok := m.providers[provider]
+	if !ok {
+		return model.OAuthProfile{}, fmt.Errorf("unknown oauth provider %q", provider)
+	}
+	token, err := providerConfig.Config.Exchange(ctx, code)
+	if err != nil {
+		return model.OAuthProfile{}, err
+	}
+	client := providerConfig.Config.Client(ctx, token)
+	switch provider {
+	case "google":
+		return fetchGoogleProfile(ctx, client, providerConfig.UserInfoURL)
+	case "github":
+		return fetchGitHubProfile(ctx, client, providerConfig.UserInfoURL, providerConfig.EmailURL)
+	default:
+		return model.OAuthProfile{}, fmt.Errorf("unknown oauth provider %q", provider)
+	}
+}
+
+func fetchGoogleProfile(ctx context.Context, client *http.Client, url string) (model.OAuthProfile, error) {
+	var body struct {
+		Sub     string `json:"sub"`
+		Email   string `json:"email"`
+		Name    string `json:"name"`
+		Picture string `json:"picture"`
+	}
+	if err := getJSON(ctx, client, url, &body); err != nil {
+		return model.OAuthProfile{}, err
+	}
+	if body.Sub == "" {
+		return model.OAuthProfile{}, errors.New("google profile is missing subject")
+	}
+	return model.OAuthProfile{Provider: "google", ProviderSubject: body.Sub, Email: body.Email, Name: body.Name, AvatarURL: body.Picture}, nil
+}
+
+func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, emailURL string) (model.OAuthProfile, error) {
+	var user struct {
+		ID        int64  `json:"id"`
+		Login     string `json:"login"`
+		Name      string `json:"name"`
+		Email     string `json:"email"`
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := getJSON(ctx, client, userURL, &user); err != nil {
+		return model.OAuthProfile{}, err
+	}
+	email := user.Email
+	if email == "" {
+		var emails []struct {
+			Email    string `json:"email"`
+			Primary  bool   `json:"primary"`
+			Verified bool   `json:"verified"`
+		}
+		if err := getJSON(ctx, client, emailURL, &emails); err == nil {
+			for _, candidate := range emails {
+				if candidate.Primary && candidate.Verified {
+					email = candidate.Email
+					break
+				}
+			}
+		}
+	}
+	if user.ID == 0 {
+		return model.OAuthProfile{}, errors.New("github profile is missing id")
+	}
+	name := user.Name
+	if name == "" {
+		name = user.Login
+	}
+	return model.OAuthProfile{Provider: "github", ProviderSubject: fmt.Sprintf("%d", user.ID), Email: email, Name: name, AvatarURL: user.AvatarURL}, nil
+}
+
+func getJSON(ctx context.Context, client *http.Client, url string, target any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("oauth userinfo failed with status %d", resp.StatusCode)
+	}
+	return json.NewDecoder(resp.Body).Decode(target)
+}
