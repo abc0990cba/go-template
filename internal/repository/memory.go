@@ -310,6 +310,17 @@ func (s *MemoryStore) SaveJob(ctx context.Context, job model.Job) error {
 	return nil
 }
 
+// GetJob returns a job by id.
+func (s *MemoryStore) GetJob(ctx context.Context, id string) (model.Job, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	job, ok := s.jobs[id]
+	if !ok {
+		return model.Job{}, ErrNotFound
+	}
+	return job, nil
+}
+
 // ListJobs returns all jobs newest first.
 func (s *MemoryStore) ListJobs(ctx context.Context) ([]model.Job, error) {
 	s.mu.RLock()

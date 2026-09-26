@@ -328,6 +328,18 @@ func (s *Store) SaveJob(ctx context.Context, job model.Job) error {
 	}))
 }
 
+// GetJob returns a job by id.
+func (s *Store) GetJob(ctx context.Context, id string) (model.Job, error) {
+	row, err := s.q.GetJob(ctx, id)
+	if err != nil {
+		return model.Job{}, mapErr(err)
+	}
+	return model.Job{
+		ID: row.ID, Type: row.Type, Status: row.Status, Payload: row.Payload,
+		Error: row.Error, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}, nil
+}
+
 // ListJobs returns all jobs newest first.
 func (s *Store) ListJobs(ctx context.Context) ([]model.Job, error) {
 	rows, err := s.q.ListJobs(ctx)

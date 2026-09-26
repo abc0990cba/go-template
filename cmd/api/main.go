@@ -15,6 +15,7 @@ import (
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/httpapp"
+	asynqqueue "github.com/your-org/go-template/internal/platform/queue"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -33,7 +34,10 @@ func main() {
 	}
 	defer closeStore()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, logger, cfg)
+	jobQueue, closeQueue := openQueue(cfg)
+	defer closeQueue()
+
+	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, jobQueue, logger, cfg)
 	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger)
 
 	server := &http.Server{
@@ -74,4 +78,14 @@ func main() {
 
 func newLogger(level slog.Level) *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+}
+
+// openQueue returns the asynq-backed job queue, or nil in single-process
+// development mode where jobs run inline.
+func openQueue(cfg config.Config) (service.JobQueue, func()) {
+	if cfg.RedisAddr == "" {
+		return nil, func() {}
+	}
+	queue := asynqqueue.New(cfg.RedisAddr)
+	return queue, func() { _ = queue.Close() }
 }

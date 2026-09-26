@@ -43,6 +43,7 @@ type UsersRepo interface {
 // JobsRepo persists job records and enrichment results.
 type JobsRepo interface {
 	SaveJob(ctx context.Context, job model.Job) error
+	GetJob(ctx context.Context, id string) (model.Job, error)
 	ListJobs(ctx context.Context) ([]model.Job, error)
 	AddEnrichment(ctx context.Context, profile model.EnrichmentProfile) error
 	AddEvent(ctx context.Context, event string)

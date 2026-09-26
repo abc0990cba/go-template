@@ -10,6 +10,27 @@ import (
 	"time"
 )
 
+const getJob = `-- name: GetJob :one
+SELECT id, type, status, payload, error, created_at, updated_at
+FROM jobs
+WHERE id = $1
+`
+
+func (q *Queries) GetJob(ctx context.Context, id string) (Job, error) {
+	row := q.db.QueryRow(ctx, getJob, id)
+	var i Job
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Status,
+		&i.Payload,
+		&i.Error,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listJobs = `-- name: ListJobs :many
 SELECT id, type, status, payload, error, created_at, updated_at
 FROM jobs

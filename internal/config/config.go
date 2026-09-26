@@ -17,6 +17,8 @@ type Config struct {
 	BaseURL         string
 	LogLevel        slog.Level
 	DatabaseURL     string
+	RedisAddr       string
+	ReportCron      string
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -35,6 +37,8 @@ func Load() (Config, error) {
 		HTTPAddr:       env("APP_HTTP_ADDR", ":8080"),
 		BaseURL:        env("APP_BASE_URL", "http://localhost:8080"),
 		DatabaseURL:    os.Getenv("APP_DATABASE_URL"),
+		RedisAddr:      os.Getenv("APP_REDIS_ADDR"),
+		ReportCron:     os.Getenv("APP_REPORT_CRON"),
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),

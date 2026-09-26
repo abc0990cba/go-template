@@ -8,27 +8,59 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/reliability"
 )
 
+// JobQueue pushes jobs onto the distributed queue. A nil implementation
+// keeps the single-process development path.
+type JobQueue interface {
+	Enqueue(ctx context.Context, job model.Job) error
+}
+
 const enrichBatchURL = "https://randomuser.me/api/?results=1"
 
-// JobService implements enqueueing and local processing of background
-// jobs; the queue OpenSpec change moves execution onto asynq.
+// JobService implements enqueueing and local processing of background jobs.
+// With a queue wired, producers publish to Redis and the worker process
+// executes; without one, ProcessOne runs jobs in-process for development.
 type JobService struct {
 	store          JobsRepo
+	reports        ReportsRepo
+	queue          JobQueue
 	logger         *slog.Logger
 	client         *http.Client
 	maxConcurrency int
 }
 
-// Enqueue persists a queued job of the given type with a raw JSON payload.
-func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Job, error) {
+// NewRecord persists a queued job without publishing anything; the queue
+// producer and the scheduler both start from here.
+func (s *JobService) NewRecord(ctx context.Context, typ, payload string) (model.Job, error) {
 	now := time.Now()
 	job := model.Job{ID: newID(), Type: typ, Status: "queued", Payload: payload, CreatedAt: now, UpdatedAt: now}
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return model.Job{}, fmt.Errorf("save job: %w", err)
+	}
+	return job, nil
+}
+
+// Enqueue records the job and publishes it to the distributed queue. On a
+// publish failure the record is marked failed so the UI reflects reality.
+func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Job, error) {
+	job, err := s.NewRecord(ctx, typ, payload)
+	if err != nil {
+		return model.Job{}, err
+	}
+	if s.queue == nil {
+		s.store.AddEvent(ctx, "job_queued")
+		return job, nil
+	}
+	if err := s.queue.Enqueue(ctx, job); err != nil {
+		job.Status = "failed"
+		job.Error = err.Error()
+		job.UpdatedAt = time.Now()
+		_ = s.store.SaveJob(ctx, job)
+		return job, fmt.Errorf("enqueue: %w", err)
 	}
 	s.store.AddEvent(ctx, "job_queued")
 	return job, nil
@@ -39,29 +71,41 @@ func (s *JobService) List(ctx context.Context) ([]model.Job, error) {
 	return s.store.ListJobs(ctx)
 }
 
-// ProcessOne claims and runs the oldest queued job, if any. An empty queue is
-// not an error; only store failures are.
+// ProcessOne claims and runs the oldest queued job locally. With a
+// distributed queue configured it is a no-op: another process owns
+// execution.
 func (s *JobService) ProcessOne(ctx context.Context) error {
-	jobs, err := s.store.ListJobs(ctx)
+	if s.queue != nil {
+		return nil
+	}
+	pending, err := s.store.ListJobs(ctx)
 	if err != nil {
 		return fmt.Errorf("list jobs: %w", err)
 	}
-	for _, job := range jobs {
+	for _, job := range pending {
 		if job.Status != "queued" {
 			continue
 		}
-		return s.run(ctx, job)
+		return s.RunJob(ctx, job.ID, func(ctx context.Context) error {
+			return s.process(ctx, job)
+		})
 	}
 	return nil
 }
 
-func (s *JobService) run(ctx context.Context, job model.Job) error {
+// RunJob syncs the operational record around the actual execution: running
+// before, done or failed after, with events for the analytics trail.
+func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.Context) error) error {
+	job, err := s.store.GetJob(ctx, jobID)
+	if err != nil {
+		return fmt.Errorf("load job: %w", err)
+	}
 	job.Status = "running"
 	job.UpdatedAt = time.Now()
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return fmt.Errorf("mark job running: %w", err)
 	}
-	if err := s.process(ctx, job); err != nil {
+	if err := run(ctx); err != nil {
 		job.Status = "failed"
 		job.Error = err.Error()
 		s.store.AddEvent(ctx, "job_failed")
@@ -76,27 +120,9 @@ func (s *JobService) run(ctx context.Context, job model.Job) error {
 	return nil
 }
 
-func (s *JobService) process(ctx context.Context, job model.Job) error {
-	switch job.Type {
-	case "user.enrich_batch":
-		var req struct {
-			Count int `json:"count"`
-		}
-		if err := json.Unmarshal([]byte(job.Payload), &req); err != nil {
-			return fmt.Errorf("decode payload: %w", err)
-		}
-		if req.Count <= 0 || req.Count > 100 {
-			req.Count = 10
-		}
-		return s.enrichUsers(ctx, req.Count)
-	case "user.report_generate":
-		return nil
-	default:
-		return fmt.Errorf("unknown job type %q", job.Type)
-	}
-}
-
-func (s *JobService) enrichUsers(ctx context.Context, count int) error {
+// EnrichBatch fetches count external profiles with bounded concurrency and
+// retries; it is the body of user.enrich_batch.
+func (s *JobService) EnrichBatch(ctx context.Context, count int) error {
 	return reliability.RunBounded(ctx, count, s.maxConcurrency, func(ctx context.Context, i int) error {
 		return reliability.Retry(ctx, 3, 100*time.Millisecond, func() error {
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, enrichBatchURL, nil)
@@ -119,4 +145,33 @@ func (s *JobService) enrichUsers(ctx context.Context, count int) error {
 			})
 		})
 	})
+}
+
+// GenerateReport builds a snapshot report and stores it; it is the body of
+// user.report_generate.
+func (s *JobService) GenerateReport(ctx context.Context) error {
+	summary := s.reports.Analytics(ctx)
+	now := time.Now()
+	report := model.Report{ID: newID(), Status: "done", Result: formatSummary(summary), CreatedAt: now, UpdatedAt: now}
+	return s.reports.SaveReport(ctx, report)
+}
+
+func (s *JobService) process(ctx context.Context, job model.Job) error {
+	switch job.Type {
+	case jobs.TypeEnrichBatch:
+		var req struct {
+			Count int `json:"count"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &req); err != nil {
+			return fmt.Errorf("decode payload: %w", err)
+		}
+		if req.Count <= 0 || req.Count > 100 {
+			req.Count = 10
+		}
+		return s.EnrichBatch(ctx, req.Count)
+	case jobs.TypeReportGenerate:
+		return s.GenerateReport(ctx)
+	default:
+		return fmt.Errorf("unknown job type %q", job.Type)
+	}
 }

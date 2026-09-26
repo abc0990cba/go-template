@@ -9,6 +9,11 @@ SET type = EXCLUDED.type,
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at;
 
+-- name: GetJob :one
+SELECT id, type, status, payload, error, created_at, updated_at
+FROM jobs
+WHERE id = $1;
+
 -- name: ListJobs :many
 SELECT id, type, status, payload, error, created_at, updated_at
 FROM jobs

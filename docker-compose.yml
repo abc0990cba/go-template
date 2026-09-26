@@ -7,13 +7,14 @@ services:
     environment:
       APP_HTTP_ADDR: ":8080"
       APP_DATABASE_URL: postgres://app:app@postgres:5432/app?sslmode=disable
+      APP_REDIS_ADDR: redis:6379
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
       clickhouse:
         condition: service_started
 
@@ -24,11 +25,13 @@ services:
     command: ["/app/worker"]
     environment:
       APP_DATABASE_URL: postgres://app:app@postgres:5432/app?sslmode=disable
+      APP_REDIS_ADDR: redis:6379
+      APP_REPORT_CRON: "0 3 * * *"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   postgres:
     image: postgres:16
