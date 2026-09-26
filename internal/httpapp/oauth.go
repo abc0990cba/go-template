@@ -14,7 +14,7 @@ import (
 func (a *App) oauthLogin(c *gin.Context) {
 	provider := c.Param("provider")
 	if !a.oauth.IsConfigured(provider) {
-		a.renderError(c, "login", &genericSafeError{msg: provider + " oauth is not configured"})
+		a.render(c, loginPage(provider+" oauth is not configured", a.csrfToken(c)))
 		return
 	}
 	// Linking requires an active session by policy; login via OAuth alone
@@ -37,7 +37,8 @@ func (a *App) oauthLogin(c *gin.Context) {
 	}
 	url, err := a.oauth.AuthCodeURL(provider, state.State)
 	if err != nil {
-		a.renderError(c, "profile", &genericSafeError{msg: err.Error()})
+		a.logger.Error("build authorize url failed", "provider", provider, "err", err)
+		a.problem(c, http.StatusInternalServerError, "oauth login failed", nil)
 		return
 	}
 	c.Redirect(http.StatusSeeOther, url)
@@ -47,7 +48,7 @@ func (a *App) oauthCallback(c *gin.Context) {
 	provider := c.Param("provider")
 	q := c.Request.URL.Query()
 	if failure := q.Get("error"); failure != "" {
-		a.renderError(c, "profile", &genericSafeError{msg: "provider rejected the request: " + failure})
+		a.renderProfileData(c, "provider rejected the request: "+failure)
 		return
 	}
 	state, err := a.services.Auth.ConsumeState(c.Request.Context(), q.Get("state"))
@@ -68,17 +69,12 @@ func (a *App) oauthCallback(c *gin.Context) {
 	profile, err := a.oauth.ExchangeProfile(c.Request.Context(), provider, q.Get("code"))
 	if err != nil {
 		a.logger.Error("oauth exchange failed", "provider", provider, "err", err)
-		a.renderError(c, "profile", &genericSafeError{msg: "oauth exchange failed"})
+		a.renderProfileData(c, "oauth exchange failed")
 		return
 	}
 	if err := a.services.Auth.LinkIdentity(c.Request.Context(), user.ID, profile); err != nil {
-		a.renderError(c, "profile", err)
+		a.renderProfileData(c, err.Error())
 		return
 	}
 	c.Redirect(http.StatusSeeOther, "/profile")
 }
-
-// genericSafeError renders a fixed, user-safe message in the HTML UI.
-type genericSafeError struct{ msg string }
-
-func (e *genericSafeError) Error() string { return e.msg }

@@ -5,6 +5,8 @@ package main
 import (
 	"context"
 	"errors"
+	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -30,6 +32,12 @@ var (
 )
 
 func main() {
+	healthcheck := flag.Bool("healthcheck", false, "GET /health/live on the local port and exit")
+	flag.Parse()
+	if *healthcheck {
+		os.Exit(runHealthcheck())
+	}
+
 	cfg, err := config.Load()
 	logger := newLogger(cfg.LogFormat, cfg.LogLevel)
 	if err != nil {
@@ -95,6 +103,27 @@ func main() {
 }
 
 // newLogger picks text for humans and json for log shippers.
+// runHealthcheck is the container HEALTHCHECK probe; distroless images have
+// no shell or curl, so the binary checks itself.
+func runHealthcheck() int {
+	addr := os.Getenv("APP_HTTP_ADDR")
+	if addr == "" {
+		addr = ":8080"
+	}
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1%s/health/live", addr))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "healthcheck: status", resp.StatusCode)
+		return 1
+	}
+	return 0
+}
+
 func newLogger(format string, level slog.Level) *slog.Logger {
 	opts := &slog.HandlerOptions{Level: level}
 	if format == "json" {

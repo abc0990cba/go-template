@@ -29,6 +29,11 @@ linters:
       - path: internal/httpapp/security_test\.go
         linters: [gosec]
         text: "G710"
+      # The healthcheck mode always targets the local loopback address of
+      # this very process; APP_HTTP_ADDR only supplies the port.
+      - path: cmd/api/main\.go
+        linters: [gosec]
+        text: "G704"
 
 formatters:
   enable:

@@ -1,32 +1,31 @@
 package httpapp
 
 import (
-	_ "embed"
 	"encoding/json"
-	"html/template"
 	"net/http"
 	"strconv"
 
+	"github.com/a-h/templ"
 	"github.com/gin-gonic/gin"
 
 	"github.com/your-org/go-template/internal/model"
 )
 
-//go:embed views.html
-var viewsHTML string
+// fmtInt renders counters inside templ attributes.
+func fmtInt(n int) string { return strconv.Itoa(n) }
 
-var views = template.Must(template.New("views").Parse(viewsHTML))
-
-func (a *App) render(c *gin.Context, name string, data gin.H) {
-	if data == nil {
-		data = gin.H{}
-	}
-	data["CSRFToken"] = c.GetString("csrf_token")
+// render writes a templ component. Generation:
+//
+//	go run github.com/a-h/templ/cmd/templ@latest generate
+func (a *App) render(c *gin.Context, component templ.Component) {
 	c.Header("Content-Type", "text/html; charset=utf-8")
-	if err := views.ExecuteTemplate(c.Writer, name, data); err != nil {
-		a.logger.Error("template render failed", "template", name, "err", err)
+	if err := component.Render(c.Request.Context(), c.Writer); err != nil {
+		a.logger.Error("template render failed", "err", err)
 	}
 }
+
+// csrfToken returns the token issued for the double-submit check.
+func (a *App) csrfToken(c *gin.Context) string { return c.GetString("csrf_token") }
 
 // renderError shows a client-safe message, or a generic one after logging the
 // real error, so UI handlers never fail silently.
@@ -37,14 +36,18 @@ func (a *App) renderError(c *gin.Context, page string, err error) {
 		msg = "something went wrong, try again"
 	}
 	switch page {
+	case "login":
+		a.render(c, loginPage(msg, a.csrfToken(c)))
+	case "register":
+		a.render(c, registerPage(msg, a.csrfToken(c)))
 	case "profile":
-		a.renderProfileData(c, gin.H{"Error": msg})
+		a.renderProfileData(c, msg)
 	case "users":
-		a.renderUsersData(c, gin.H{"Error": msg})
+		a.renderUsersData(c, msg)
 	case "enrichment":
-		a.renderJobsData(c, gin.H{"Error": msg})
-	default:
-		a.render(c, page, gin.H{"Error": msg})
+		a.renderJobsData(c, msg)
+	case "reports":
+		a.renderReportsData(c, msg)
 	}
 }
 
@@ -57,7 +60,7 @@ func (a *App) currentUser(c *gin.Context) (model.User, bool) {
 	return user, true
 }
 
-func (a *App) renderProfileData(c *gin.Context, data gin.H) {
+func (a *App) renderProfileData(c *gin.Context, errText string) {
 	user, ok := a.currentUser(c)
 	if !ok {
 		return
@@ -66,20 +69,19 @@ func (a *App) renderProfileData(c *gin.Context, data gin.H) {
 	if err != nil {
 		a.logger.Error("list identities failed", "err", err)
 	}
-	data["User"] = user
-	data["Identities"] = identities
-	a.render(c, "profile", data)
+	a.render(c, profilePage(user, identities, errText, a.csrfToken(c)))
 }
 
 func (a *App) dashboard(c *gin.Context) {
 	if _, ok := a.currentUser(c); !ok {
 		return
 	}
-	a.render(c, "dashboard", gin.H{"Analytics": a.services.Analytics.Summary(c.Request.Context())})
+	summary := a.services.Analytics.Summary(c.Request.Context())
+	a.render(c, dashboardPage(summary, a.csrfToken(c)))
 }
 
-func (a *App) loginPage(c *gin.Context)    { a.render(c, "login", nil) }
-func (a *App) registerPage(c *gin.Context) { a.render(c, "register", nil) }
+func (a *App) loginPage(c *gin.Context)    { a.render(c, loginPage("", a.csrfToken(c))) }
+func (a *App) registerPage(c *gin.Context) { a.render(c, registerPage("", a.csrfToken(c))) }
 
 func (a *App) register(c *gin.Context) {
 	_, token, err := a.services.Auth.Register(c.Request.Context(), c.PostForm("email"), c.PostForm("name"), c.PostForm("password"))
@@ -109,7 +111,7 @@ func (a *App) logout(c *gin.Context) {
 }
 
 func (a *App) profile(c *gin.Context) {
-	a.renderProfileData(c, gin.H{})
+	a.renderProfileData(c, "")
 }
 
 // logoutAll revokes every session of the current user.
@@ -138,19 +140,16 @@ func (a *App) unlinkProvider(c *gin.Context) {
 	c.Redirect(http.StatusSeeOther, "/profile")
 }
 
-func (a *App) renderUsersData(c *gin.Context, data gin.H) {
+func (a *App) renderUsersData(c *gin.Context, errText string) {
 	users, next, err := a.services.Users.List(c.Request.Context(), listOptions(c))
 	if err != nil {
 		a.logger.Error("list users failed", "err", err)
 	}
-	data["Users"] = users
-	data["Next"] = next
-	data["Mode"] = c.DefaultQuery("mode", "offset")
-	a.render(c, "users", data)
+	a.render(c, usersPage(users, next, c.DefaultQuery("mode", "offset"), errText, a.csrfToken(c)))
 }
 
 func (a *App) usersPage(c *gin.Context) {
-	a.renderUsersData(c, gin.H{})
+	a.renderUsersData(c, "")
 }
 
 func (a *App) createUser(c *gin.Context) {
@@ -177,23 +176,22 @@ func (a *App) deleteUser(c *gin.Context) {
 	c.Redirect(http.StatusSeeOther, "/users")
 }
 
-func (a *App) renderJobsData(c *gin.Context, data gin.H) {
+func (a *App) renderJobsData(c *gin.Context, errText string) {
 	jobs, err := a.services.Jobs.List(c.Request.Context())
 	if err != nil {
 		a.logger.Error("list jobs failed", "err", err)
 	}
-	data["Jobs"] = jobs
-	a.render(c, "enrichment", data)
+	a.render(c, enrichmentPage(jobs, errText, a.csrfToken(c)))
 }
 
 func (a *App) enrichmentPage(c *gin.Context) {
-	a.renderJobsData(c, gin.H{})
+	a.renderJobsData(c, "")
 }
 
 func (a *App) enqueueEnrichment(c *gin.Context) {
 	count, err := strconv.Atoi(c.DefaultPostForm("count", "10"))
 	if err != nil || count <= 0 || count > 100 {
-		a.renderJobsData(c, gin.H{"Error": "count must be a number between 1 and 100"})
+		a.renderJobsData(c, "count must be a number between 1 and 100")
 		return
 	}
 	payload, err := json.Marshal(struct {
@@ -201,7 +199,7 @@ func (a *App) enqueueEnrichment(c *gin.Context) {
 	}{Count: count})
 	if err != nil {
 		a.logger.Error("marshal enrichment payload failed", "err", err)
-		a.renderJobsData(c, gin.H{"Error": "something went wrong, try again"})
+		a.renderJobsData(c, "something went wrong, try again")
 		return
 	}
 	if _, err := a.services.Jobs.Enqueue(c.Request.Context(), "user.enrich_batch", string(payload)); err != nil {
@@ -216,7 +214,7 @@ func (a *App) jobsPage(c *gin.Context) {
 	if err != nil {
 		a.logger.Error("list jobs failed", "err", err)
 	}
-	a.render(c, "jobs", gin.H{"Jobs": jobs})
+	a.render(c, jobsPage(jobs, "", a.csrfToken(c)))
 }
 
 func (a *App) processJob(c *gin.Context) {
@@ -226,12 +224,16 @@ func (a *App) processJob(c *gin.Context) {
 	c.Redirect(http.StatusSeeOther, "/jobs")
 }
 
-func (a *App) reportsPage(c *gin.Context) {
+func (a *App) renderReportsData(c *gin.Context, errText string) {
 	reports, err := a.services.Reports.List(c.Request.Context())
 	if err != nil {
 		a.logger.Error("list reports failed", "err", err)
 	}
-	a.render(c, "reports", gin.H{"Reports": reports})
+	a.render(c, reportsPage(reports, errText, a.csrfToken(c)))
+}
+
+func (a *App) reportsPage(c *gin.Context) {
+	a.renderReportsData(c, "")
 }
 
 func (a *App) generateReport(c *gin.Context) {
@@ -243,7 +245,8 @@ func (a *App) generateReport(c *gin.Context) {
 }
 
 func (a *App) analyticsPage(c *gin.Context) {
-	a.render(c, "analytics", gin.H{"Analytics": a.services.Analytics.Summary(c.Request.Context())})
+	summary := a.services.Analytics.Summary(c.Request.Context())
+	a.render(c, analyticsPage(summary, a.csrfToken(c)))
 }
 
 func (a *App) openapi(c *gin.Context) {

@@ -1,0 +1,272 @@
+// templ components for the server-rendered UI. Generate with:
+//
+//	go run github.com/a-h/templ/cmd/templ@latest generate
+package httpapp
+
+import (
+	"github.com/your-org/go-template/internal/model"
+)
+
+templ pageError(msg string) {
+	if msg != "" {
+		<p class="error">{ msg }</p>
+	}
+}
+
+templ csrfInput(token string) {
+	if token != "" {
+		<input type="hidden" name="csrf_token" value={ token }>
+	}
+}
+
+// shell is the authenticated layout: sidebar plus content area.
+templ shell(csrf string) {
+	<!doctype html>
+	<html>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Go Template</title>
+			<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+			<style>body{font-family:system-ui;margin:0;background:#f6f7f9;color:#1f2937}.shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}nav{background:#111827;color:white;padding:18px}nav a,nav button{display:block;color:white;margin:10px 0;background:none;border:0;padding:0;font:inherit;text-align:left}.main{padding:24px}.panel{background:white;border:1px solid #dde1e7;border-radius:8px;padding:16px;margin-bottom:16px}input,select,button{padding:9px;border:1px solid #c8ced8;border-radius:6px}button{background:#0f766e;color:white;border-color:#0f766e;cursor:pointer}.danger{background:#b91c1c;border-color:#b91c1c}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.metric{background:#eef2ff;padding:14px;border-radius:8px}table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid #e5e7eb;padding:8px;text-align:left}.error{color:#b91c1c}</style>
+		</head>
+		<body>
+			<div class="shell">
+				<nav>
+					<strong>Go Template</strong>
+					<a href="/">Dashboard</a>
+					<a href="/profile">Profile</a>
+					<a href="/users">Users</a>
+					<a href="/enrichment">Enrichment</a>
+					<a href="/jobs">Jobs</a>
+					<a href="/reports">Reports</a>
+					<a href="/analytics">Analytics</a>
+					<a href="/docs">API Docs</a>
+					<form method="post" action="/logout">
+						@csrfInput(csrf)
+						<button>Logout</button>
+					</form>
+				</nav>
+				<main class="main">{ children... }</main>
+			</div>
+		</body>
+	</html>
+}
+
+// authShell is the centered layout for login and register.
+templ authShell() {
+	<!doctype html>
+	<html>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>Go Template Auth</title>
+			<style>body{font-family:system-ui;background:#f6f7f9;display:grid;place-items:center;min-height:100vh}.box{width:min(420px,92vw);background:white;border:1px solid #dde1e7;border-radius:8px;padding:24px}input,button{box-sizing:border-box;width:100%;padding:10px;margin:8px 0;border:1px solid #c8ced8;border-radius:6px}button{background:#0f766e;color:white;border-color:#0f766e}.error{color:#b91c1c}</style>
+		</head>
+		<body>
+			<div class="box">{ children... }</div>
+		</body>
+	</html>
+}
+
+templ loginPage(err string, csrf string) {
+	@authShell() {
+		<h1>Login</h1>
+		@pageError(err)
+		<form method="post" action="/login">
+			@csrfInput(csrf)
+			<input name="email" placeholder="email"/>
+			<input name="password" type="password" placeholder="password"/>
+			<button>Login</button>
+		</form>
+		<p><a href="/register">Create account</a></p>
+		<p class="error">OAuth login is link-only: sign in, then connect providers on the profile page.</p>
+	}
+}
+
+templ registerPage(err string, csrf string) {
+	@authShell() {
+		<h1>Register</h1>
+		@pageError(err)
+		<form method="post" action="/register">
+			@csrfInput(csrf)
+			<input name="name" placeholder="name"/>
+			<input name="email" placeholder="email"/>
+			<input name="password" type="password" placeholder="password min 8 chars"/>
+			<button>Register</button>
+		</form>
+		<p><a href="/login">Login</a></p>
+	}
+}
+
+templ dashboardPage(an model.AnalyticsSummary, csrf string) {
+	@shell(csrf) {
+		<h1>Dashboard</h1>
+		<div class="grid">
+			<div class="metric">Users<br/><strong>{ fmtInt(an.TotalUsers) }</strong></div>
+			<div class="metric">Password IDs<br/><strong>{ fmtInt(an.PasswordIdentities) }</strong></div>
+			<div class="metric">Google IDs<br/><strong>{ fmtInt(an.GoogleIdentities) }</strong></div>
+			<div class="metric">GitHub IDs<br/><strong>{ fmtInt(an.GitHubIdentities) }</strong></div>
+			<div class="metric">Jobs done<br/><strong>{ fmtInt(an.JobsDone) }</strong></div>
+		</div>
+	}
+}
+
+templ profilePage(user model.User, identities []model.AuthIdentity, err string, csrf string) {
+	@shell(csrf) {
+		<h1>Profile</h1>
+		@pageError(err)
+		<section class="panel">
+			<p><strong>{ user.Name }</strong></p>
+			<p>{ user.Email }</p>
+		</section>
+		<section class="panel">
+			<h2>Linked providers</h2>
+			<ul>
+				for _, id := range identities {
+					<li>{ id.Provider } - { id.Email }
+						<form method="post" action={ templ.URL("/profile/unlink/" + id.Provider) } style="display:inline">
+							@csrfInput(csrf)
+							<button class="danger">Unlink</button>
+						</form>
+					</li>
+				}
+			</ul>
+			<p><a href="/auth/google/login">Link Google</a> - <a href="/auth/github/login">Link GitHub</a></p>
+			<form method="post" action="/profile/logout-all">
+				@csrfInput(csrf)
+				<button class="danger">Logout all sessions</button>
+			</form>
+		</section>
+	}
+}
+
+templ usersPage(list []model.User, next string, mode string, err string, csrf string) {
+	@shell(csrf) {
+		<h1>Users</h1>
+		@pageError(err)
+		<section class="panel">
+			<form method="get" action="/users">
+				<input name="q" placeholder="search"/>
+				<select name="mode">
+					<option>offset</option>
+					<option>cursor</option>
+					<option>keyset</option>
+				</select>
+				<button>Search</button>
+			</form>
+			<p>Mode: { mode }</p>
+		</section>
+		<section class="panel">
+			<form method="post" action="/users">
+				@csrfInput(csrf)
+				<input name="name" placeholder="name"/>
+				<input name="email" placeholder="email"/>
+				<button>Create user</button>
+			</form>
+		</section>
+		<section class="panel">
+			<table>
+				<tr><th>Name</th><th>Email</th><th>Action</th></tr>
+				for _, u := range list {
+					<tr>
+						<td>{ u.Name }</td>
+						<td>{ u.Email }</td>
+						<td>
+							<form method="post" action={ templ.URL("/users/" + u.ID + "/delete") }>
+								@csrfInput(csrf)
+								<button class="danger">Delete</button>
+							</form>
+						</td>
+					</tr>
+				}
+			</table>
+			if next != "" {
+				<p><a href={ templ.URL("/users?mode=" + mode + "&after=" + next) }>Next</a></p>
+			}
+		</section>
+	}
+}
+
+templ enrichmentPage(jobs []model.Job, err string, csrf string) {
+	@shell(csrf) {
+		<h1>Enrichment</h1>
+		@pageError(err)
+		<section class="panel">
+			<form method="post" action="/enrichment">
+				@csrfInput(csrf)
+				<input name="count" value="10"/>
+				<button>Start enrichment</button>
+			</form>
+		</section>
+		<section class="panel">
+			<h2>Jobs</h2>
+			<table>
+				<tr><th>Type</th><th>Status</th><th>Error</th></tr>
+				for _, j := range jobs {
+					<tr><td>{ j.Type }</td><td>{ j.Status }</td><td>{ j.Error }</td></tr>
+				}
+			</table>
+		</section>
+	}
+}
+
+templ jobsPage(jobs []model.Job, err string, csrf string) {
+	@shell(csrf) {
+		<h1>Jobs</h1>
+		@pageError(err)
+		<section class="panel">
+			<form method="post" action="/jobs/process">
+				@csrfInput(csrf)
+				<button>Process one job</button>
+			</form>
+			<table>
+				<tr><th>ID</th><th>Type</th><th>Status</th><th>Error</th></tr>
+				for _, j := range jobs {
+					<tr><td>{ j.ID }</td><td>{ j.Type }</td><td>{ j.Status }</td><td>{ j.Error }</td></tr>
+				}
+			</table>
+		</section>
+	}
+}
+
+templ reportsPage(reports []model.Report, err string, csrf string) {
+	@shell(csrf) {
+		<h1>Reports</h1>
+		@pageError(err)
+		<section class="panel">
+			<form method="post" action="/reports">
+				@csrfInput(csrf)
+				<button>Generate report</button>
+			</form>
+			<table>
+				<tr><th>ID</th><th>Status</th><th>Result</th></tr>
+				for _, r := range reports {
+					<tr><td>{ r.ID }</td><td>{ r.Status }</td><td>{ r.Result }</td></tr>
+				}
+			</table>
+		</section>
+	}
+}
+
+templ analyticsPage(an model.AnalyticsSummary, csrf string) {
+	@shell(csrf) {
+		<h1>Analytics</h1>
+		<div class="grid">
+			<div class="metric">Total users<br/><strong>{ fmtInt(an.TotalUsers) }</strong></div>
+			<div class="metric">Enrichment ok<br/><strong>{ fmtInt(an.EnrichmentSucceeded) }</strong></div>
+			<div class="metric">Jobs queued<br/><strong>{ fmtInt(an.JobsQueued) }</strong></div>
+			<div class="metric">Jobs failed<br/><strong>{ fmtInt(an.JobsFailed) }</strong></div>
+		</div>
+		<section class="panel">
+			<h2>Event trail (warehouse)</h2>
+			<div class="grid">
+				<div class="metric">Registered<br/><strong>{ fmtInt(an.EventsRegistered) }</strong></div>
+				<div class="metric">Logins<br/><strong>{ fmtInt(an.EventsLoggedIn) }</strong></div>
+				<div class="metric">OAuth links<br/><strong>{ fmtInt(an.EventsOAuthLinked) }</strong></div>
+				<div class="metric">Jobs done<br/><strong>{ fmtInt(an.EventsJobsDone) }</strong></div>
+				<div class="metric">Jobs failed<br/><strong>{ fmtInt(an.EventsJobsFailed) }</strong></div>
+			</div>
+		</section>
+	}
+}

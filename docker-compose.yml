@@ -3,6 +3,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        VERSION: 1.0.0
     command: ["/app/api"]
     environment:
       APP_HTTP_ADDR: ":8080"
