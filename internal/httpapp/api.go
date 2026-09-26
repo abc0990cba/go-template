@@ -16,7 +16,7 @@ func derefString(s *string) string {
 	if s == nil {
 		return ""
 	}
-	return string(*s)
+	return *s
 }
 
 func derefEmail(e *types.Email) string {
