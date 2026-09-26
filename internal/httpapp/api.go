@@ -10,7 +10,8 @@ import (
 	api "github.com/your-org/go-template/internal/api"
 )
 
-// derefString normalizes the generated optional string fields.
+// derefString normalizes the generated optional fields; Email is a string
+// alias so the same helper covers both after conversion at call sites.
 func derefString(s *string) string {
 	if s == nil {
 		return ""
@@ -19,10 +20,7 @@ func derefString(s *string) string {
 }
 
 func derefEmail(e *types.Email) string {
-	if e == nil {
-		return ""
-	}
-	return string(*e)
+	return derefString((*string)(e))
 }
 
 func (a *App) apiRegister(c *gin.Context) {
@@ -83,7 +81,7 @@ func (a *App) apiCreateUser(c *gin.Context) {
 		a.problem(c, http.StatusBadRequest, "invalid request", err)
 		return
 	}
-	user, err := a.services.Users.Create(c.Request.Context(), string(req.Email), derefString(req.Name))
+	user, err := a.services.Users.Create(c.Request.Context(), derefEmail(&req.Email), derefString(req.Name))
 	if err != nil {
 		a.fail(c, err)
 		return
@@ -106,7 +104,7 @@ func (a *App) apiUpdateUser(c *gin.Context) {
 		a.problem(c, http.StatusBadRequest, "invalid request", err)
 		return
 	}
-	user, err := a.services.Users.Update(c.Request.Context(), c.Param("id"), string(req.Email), req.Name)
+	user, err := a.services.Users.Update(c.Request.Context(), c.Param("id"), derefEmail(&req.Email), req.Name)
 	if err != nil {
 		a.fail(c, err)
 		return

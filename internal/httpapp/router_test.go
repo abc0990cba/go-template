@@ -234,7 +234,7 @@ func TestUserManagementAndJobEndpoints(t *testing.T) {
 		t.Fatalf("register: want 201, got %d", status)
 	}
 	token, _ := body["token"].(string)
-	status, body = callJSON(t, server, http.MethodGet, "/api/me", "", token)
+	_, body = callJSON(t, server, http.MethodGet, "/api/me", "", token)
 	userID, _ := body["id"].(string)
 
 	// GET/PATCH/DELETE by id.
