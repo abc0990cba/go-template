@@ -15,4 +15,9 @@ Recorded runs (fill in p95/p99/error rate per environment):
 
 | Scenario | Environment | p95 | p99 | Errors |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| Users offset (n=300 sequential) | local, 20k seeded users, OrbStack PG 16 | 0.6ms | 0.7ms | 0 |
+| Users cursor (n=300 sequential) | local, 20k seeded users, OrbStack PG 16 | 1.9ms | 2.0ms | 0 |
+| Users keyset (n=300 sequential) | local, 20k seeded users, OrbStack PG 16 | 1.9ms | 2.0ms | 0 |
+| Seed throughput | `cmd/seed`, pgx COPY | 20k users in 251ms | — | — |
+
+Sequential probes are not load tests; run the k6 scenarios for concurrent numbers. The first measured run shows the 250–500ms thresholds have orders of magnitude of headroom.

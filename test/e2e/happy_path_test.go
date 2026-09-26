@@ -83,9 +83,9 @@ func TestAPIHappyPath(t *testing.T) {
 		t.Fatalf("me: want 200, got %d", status)
 	}
 
-	// Users: create then list.
+	// Users: create then list (a distinct email: emails are unique).
 	if status, _ = call(t, client, http.MethodPost, "/api/users",
-		fmt.Sprintf(`{"email":%q,"name":"Managed"}`, email), token); status != http.StatusCreated {
+		fmt.Sprintf(`{"email":%q,"name":"Managed"}`, "managed-"+email), token); status != http.StatusCreated {
 		t.Fatalf("create user: want 201, got %d", status)
 	}
 	if status, body = call(t, client, http.MethodGet, "/api/users?limit=5", "", token); status != http.StatusOK {

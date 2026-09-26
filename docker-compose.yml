@@ -21,8 +21,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      clickhouse:
-        condition: service_started
 
   worker:
     build:
@@ -51,7 +49,7 @@ services:
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
     ports:
-      - "5432:5432"
+      - "55432:5432" # host port differs from 5432 to dodge local port-forwarder quirks
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
