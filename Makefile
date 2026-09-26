@@ -29,6 +29,7 @@ coverage:
 
 generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
+	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest -config api/openapi/openapi.cfg.yaml api/openapi/openapi.yaml
 
 docker-up:
 	docker compose up --build

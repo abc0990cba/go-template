@@ -1,72 +1,328 @@
 openapi: 3.1.0
 info:
   title: Go Template Playground API
-  version: 0.1.0
+  version: 1.0.0
+  description: |
+    The JSON API of the template service. The contract is the source of truth
+    for HTTP behavior; `oapi-codegen` generates the Go types from this file
+    (`make generate`), and CI rejects any drift between the two.
+
+    Errors use RFC 9457 problem+json bodies. Authentication uses the opaque
+    session token either as `Authorization: Bearer <token>` (API) or as the
+    `app_session` cookie (browser).
 servers:
   - url: http://localhost:8080
+tags:
+  - name: health
+  - name: auth
+  - name: users
+  - name: jobs
+  - name: reports
+  - name: analytics
 paths:
   /health/live:
     get:
+      tags: [health]
+      summary: Liveness probe
+      operationId: getLiveHealth
       responses:
-        "200": { description: service is alive }
+        "200": { $ref: "#/components/responses/Status" }
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness probe (checks PostgreSQL and Redis)
+      operationId: getReadyHealth
+      responses:
+        "200": { $ref: "#/components/responses/Status" }
+        "503": { $ref: "#/components/responses/Status" }
+  /health/startup:
+    get:
+      tags: [health]
+      summary: Startup probe
+      operationId: getStartupHealth
+      responses:
+        "200": { $ref: "#/components/responses/Status" }
+  /version:
+    get:
+      tags: [health]
+      summary: Build metadata (version/commit/date, stamped via ldflags)
+      operationId: getVersion
+      responses:
+        "200":
+          description: Build metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  commit: { type: string }
+                  date: { type: string }
   /api/auth/register:
     post:
+      tags: [auth]
       summary: Register with email and password
+      operationId: register
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/RegisterRequest" }
       responses:
-        "201": { description: registered }
+        "201":
+          description: Created user with session token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithToken" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/auth/login:
     post:
+      tags: [auth]
       summary: Login with email and password
+      operationId: login
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/LoginRequest" }
       responses:
-        "200": { description: logged in }
+        "200":
+          description: User with session token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithToken" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/auth/logout:
     post:
-      responses:
-        "204": { description: logged out }
-  /api/me:
-    get:
+      tags: [auth]
+      summary: Revoke the presented session
+      operationId: logout
       security: [{ bearerAuth: [] }]
       responses:
-        "200": { description: current user }
+        "204": { description: Session revoked }
+  /api/me:
+    get:
+      tags: [auth]
+      summary: Current user
+      operationId: getMe
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The authenticated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/users:
     get:
+      tags: [users]
       summary: List users with offset, cursor, or keyset pagination
+      operationId: listUsers
       parameters:
-        - { name: mode, in: query, schema: { type: string, enum: [offset, cursor, keyset] } }
-        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
-        - { name: offset, in: query, schema: { type: integer, minimum: 0 } }
-        - { name: after, in: query, schema: { type: string } }
-        - { name: q, in: query, schema: { type: string } }
+        - $ref: "#/components/parameters/mode"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: after
+          in: query
+          description: Last user id of the previous page (cursor and keyset modes)
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Substring filter over email and name
+          schema: { type: string }
       responses:
-        "200": { description: users }
+        "200":
+          description: One page of users plus the next-page cursor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserList" }
+        default: { $ref: "#/components/responses/Problem" }
     post:
-      summary: Create user
+      tags: [users]
+      summary: Create a user without a password credential
+      operationId: createUser
+      security: [{ bearerAuth: [] }]
       requestBody:
+        required: true
         content:
           application/json:
             schema: { $ref: "#/components/schemas/CreateUserRequest" }
       responses:
-        "201": { description: created }
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/userId"
+    get:
+      tags: [users]
+      summary: Get a user by id
+      operationId: getUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        default: { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [users]
+      summary: Replace a user's email and name
+      operationId: updateUser
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [users]
+      summary: Delete a user
+      operationId: deleteUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/jobs:
+    get:
+      tags: [jobs]
+      summary: List background jobs, newest first
+      operationId: listJobs
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: All jobs
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/JobList" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/jobs/enrichment:
+    post:
+      tags: [jobs]
+      summary: Enqueue an enrichment batch
+      operationId: enqueueEnrichment
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/reports:
+    get:
+      tags: [reports]
+      summary: List snapshot reports
+      operationId: listReports
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: All reports
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [reports]
+      summary: Enqueue a report generation job
+      operationId: generateReport
+      security: [{ bearerAuth: [] }]
+      responses:
+        "202":
+          description: Job queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/analytics/summary:
     get:
+      tags: [analytics]
+      summary: Dashboard counters
+      operationId: getAnalyticsSummary
       responses:
-        "200": { description: analytics summary }
+        "200":
+          description: Aggregated counters
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AnalyticsSummary" }
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
+      description: Opaque session token from register/login.
+  parameters:
+    userId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    mode:
+      name: mode
+      in: query
+      schema:
+        type: string
+        enum: [offset, cursor, keyset]
+        default: offset
+    limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    offset:
+      name: offset
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+  responses:
+    Status:
+      description: Simple status object
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [status]
+            properties:
+              status: { type: string, example: ok }
+    Problem:
+      description: RFC 9457 problem document
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    User:
+      type: object
+      required: [id, email, name, created_at, updated_at]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    UserWithToken:
+      type: object
+      required: [user, token]
+      properties:
+        user: { $ref: "#/components/schemas/User" }
+        token: { type: string }
     RegisterRequest:
       type: object
       required: [email, password]
@@ -86,3 +342,78 @@ components:
       properties:
         email: { type: string, format: email }
         name: { type: string }
+    UpdateUserRequest:
+      type: object
+      required: [email, name]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+    UserList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/User" }
+        next_cursor:
+          type: string
+          description: Empty on the last page.
+    Job:
+      type: object
+      required: [id, type, status, payload, error, created_at, updated_at]
+      properties:
+        id: { type: string }
+        type: { type: string, example: user.enrich_batch }
+        status: { type: string, enum: [queued, running, done, failed] }
+        payload: { type: string, description: Raw JSON payload }
+        error: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    JobList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Job" }
+    Report:
+      type: object
+      required: [id, status, result, error, created_at, updated_at]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [done, failed] }
+        result: { type: string }
+        error: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    ReportList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Report" }
+    AnalyticsSummary:
+      type: object
+      required:
+        [total_users, password_identities, google_identities, github_identities,
+         enrichment_succeeded, enrichment_failed, jobs_queued, jobs_done, jobs_failed]
+      properties:
+        total_users: { type: integer }
+        password_identities: { type: integer }
+        google_identities: { type: integer }
+        github_identities: { type: integer }
+        enrichment_succeeded: { type: integer }
+        enrichment_failed: { type: integer }
+        jobs_queued: { type: integer }
+        jobs_done: { type: integer }
+        jobs_failed: { type: integer }
+    Problem:
+      type: object
+      description: RFC 9457 problem details; internal error details are never leaked.
+      required: [title, status]
+      properties:
+        type: { type: string, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }

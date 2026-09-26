@@ -224,3 +224,62 @@ func TestMetricsAndVersionEndpoints(t *testing.T) {
 		t.Errorf("version: want dev, got %v", parsed["version"])
 	}
 }
+
+func TestUserManagementAndJobEndpoints(t *testing.T) {
+	server := newTestServer(t)
+
+	status, body := callJSON(t, server, http.MethodPost, "/api/auth/register",
+		`{"email":"ada@example.com","name":"Ada","password":"password123"}`, "")
+	if status != http.StatusCreated {
+		t.Fatalf("register: want 201, got %d", status)
+	}
+	token, _ := body["token"].(string)
+	status, body = callJSON(t, server, http.MethodGet, "/api/me", "", token)
+	userID, _ := body["id"].(string)
+
+	// GET/PATCH/DELETE by id.
+	status, body = callJSON(t, server, http.MethodGet, "/api/users/"+userID, "", token)
+	if status != http.StatusOK || body["id"] != userID {
+		t.Errorf("get user: %d %v", status, body)
+	}
+	status, body = callJSON(t, server, http.MethodPut, "/api/users/"+userID,
+		`{"email":"renamed@example.com","name":"Renamed"}`, token)
+	if status != http.StatusOK || body["name"] != "Renamed" {
+		t.Errorf("update user: %d %v", status, body)
+	}
+	status, _ = callJSON(t, server, http.MethodDelete, "/api/users/"+userID, "", token)
+	if status != http.StatusNoContent {
+		t.Errorf("delete user: want 204, got %d", status)
+	}
+	status, _ = callJSON(t, server, http.MethodGet, "/api/users/"+userID, "", token)
+	if status != http.StatusNotFound {
+		t.Errorf("get deleted user: want 404, got %d", status)
+	}
+
+	// Jobs: enqueue enrichment and a report; both accepted and listed.
+	status, _ = callJSON(t, server, http.MethodPost, "/api/jobs/enrichment",
+		`{"count":3}`, token)
+	if status != http.StatusAccepted {
+		t.Errorf("enqueue enrichment: want 202, got %d", status)
+	}
+	status, _ = callJSON(t, server, http.MethodPost, "/api/reports", "{}", token)
+	if status != http.StatusAccepted {
+		t.Errorf("generate report: want 202, got %d", status)
+	}
+	status, body = callJSON(t, server, http.MethodGet, "/api/jobs", "", token)
+	if status != http.StatusOK {
+		t.Fatalf("list jobs: want 200, got %d", status)
+	}
+	if data, _ := body["data"].([]any); len(data) != 2 {
+		t.Errorf("jobs: want 2, got %v", body)
+	}
+
+	// Missing user yields 404 problem+json.
+	status, body = callJSON(t, server, http.MethodGet, "/api/users/nope", "", token)
+	if status != http.StatusNotFound {
+		t.Errorf("missing user: want 404, got %d", status)
+	}
+	if body["title"] != "not found" {
+		t.Errorf("problem title: want not found, got %v", body["title"])
+	}
+}

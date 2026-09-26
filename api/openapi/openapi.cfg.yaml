@@ -1,0 +1,6 @@
+# oapi-codegen config: types only. Handlers keep their signatures; the
+# generated structs are the request/response wire shapes.
+package: api
+output: internal/api/api.gen.go
+generate:
+  models: true

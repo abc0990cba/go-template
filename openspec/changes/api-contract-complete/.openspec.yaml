@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-26
+goal: Complete the OpenAPI contract, add the missing API endpoints, and enforce contract-code sync with oapi-codegen.

@@ -1,18 +1,37 @@
 package httpapp
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/oapi-codegen/runtime/types"
+	api "github.com/your-org/go-template/internal/api"
 )
 
+// derefString normalizes the generated optional string fields.
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return string(*s)
+}
+
+func derefEmail(e *types.Email) string {
+	if e == nil {
+		return ""
+	}
+	return string(*e)
+}
+
 func (a *App) apiRegister(c *gin.Context) {
-	var req struct{ Email, Name, Password string }
+	var req api.RegisterRequest
 	if err := c.BindJSON(&req); err != nil {
 		a.problem(c, http.StatusBadRequest, "invalid request", err)
 		return
 	}
-	user, token, err := a.services.Auth.Register(c.Request.Context(), req.Email, req.Name, req.Password)
+	user, token, err := a.services.Auth.Register(c.Request.Context(), string(req.Email), derefString(req.Name), req.Password)
 	if err != nil {
 		a.fail(c, err)
 		return
@@ -21,12 +40,12 @@ func (a *App) apiRegister(c *gin.Context) {
 }
 
 func (a *App) apiLogin(c *gin.Context) {
-	var req struct{ Email, Password string }
+	var req api.LoginRequest
 	if err := c.BindJSON(&req); err != nil {
 		a.problem(c, http.StatusBadRequest, "invalid request", err)
 		return
 	}
-	user, token, err := a.services.Auth.Login(c.Request.Context(), req.Email, req.Password)
+	user, token, err := a.services.Auth.Login(c.Request.Context(), string(req.Email), req.Password)
 	if err != nil {
 		a.fail(c, err)
 		return
@@ -59,17 +78,96 @@ func (a *App) apiUsers(c *gin.Context) {
 }
 
 func (a *App) apiCreateUser(c *gin.Context) {
-	var req struct{ Email, Name string }
+	var req api.CreateUserRequest
 	if err := c.BindJSON(&req); err != nil {
 		a.problem(c, http.StatusBadRequest, "invalid request", err)
 		return
 	}
-	user, err := a.services.Users.Create(c.Request.Context(), req.Email, req.Name)
+	user, err := a.services.Users.Create(c.Request.Context(), string(req.Email), derefString(req.Name))
 	if err != nil {
 		a.fail(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, user)
+}
+
+func (a *App) apiGetUser(c *gin.Context) {
+	user, err := a.services.Users.Get(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
+func (a *App) apiUpdateUser(c *gin.Context) {
+	var req api.UpdateUserRequest
+	if err := c.BindJSON(&req); err != nil {
+		a.problem(c, http.StatusBadRequest, "invalid request", err)
+		return
+	}
+	user, err := a.services.Users.Update(c.Request.Context(), c.Param("id"), string(req.Email), req.Name)
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
+func (a *App) apiDeleteUser(c *gin.Context) {
+	if err := a.services.Users.Delete(c.Request.Context(), c.Param("id")); err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+func (a *App) apiJobs(c *gin.Context) {
+	jobs, err := a.services.Jobs.List(c.Request.Context())
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": jobs})
+}
+
+func (a *App) apiEnrichEnrichment(c *gin.Context) {
+	var req api.EnqueueEnrichmentJSONBody
+	if err := c.BindJSON(&req); err != nil {
+		a.problem(c, http.StatusBadRequest, "invalid request", err)
+		return
+	}
+	payload, err := json.Marshal(struct {
+		Count int `json:"count"`
+	}{Count: req.Count})
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	job, err := a.services.Jobs.Enqueue(c.Request.Context(), "user.enrich_batch", string(payload))
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, job)
+}
+
+func (a *App) apiGenerateReport(c *gin.Context) {
+	job, err := a.services.Jobs.Enqueue(c.Request.Context(), "user.report_generate", "{}")
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusAccepted, job)
+}
+
+func (a *App) apiReports(c *gin.Context) {
+	reports, err := a.services.Reports.List(c.Request.Context())
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": reports})
 }
 
 func (a *App) apiAnalytics(c *gin.Context) {

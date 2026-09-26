@@ -78,6 +78,13 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	api.GET("/me", app.apiMe)
 	api.GET("/users", app.apiUsers)
 	api.POST("/users", app.apiCreateUser)
+	api.GET("/users/:id", app.apiGetUser)
+	api.PUT("/users/:id", app.apiUpdateUser)
+	api.DELETE("/users/:id", app.apiDeleteUser)
+	api.GET("/jobs", app.apiJobs)
+	api.POST("/jobs/enrichment", app.apiEnrichEnrichment)
+	api.GET("/reports", app.apiReports)
+	api.POST("/reports", app.apiGenerateReport)
 	api.GET("/analytics/summary", app.apiAnalytics)
 	return r
 }
