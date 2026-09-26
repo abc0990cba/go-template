@@ -17,7 +17,11 @@ var viewsHTML string
 
 var views = template.Must(template.New("views").Parse(viewsHTML))
 
-func (a *App) render(c *gin.Context, name string, data any) {
+func (a *App) render(c *gin.Context, name string, data gin.H) {
+	if data == nil {
+		data = gin.H{}
+	}
+	data["CSRFToken"] = c.GetString("csrf_token")
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	if err := views.ExecuteTemplate(c.Writer, name, data); err != nil {
 		a.logger.Error("template render failed", "template", name, "err", err)
@@ -100,7 +104,7 @@ func (a *App) login(c *gin.Context) {
 func (a *App) logout(c *gin.Context) {
 	// A missing session is the normal case for logout; nothing to report.
 	_ = a.services.Auth.Logout(c.Request.Context(), a.sessionToken(c))
-	c.SetCookie("app_session", "", -1, "/", "", false, true)
+	a.clearSession(c)
 	c.Redirect(http.StatusSeeOther, "/login")
 }
 
@@ -108,16 +112,18 @@ func (a *App) profile(c *gin.Context) {
 	a.renderProfileData(c, gin.H{})
 }
 
-func (a *App) linkProvider(c *gin.Context) {
+// logoutAll revokes every session of the current user.
+func (a *App) logoutAll(c *gin.Context) {
 	user, ok := a.currentUser(c)
 	if !ok {
 		return
 	}
-	if err := a.services.Auth.LinkProvider(c.Request.Context(), user.ID, c.Param("provider")); err != nil {
+	if err := a.services.Auth.LogoutAll(c.Request.Context(), user.ID); err != nil {
 		a.renderError(c, "profile", err)
 		return
 	}
-	c.Redirect(http.StatusSeeOther, "/profile")
+	a.clearSession(c)
+	c.Redirect(http.StatusSeeOther, "/login")
 }
 
 func (a *App) unlinkProvider(c *gin.Context) {

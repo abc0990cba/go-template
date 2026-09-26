@@ -24,6 +24,11 @@ linters:
       - path: internal/repository/memory\.go
         linters: [revive]
         text: "unused-parameter"
+      # The mock OAuth provider must redirect the user back to the app; the
+      # target comes from the authorize request by design.
+      - path: internal/httpapp/security_test\.go
+        linters: [gosec]
+        text: "G710"
 
 formatters:
   enable:

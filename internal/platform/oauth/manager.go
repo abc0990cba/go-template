@@ -35,7 +35,22 @@ type Provider struct {
 }
 
 // NewManager builds the Google and GitHub provider set from configuration.
+// The *_URL config overrides (used by tests with a mock provider) replace
+// the well-known endpoints when set.
 func NewManager(cfg config.Config) *Manager {
+	googleEndpoint, githubEndpoint := google.Endpoint, github.Endpoint
+	googleUserInfo := "https://www.googleapis.com/oauth2/v3/userinfo"
+	githubUser := "https://api.github.com/user"
+	githubEmails := "https://api.github.com/user/emails"
+	if cfg.GoogleAuthURL != "" {
+		googleEndpoint = oauth2.Endpoint{AuthURL: cfg.GoogleAuthURL, TokenURL: cfg.GoogleTokenURL}
+		googleUserInfo = cfg.GoogleUserInfo
+	}
+	if cfg.GitHubAuthURL != "" {
+		githubEndpoint = oauth2.Endpoint{AuthURL: cfg.GitHubAuthURL, TokenURL: cfg.GitHubTokenURL}
+		githubUser = cfg.GitHubUserURL
+		githubEmails = cfg.GitHubEmailURL
+	}
 	return &Manager{
 		httpClient: &http.Client{Timeout: cfg.ExternalTimeout},
 		providers: map[string]Provider{
@@ -45,9 +60,9 @@ func NewManager(cfg config.Config) *Manager {
 					ClientSecret: cfg.GoogleSecret,
 					RedirectURL:  strings.TrimRight(cfg.BaseURL, "/") + "/auth/google/callback",
 					Scopes:       []string{"openid", "email", "profile"},
-					Endpoint:     google.Endpoint,
+					Endpoint:     googleEndpoint,
 				},
-				UserInfoURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+				UserInfoURL: googleUserInfo,
 			},
 			"github": {
 				Config: &oauth2.Config{
@@ -55,10 +70,10 @@ func NewManager(cfg config.Config) *Manager {
 					ClientSecret: cfg.GitHubSecret,
 					RedirectURL:  strings.TrimRight(cfg.BaseURL, "/") + "/auth/github/callback",
 					Scopes:       []string{"read:user", "user:email"},
-					Endpoint:     github.Endpoint,
+					Endpoint:     githubEndpoint,
 				},
-				UserInfoURL: "https://api.github.com/user",
-				EmailURL:    "https://api.github.com/user/emails",
+				UserInfoURL: githubUser,
+				EmailURL:    githubEmails,
 			},
 		},
 	}

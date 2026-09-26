@@ -170,18 +170,41 @@ func runStoreContract(t *testing.T, store storeContract) {
 		}
 	})
 
-	t.Run("sessions", func(t *testing.T) {
-		if err := store.CreateSession(ctx, "tok-1", "u1"); err != nil {
+	t.Run("sessions with ttl and sliding", func(t *testing.T) {
+		if err := store.CreateSession(ctx, "tok-1", "u1", time.Hour); err != nil {
 			t.Fatalf("create session: %v", err)
 		}
-		if got, err := store.GetSession(ctx, "tok-1"); err != nil || got != "u1" {
+		if got, err := store.GetSession(ctx, "tok-1", time.Hour); err != nil || got != "u1" {
 			t.Errorf("get session: user=%q err=%v", got, err)
 		}
 		if err := store.DeleteSession(ctx, "tok-1"); err != nil {
 			t.Errorf("delete session: %v", err)
 		}
-		if _, err := store.GetSession(ctx, "tok-1"); !errors.Is(err, repository.ErrNotFound) {
+		if _, err := store.GetSession(ctx, "tok-1", time.Hour); !errors.Is(err, repository.ErrNotFound) {
 			t.Errorf("deleted session: want ErrNotFound, got %v", err)
+		}
+
+		// Expired sessions vanish even before an explicit delete.
+		if err := store.CreateSession(ctx, "tok-2", "u1", -time.Minute); err != nil {
+			t.Fatalf("create expired session: %v", err)
+		}
+		if _, err := store.GetSession(ctx, "tok-2", time.Hour); !errors.Is(err, repository.ErrNotFound) {
+			t.Errorf("expired session: want ErrNotFound, got %v", err)
+		}
+
+		// Logout-all revokes every session of the user.
+		for _, tok := range []string{"tok-3", "tok-4"} {
+			if err := store.CreateSession(ctx, tok, "u2", time.Hour); err != nil {
+				t.Fatalf("create %s: %v", tok, err)
+			}
+		}
+		if err := store.DeleteSessionsForUser(ctx, "u2"); err != nil {
+			t.Fatalf("logout all: %v", err)
+		}
+		for _, tok := range []string{"tok-3", "tok-4"} {
+			if _, err := store.GetSession(ctx, tok, time.Hour); !errors.Is(err, repository.ErrNotFound) {
+				t.Errorf("%s after logout-all: want ErrNotFound, got %v", tok, err)
+			}
 		}
 	})
 

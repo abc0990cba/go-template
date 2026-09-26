@@ -23,7 +23,7 @@ type Container struct {
 // single-process development mode.
 func NewContainer(auth AuthRepo, users UsersRepo, jobs JobsRepo, reports ReportsRepo, analytics AnalyticsRepo, queue JobQueue, observer JobObserver, logger *slog.Logger, cfg config.Config) *Container {
 	return &Container{
-		Auth:  &AuthService{store: auth},
+		Auth:  &AuthService{store: auth, sessionTTL: cfg.SessionTTL},
 		Users: &UserService{store: users},
 		Jobs: &JobService{
 			store:          jobs,

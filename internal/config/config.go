@@ -22,6 +22,17 @@ type Config struct {
 	LogFormat       string
 	OTLPEndpoint    string
 	PprofEnabled    bool
+	SessionTTL      time.Duration
+	CookieSecure    bool
+	AuthRateRPS     float64
+	AuthRateBurst   int
+	GoogleAuthURL   string
+	GoogleTokenURL  string
+	GoogleUserInfo  string
+	GitHubAuthURL   string
+	GitHubTokenURL  string
+	GitHubUserURL   string
+	GitHubEmailURL  string
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -45,6 +56,13 @@ func Load() (Config, error) {
 		LogFormat:      env("APP_LOG_FORMAT", "text"),
 		OTLPEndpoint:   os.Getenv("APP_OTLP_ENDPOINT"),
 		PprofEnabled:   os.Getenv("APP_PPROF") == "1",
+		GoogleAuthURL:  os.Getenv("GOOGLE_AUTH_URL"),
+		GoogleTokenURL: os.Getenv("GOOGLE_TOKEN_URL"),
+		GoogleUserInfo: os.Getenv("GOOGLE_USERINFO_URL"),
+		GitHubAuthURL:  os.Getenv("GITHUB_AUTH_URL"),
+		GitHubTokenURL: os.Getenv("GITHUB_TOKEN_URL"),
+		GitHubUserURL:  os.Getenv("GITHUB_USER_URL"),
+		GitHubEmailURL: os.Getenv("GITHUB_EMAIL_URL"),
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
@@ -67,6 +85,15 @@ func Load() (Config, error) {
 	if cfg.MaxConcurrency, err = intEnv("APP_MAX_CONCURRENCY", 8); err != nil {
 		return Config{}, err
 	}
+	if cfg.SessionTTL, err = durationEnv("APP_SESSION_TTL", 7*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.CookieSecure, err = boolEnv("APP_COOKIE_SECURE", true); err != nil {
+		return Config{}, err
+	}
+	if cfg.AuthRateBurst, err = intEnv("APP_AUTH_RATE_BURST", 10); err != nil {
+		return Config{}, err
+	}
 
 	if cfg.MaxConcurrency <= 0 {
 		return Config{}, fmt.Errorf("%s must be positive, got %d", "APP_MAX_CONCURRENCY", cfg.MaxConcurrency)
@@ -82,6 +109,15 @@ func Load() (Config, error) {
 	}
 	if cfg.LogFormat != "text" && cfg.LogFormat != "json" {
 		return Config{}, fmt.Errorf("APP_LOG_FORMAT must be text or json, got %q", cfg.LogFormat)
+	}
+	if cfg.AuthRateRPS, err = floatEnv("APP_AUTH_RATE_RPS", 5); err != nil {
+		return Config{}, err
+	}
+	if cfg.SessionTTL <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_SESSION_TTL")
+	}
+	if cfg.AuthRateRPS <= 0 || cfg.AuthRateBurst <= 0 {
+		return Config{}, fmt.Errorf("auth rate limit must be positive")
 	}
 	return cfg, nil
 }
@@ -111,6 +147,30 @@ func intEnv(key string, fallback int) (int, error) {
 		return fallback, nil
 	}
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func boolEnv(key string, fallback bool) (bool, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return false, fmt.Errorf("%s: %w", key, err)
+	}
+	return parsed, nil
+}
+
+func floatEnv(key string, fallback float64) (float64, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}

@@ -12,6 +12,7 @@ import (
 
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/platform/oauth"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
 )
@@ -22,14 +23,20 @@ type App struct {
 	services *service.Container
 	logger   *slog.Logger
 	pinger   service.Pinger
+	oauth    *oauth.Manager
+	limits   *ipBuckets
 }
 
 // NewRouter builds the complete Gin engine: middleware, health endpoints,
 // OpenAPI docs, HTML UI routes, and the /api group.
 func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger, build observ.Build) http.Handler {
-	app := &App{cfg: cfg, services: services, logger: logger, pinger: pinger}
+	app := &App{cfg: cfg, services: services, logger: logger, pinger: pinger, oauth: oauth.NewManager(cfg), limits: newIPBuckets(cfg.AuthRateRPS, cfg.AuthRateBurst)}
 	r := gin.New()
-	r.Use(gin.Recovery(), app.requestID(), app.metrics(), app.accessLog(), app.bodyLimit())
+	r.Use(gin.Recovery(), app.securityHeaders(), app.csrfIssue(), app.requestID(), app.metrics(), app.accessLog(), app.bodyLimit())
+	r.NoRoute(func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		app.problem(c, http.StatusNotFound, "not found", nil)
+	})
 	r.GET("/health/live", app.ok)
 	r.GET("/health/ready", app.ready)
 	r.GET("/health/startup", app.ok)
@@ -43,28 +50,30 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 
 	r.GET("/", app.dashboard)
 	r.GET("/login", app.loginPage)
-	r.POST("/login", app.login)
+	r.POST("/login", app.authRateLimit(), app.publicForm(app.login))
 	r.GET("/register", app.registerPage)
-	r.POST("/register", app.register)
-	r.POST("/logout", app.logout)
+	r.POST("/register", app.authRateLimit(), app.publicForm(app.register))
+	r.POST("/logout", app.form(app.logout))
 	r.GET("/profile", app.requireUser(app.profile))
-	r.POST("/profile/link/:provider", app.requireUser(app.linkProvider))
-	r.POST("/profile/unlink/:provider", app.requireUser(app.unlinkProvider))
+	r.POST("/profile/logout-all", app.form(app.logoutAll))
+	r.POST("/profile/unlink/:provider", app.form(app.unlinkProvider))
+	r.GET("/auth/:provider/login", app.requireUser(app.oauthLogin))
+	r.GET("/auth/:provider/callback", app.oauthCallback)
 	r.GET("/users", app.requireUser(app.usersPage))
-	r.POST("/users", app.requireUser(app.createUser))
-	r.POST("/users/:id", app.requireUser(app.updateUser))
-	r.POST("/users/:id/delete", app.requireUser(app.deleteUser))
+	r.POST("/users", app.form(app.createUser))
+	r.POST("/users/:id", app.form(app.updateUser))
+	r.POST("/users/:id/delete", app.form(app.deleteUser))
 	r.GET("/enrichment", app.requireUser(app.enrichmentPage))
-	r.POST("/enrichment", app.requireUser(app.enqueueEnrichment))
+	r.POST("/enrichment", app.form(app.enqueueEnrichment))
 	r.GET("/jobs", app.requireUser(app.jobsPage))
-	r.POST("/jobs/process", app.requireUser(app.processJob))
+	r.POST("/jobs/process", app.form(app.processJob))
 	r.GET("/reports", app.requireUser(app.reportsPage))
-	r.POST("/reports", app.requireUser(app.generateReport))
+	r.POST("/reports", app.form(app.generateReport))
 	r.GET("/analytics", app.requireUser(app.analyticsPage))
 
 	api := r.Group("/api")
-	api.POST("/auth/register", app.apiRegister)
-	api.POST("/auth/login", app.apiLogin)
+	api.POST("/auth/register", app.authRateLimit(), app.apiRegister)
+	api.POST("/auth/login", app.authRateLimit(), app.apiLogin)
 	api.POST("/auth/logout", app.apiLogout)
 	api.GET("/me", app.apiMe)
 	api.GET("/users", app.apiUsers)
@@ -119,8 +128,46 @@ func (a *App) requireUser(next gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
+// form guards a state-changing HTML action: active session plus CSRF.
+func (a *App) form(next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, err := a.services.Auth.CurrentUser(c.Request.Context(), a.sessionToken(c))
+		if err != nil {
+			c.Redirect(http.StatusSeeOther, "/login")
+			return
+		}
+		c.Set("user_id", user.ID)
+		if !a.verifyCSRF(c) {
+			c.Abort()
+			return
+		}
+		next(c)
+	}
+}
+
+// publicForm guards an anonymous HTML action (login, register) with CSRF.
+func (a *App) publicForm(next gin.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if !a.verifyCSRF(c) {
+			c.Abort()
+			return
+		}
+		next(c)
+	}
+}
+
+// setSession issues the session cookie with the hardening flags; the TTL
+// itself is enforced server-side.
 func (a *App) setSession(c *gin.Context, token string) {
-	c.SetCookie("app_session", token, 3600*24*7, "/", "", false, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("app_session", token, int(a.cfg.SessionTTL.Seconds()), "/", "", a.cfg.CookieSecure, true)
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("app_csrf", newRandomToken(), int(a.cfg.SessionTTL.Seconds()), "/", "", a.cfg.CookieSecure, false)
+}
+
+func (a *App) clearSession(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie("app_session", "", -1, "/", "", a.cfg.CookieSecure, true)
 }
 
 func intQuery(c *gin.Context, name string, fallback int) int {

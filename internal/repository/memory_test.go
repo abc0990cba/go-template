@@ -253,17 +253,17 @@ func TestSessions(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
 
-	if err := store.CreateSession(ctx, "tok", "u1"); err != nil {
+	if err := store.CreateSession(ctx, "tok", "u1", time.Hour); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	userID, err := store.GetSession(ctx, "tok")
+	userID, err := store.GetSession(ctx, "tok", time.Hour)
 	if err != nil || userID != "u1" {
 		t.Fatalf("get session: userID=%q err=%v", userID, err)
 	}
 	if err := store.DeleteSession(ctx, "tok"); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
-	if _, err := store.GetSession(ctx, "tok"); !errors.Is(err, ErrNotFound) {
+	if _, err := store.GetSession(ctx, "tok", time.Hour); !errors.Is(err, ErrNotFound) {
 		t.Errorf("deleted session: want ErrNotFound, got %v", err)
 	}
 }

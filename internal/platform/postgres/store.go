@@ -307,20 +307,26 @@ func (s *Store) ListIdentities(ctx context.Context, userID string) ([]model.Auth
 	return identities, nil
 }
 
-// CreateSession stores a token with the default expiry.
-func (s *Store) CreateSession(ctx context.Context, token, userID string) error {
-	return mapErr(s.q.CreateSession(ctx, db.CreateSessionParams{Token: token, UserID: userID}))
+// CreateSession stores a token with the given TTL.
+func (s *Store) CreateSession(ctx context.Context, token, userID string, ttl time.Duration) error {
+	return mapErr(s.q.CreateSession(ctx, db.CreateSessionParams{Token: token, UserID: userID, Secs: ttl.Seconds()}))
 }
 
-// GetSession resolves only unexpired tokens.
-func (s *Store) GetSession(ctx context.Context, token string) (string, error) {
-	userID, err := s.q.GetSession(ctx, token)
+// GetSession resolves only unexpired tokens and slides the expiry forward
+// in the same statement.
+func (s *Store) GetSession(ctx context.Context, token string, ttl time.Duration) (string, error) {
+	userID, err := s.q.GetSession(ctx, db.GetSessionParams{Token: token, Secs: ttl.Seconds()})
 	return userID, mapErr(err)
 }
 
 // DeleteSession revokes a token.
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
 	return mapErr(s.q.DeleteSession(ctx, token))
+}
+
+// DeleteSessionsForUser revokes every session of the user (logout-all).
+func (s *Store) DeleteSessionsForUser(ctx context.Context, userID string) error {
+	return mapErr(s.q.DeleteSessionsForUser(ctx, userID))
 }
 
 // SaveOAuthState stores a single-use state with its expiry.

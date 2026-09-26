@@ -10,6 +10,7 @@ services:
       APP_REDIS_ADDR: redis:6379
       APP_LOG_FORMAT: json
       APP_OTLP_ENDPOINT: jaeger:4318
+      APP_COOKIE_SECURE: "0" # plain http behind a local port; enable in production
     ports:
       - "8080:8080"
     depends_on:

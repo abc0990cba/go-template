@@ -10,17 +10,18 @@ import (
 )
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token, user_id)
-VALUES ($1, $2)
+INSERT INTO sessions (token, user_id, expires_at)
+VALUES ($1, $2, now() + make_interval(secs => $3))
 `
 
 type CreateSessionParams struct {
 	Token  string
 	UserID string
+	Secs   float64
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
-	_, err := q.db.Exec(ctx, createSession, arg.Token, arg.UserID)
+	_, err := q.db.Exec(ctx, createSession, arg.Token, arg.UserID, arg.Secs)
 	return err
 }
 
@@ -33,13 +34,29 @@ func (q *Queries) DeleteSession(ctx context.Context, token string) error {
 	return err
 }
 
-const getSession = `-- name: GetSession :one
-SELECT user_id FROM sessions
-WHERE token = $1 AND expires_at > now()
+const deleteSessionsForUser = `-- name: DeleteSessionsForUser :exec
+DELETE FROM sessions WHERE user_id = $1
 `
 
-func (q *Queries) GetSession(ctx context.Context, token string) (string, error) {
-	row := q.db.QueryRow(ctx, getSession, token)
+func (q *Queries) DeleteSessionsForUser(ctx context.Context, userID string) error {
+	_, err := q.db.Exec(ctx, deleteSessionsForUser, userID)
+	return err
+}
+
+const getSession = `-- name: GetSession :one
+UPDATE sessions
+SET expires_at = now() + make_interval(secs => $2)
+WHERE token = $1 AND expires_at > now()
+RETURNING user_id
+`
+
+type GetSessionParams struct {
+	Token string
+	Secs  float64
+}
+
+func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (string, error) {
+	row := q.db.QueryRow(ctx, getSession, arg.Token, arg.Secs)
 	var user_id string
 	err := row.Scan(&user_id)
 	return user_id, err

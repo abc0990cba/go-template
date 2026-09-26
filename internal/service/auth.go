@@ -22,7 +22,8 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 // AuthService implements registration, login, and session resolution on top
 // of a store, with Argon2id password hashing.
 type AuthService struct {
-	store AuthRepo
+	store      AuthRepo
+	sessionTTL time.Duration
 }
 
 // Register creates a user with a hashed password, opens a session, and
@@ -37,7 +38,7 @@ func (s *AuthService) Register(ctx context.Context, email, name, password string
 		return model.User{}, "", err
 	}
 	token := newID()
-	if err := s.store.CreateSession(ctx, token, user.ID); err != nil {
+	if err := s.store.CreateSession(ctx, token, user.ID, s.sessionTTL); err != nil {
 		return model.User{}, "", err
 	}
 	s.store.AddEvent(ctx, "user_registered")
@@ -52,7 +53,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (model.
 		return model.User{}, "", ErrInvalidCredentials
 	}
 	token := newID()
-	if err := s.store.CreateSession(ctx, token, user.ID); err != nil {
+	if err := s.store.CreateSession(ctx, token, user.ID, s.sessionTTL); err != nil {
 		return model.User{}, "", err
 	}
 	s.store.AddEvent(ctx, "user_logged_in")
@@ -64,27 +65,46 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 	return s.store.DeleteSession(ctx, token)
 }
 
-// CurrentUser resolves the session token to its user.
+// CurrentUser resolves the session token to its user; reading also slides
+// the session expiry.
 func (s *AuthService) CurrentUser(ctx context.Context, token string) (model.User, error) {
-	userID, err := s.store.GetSession(ctx, token)
+	userID, err := s.store.GetSession(ctx, token, s.sessionTTL)
 	if err != nil {
 		return model.User{}, err
 	}
 	return s.store.GetUser(ctx, userID)
 }
 
-// LinkProvider attaches a placeholder provider identity to the user. The
-// real OAuth exchange is wired by the auth OpenSpec change.
-func (s *AuthService) LinkProvider(ctx context.Context, userID, provider string) error {
-	if provider != "google" && provider != "github" {
+// LogoutAll revokes every session of the user (for example, after a
+// password change or from the profile page).
+func (s *AuthService) LogoutAll(ctx context.Context, userID string) error {
+	return s.store.DeleteSessionsForUser(ctx, userID)
+}
+
+// SaveState stores a single-use OAuth state with its expiry.
+func (s *AuthService) SaveState(ctx context.Context, state model.OAuthState) error {
+	return s.store.SaveOAuthState(ctx, state)
+}
+
+// ConsumeState validates and removes an OAuth state; consumed or expired
+// states are not usable again.
+func (s *AuthService) ConsumeState(ctx context.Context, state string) (model.OAuthState, error) {
+	return s.store.ConsumeOAuthState(ctx, state, time.Now())
+}
+
+// LinkIdentity attaches a verified provider profile to the user. The
+// (provider, subject) pair comes from the provider, never from user input.
+func (s *AuthService) LinkIdentity(ctx context.Context, userID string, profile model.OAuthProfile) error {
+	if profile.Provider != "google" && profile.Provider != "github" {
 		return validationError("provider must be google or github")
 	}
-	user, err := s.store.GetUser(ctx, userID)
-	if err != nil {
-		return err
-	}
-	err = s.store.LinkIdentity(ctx, model.AuthIdentity{
-		UserID: userID, Provider: provider, ProviderSubject: provider + ":" + strings.ToLower(user.Email), Email: user.Email,
+	err := s.store.LinkIdentity(ctx, model.AuthIdentity{
+		UserID:          userID,
+		Provider:        profile.Provider,
+		ProviderSubject: profile.ProviderSubject,
+		Email:           profile.Email,
+		Name:            profile.Name,
+		AvatarURL:       profile.AvatarURL,
 	})
 	if err == nil {
 		s.store.AddEvent(ctx, "oauth_linked")

@@ -34,6 +34,12 @@ type ListUsersOptions struct {
 	After  string
 }
 
+// sessionEntry is one live session with its sliding expiry.
+type sessionEntry struct {
+	userID    string
+	expiresAt time.Time
+}
+
 // MemoryStore is an in-process, mutex-guarded store. Data does not survive
 // restarts, and separate processes never see each other's state.
 type MemoryStore struct {
@@ -41,7 +47,7 @@ type MemoryStore struct {
 	users       map[string]model.User
 	passwords   map[string]string
 	identities  []model.AuthIdentity
-	sessions    map[string]string
+	sessions    map[string]sessionEntry
 	oauthStates map[string]model.OAuthState
 	jobs        map[string]model.Job
 	reports     map[string]model.Report
@@ -54,7 +60,7 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		users:       map[string]model.User{},
 		passwords:   map[string]string{},
-		sessions:    map[string]string{},
+		sessions:    map[string]sessionEntry{},
 		oauthStates: map[string]model.OAuthState{},
 		jobs:        map[string]model.Job{},
 		reports:     map[string]model.Report{},
@@ -275,23 +281,30 @@ func (s *MemoryStore) ListIdentities(ctx context.Context, userID string) ([]mode
 	return identities, nil
 }
 
-// CreateSession maps an opaque session token to a user id.
-func (s *MemoryStore) CreateSession(ctx context.Context, token, userID string) error {
+// CreateSession maps an opaque session token to a user id with a TTL.
+func (s *MemoryStore) CreateSession(ctx context.Context, token, userID string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sessions[token] = userID
+	s.sessions[token] = sessionEntry{userID: userID, expiresAt: time.Now().Add(ttl)}
 	return nil
 }
 
-// GetSession returns the user id behind a session token.
-func (s *MemoryStore) GetSession(ctx context.Context, token string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	userID, ok := s.sessions[token]
+// GetSession returns the user id behind a session token and slides its
+// expiry forward (renewal on use). Expired tokens are removed.
+func (s *MemoryStore) GetSession(ctx context.Context, token string, ttl time.Duration) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.sessions[token]
 	if !ok {
 		return "", ErrNotFound
 	}
-	return userID, nil
+	if time.Now().After(entry.expiresAt) {
+		delete(s.sessions, token)
+		return "", ErrNotFound
+	}
+	entry.expiresAt = time.Now().Add(ttl)
+	s.sessions[token] = entry
+	return entry.userID, nil
 }
 
 // DeleteSession revokes a session token.
@@ -299,6 +312,18 @@ func (s *MemoryStore) DeleteSession(ctx context.Context, token string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.sessions, token)
+	return nil
+}
+
+// DeleteSessionsForUser revokes every session of the user (logout-all).
+func (s *MemoryStore) DeleteSessionsForUser(ctx context.Context, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for token, entry := range s.sessions {
+		if entry.userID == userID {
+			delete(s.sessions, token)
+		}
+	}
 	return nil
 }
 

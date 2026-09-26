@@ -18,9 +18,10 @@ type AuthRepo interface {
 	CreateUser(ctx context.Context, user model.User, passwordHash string) error
 	GetUser(ctx context.Context, id string) (model.User, error)
 	GetUserByEmail(ctx context.Context, email string) (model.User, string, error)
-	CreateSession(ctx context.Context, token, userID string) error
-	GetSession(ctx context.Context, token string) (string, error)
+	CreateSession(ctx context.Context, token, userID string, ttl time.Duration) error
+	GetSession(ctx context.Context, token string, ttl time.Duration) (string, error)
 	DeleteSession(ctx context.Context, token string) error
+	DeleteSessionsForUser(ctx context.Context, userID string) error
 	LinkIdentity(ctx context.Context, identity model.AuthIdentity) error
 	GetIdentity(ctx context.Context, provider, subject string) (model.AuthIdentity, error)
 	UnlinkIdentity(ctx context.Context, userID, provider string) error
