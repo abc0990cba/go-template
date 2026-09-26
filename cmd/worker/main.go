@@ -15,17 +15,29 @@ import (
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/queue"
 	"github.com/your-org/go-template/internal/service"
 )
 
 func main() {
 	cfg, err := config.Load()
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel}))
+	logger := newLogger(cfg.LogFormat, cfg.LogLevel)
 	if err != nil {
 		logger.Error("invalid configuration", "err", err)
 		os.Exit(1)
 	}
+	build := observ.Build{Version: version, Commit: commit, Date: date}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	shutdownTracing, err := observ.SetupTracing(ctx, cfg.OTLPEndpoint, build)
+	if err != nil {
+		logger.Error("setup tracing", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	repos, closeStore, err := bootstrap.Store(cfg, logger)
 	if err != nil {
@@ -34,16 +46,30 @@ func main() {
 	}
 	defer closeStore()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, nil, logger, cfg)
+	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, nil, observ.NewJobObserver(), logger, cfg)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
+	_ = stop
 	if cfg.RedisAddr == "" {
 		runLocal(ctx, services, repos.Kind, logger)
 		return
 	}
 	runAsynq(ctx, services, cfg, repos.Kind, logger)
+}
+
+// Build metadata, stamped at link time.
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+// newLogger picks text for humans and json for log shippers.
+func newLogger(format string, level slog.Level) *slog.Logger {
+	opts := &slog.HandlerOptions{Level: level}
+	if format == "json" {
+		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, opts))
 }
 
 // runLocal is the single-process development path: poll the shared store.

@@ -19,6 +19,9 @@ type Config struct {
 	DatabaseURL     string
 	RedisAddr       string
 	ReportCron      string
+	LogFormat       string
+	OTLPEndpoint    string
+	PprofEnabled    bool
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -39,6 +42,9 @@ func Load() (Config, error) {
 		DatabaseURL:    os.Getenv("APP_DATABASE_URL"),
 		RedisAddr:      os.Getenv("APP_REDIS_ADDR"),
 		ReportCron:     os.Getenv("APP_REPORT_CRON"),
+		LogFormat:      env("APP_LOG_FORMAT", "text"),
+		OTLPEndpoint:   os.Getenv("APP_OTLP_ENDPOINT"),
+		PprofEnabled:   os.Getenv("APP_PPROF") == "1",
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
@@ -73,6 +79,9 @@ func Load() (Config, error) {
 	}
 	if cfg.OAuthStateTTL <= 0 {
 		return Config{}, fmt.Errorf("%s must be positive", "OAUTH_STATE_TTL")
+	}
+	if cfg.LogFormat != "text" && cfg.LogFormat != "json" {
+		return Config{}, fmt.Errorf("APP_LOG_FORMAT must be text or json, got %q", cfg.LogFormat)
 	}
 	return cfg, nil
 }

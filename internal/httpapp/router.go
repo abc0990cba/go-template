@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
 )
@@ -25,13 +26,18 @@ type App struct {
 
 // NewRouter builds the complete Gin engine: middleware, health endpoints,
 // OpenAPI docs, HTML UI routes, and the /api group.
-func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger) http.Handler {
+func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger, build observ.Build) http.Handler {
 	app := &App{cfg: cfg, services: services, logger: logger, pinger: pinger}
 	r := gin.New()
-	r.Use(gin.Recovery(), app.requestID(), app.bodyLimit())
+	r.Use(gin.Recovery(), app.requestID(), app.metrics(), app.accessLog(), app.bodyLimit())
 	r.GET("/health/live", app.ok)
 	r.GET("/health/ready", app.ready)
 	r.GET("/health/startup", app.ok)
+	r.GET("/metrics", metricsHandler())
+	r.GET("/version", versionHandler(build))
+	if cfg.PprofEnabled {
+		r.GET("/debug/pprof/*any", pprofHandler())
+	}
 	r.GET("/openapi.yaml", app.openapi)
 	r.GET("/docs", app.docs)
 

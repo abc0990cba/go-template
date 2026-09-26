@@ -13,6 +13,7 @@ import (
 
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/observ"
 )
 
 // Queue is the asynq-backed producer.
@@ -52,12 +53,15 @@ func (q *Queue) Enqueue(ctx context.Context, job model.Job) error {
 	if err != nil {
 		return fmt.Errorf("encode task payload: %w", err)
 	}
+	headers := map[string]string{}
+	observ.InjectHeaders(ctx, headers)
 	opts = append(opts,
 		asynq.TaskID(job.ID),
 		asynq.MaxRetry(5),
 		asynq.Queue("default"),
 	)
-	if _, err := q.client.EnqueueContext(ctx, asynq.NewTask(job.Type, body), opts...); err != nil {
+	task := asynq.NewTaskWithHeaders(job.Type, body, headers)
+	if _, err := q.client.EnqueueContext(ctx, task, opts...); err != nil {
 		return fmt.Errorf("enqueue task: %w", err)
 	}
 	return nil

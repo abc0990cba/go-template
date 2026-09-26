@@ -9,6 +9,9 @@ The project is intentionally small enough to understand, but it includes the pat
 - OpenAPI contract
 - OpenSpec workflow
 - CI (GitHub Actions) with vet, golangci-lint, and race-enabled tests
+- PostgreSQL persistence (pgx + sqlc + migrations) behind service ports
+- Redis/asynq job queue with a real worker process and idempotent enqueueing
+- Observability: structured logs, Prometheus metrics, OpenTelemetry traces
 - PostgreSQL migrations and sqlc query layout
 - Redis/asynq-ready background job design
 - ClickHouse analytics schema
@@ -25,6 +28,8 @@ Open:
 
 - App UI: http://localhost:8080
 - API docs: http://localhost:8080/docs
+- Metrics: http://localhost:8080/metrics
+- Version: http://localhost:8080/version
 - Health: http://localhost:8080/health/live
 
 Register a user, then use the dashboard, profile, users, enrichment, jobs, reports, and analytics pages.
@@ -41,7 +46,7 @@ make openspec-validate
 make docker-up
 ```
 
-The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` (see `.env.example`) — or run `make docker-up` — to run on PostgreSQL with pgx + sqlc and startup migrations; Redis, ClickHouse, asynq, and templ integration points land in upcoming OpenSpec changes.
+The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` and `APP_REDIS_ADDR` (see `.env.example`) — or run `make docker-up` — for PostgreSQL (pgx + sqlc + startup migrations) and the Redis/asynq queue with a real worker process. Add `--profile observability` for Jaeger, Prometheus, and Grafana; see `docs/observability.md`. ClickHouse analytics and templ UI land in upcoming OpenSpec changes.
 
 ## Project Rules
 

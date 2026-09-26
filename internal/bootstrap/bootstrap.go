@@ -36,7 +36,11 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	store, err := postgres.Open(ctx, cfg.DatabaseURL, os.DirFS("migrations/postgres"))
+	var opts []postgres.Option
+	if cfg.OTLPEndpoint != "" {
+		opts = append(opts, postgres.WithQueryTracing())
+	}
+	store, err := postgres.Open(ctx, cfg.DatabaseURL, os.DirFS("migrations/postgres"), opts...)
 	if err != nil {
 		return Repos{}, func() {}, err
 	}

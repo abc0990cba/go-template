@@ -21,7 +21,7 @@ type Container struct {
 // port, so callers pass the same adapter five times; a memory fake and a
 // PostgreSQL adapter are interchangeable. queue may be nil for the
 // single-process development mode.
-func NewContainer(auth AuthRepo, users UsersRepo, jobs JobsRepo, reports ReportsRepo, analytics AnalyticsRepo, queue JobQueue, logger *slog.Logger, cfg config.Config) *Container {
+func NewContainer(auth AuthRepo, users UsersRepo, jobs JobsRepo, reports ReportsRepo, analytics AnalyticsRepo, queue JobQueue, observer JobObserver, logger *slog.Logger, cfg config.Config) *Container {
 	return &Container{
 		Auth:  &AuthService{store: auth},
 		Users: &UserService{store: users},
@@ -29,6 +29,7 @@ func NewContainer(auth AuthRepo, users UsersRepo, jobs JobsRepo, reports Reports
 			store:          jobs,
 			reports:        reports,
 			queue:          queue,
+			observer:       observer,
 			logger:         logger,
 			client:         &http.Client{Timeout: cfg.ExternalTimeout},
 			maxConcurrency: cfg.MaxConcurrency,

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
 )
@@ -22,8 +23,8 @@ func newTestServer(t *testing.T) *httptest.Server {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := repository.NewMemoryStore()
-	services := service.NewContainer(store, store, store, store, store, nil, logger, cfg)
-	server := httptest.NewServer(NewRouter(cfg, services, logger, store))
+	services := service.NewContainer(store, store, store, store, store, nil, nil, logger, cfg)
+	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}))
 	t.Cleanup(server.Close)
 	return server
 }
@@ -176,5 +177,50 @@ func TestRequestIDHeaderSetOnResponses(t *testing.T) {
 	_ = resp.Body.Close()
 	if got := resp.Header.Get("X-Request-ID"); got == "" {
 		t.Error("X-Request-ID: want generated id, got empty")
+	}
+}
+
+func TestMetricsAndVersionEndpoints(t *testing.T) {
+	server := newTestServer(t)
+
+	// Warm at least one request so RED counters are non-empty.
+	resp, err := server.Client().Get(server.URL + "/health/live")
+	if err != nil {
+		t.Fatalf("health: %v", err)
+	}
+	_ = resp.Body.Close()
+
+	resp, err = server.Client().Get(server.URL + "/metrics")
+	if err != nil {
+		t.Fatalf("metrics: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("metrics: want 200, got %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	for _, want := range []string{
+		"app_http_requests_total",
+		"app_http_request_duration_seconds",
+		"app_http_requests_in_flight",
+		"app_jobs_queued_total",
+		"go_goroutines",
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("metrics: missing %s", want)
+		}
+	}
+
+	versionResp, err := server.Client().Get(server.URL + "/version")
+	if err != nil {
+		t.Fatalf("version: %v", err)
+	}
+	defer func() { _ = versionResp.Body.Close() }()
+	var parsed map[string]any
+	if err := json.NewDecoder(versionResp.Body).Decode(&parsed); err != nil {
+		t.Fatalf("version decode: %v", err)
+	}
+	if parsed["version"] != "dev" {
+		t.Errorf("version: want dev, got %v", parsed["version"])
 	}
 }

@@ -69,6 +69,13 @@ type Pinger interface {
 	Ping(ctx context.Context) error
 }
 
+// JobObserver receives job lifecycle notifications; the metrics stack
+// implements it without coupling the domain to Prometheus.
+type JobObserver interface {
+	JobQueued(ctx context.Context)
+	JobFinished(ctx context.Context, typ, status string, duration time.Duration)
+}
+
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (

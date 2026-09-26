@@ -9,6 +9,7 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -52,8 +53,12 @@ func NewMux(jobService *service.JobService, logger *slog.Logger) *asynq.ServeMux
 		return jobService.RunJob(ctx, jobID, jobService.GenerateReport)
 	})
 
+	// The tracing middleware restores the producer's span context from the
+	// task headers, so worker spans join the API trace.
 	mux.Use(func(h asynq.Handler) asynq.Handler {
 		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
+			ctx, span := observ.SpanFromHeaders(ctx, t.Headers(), "asynq.process "+t.Type())
+			defer span.End()
 			id, _ := asynq.GetTaskID(ctx)
 			logger.Info("task started", "type", t.Type(), "id", id)
 			err := h.ProcessTask(ctx, t)

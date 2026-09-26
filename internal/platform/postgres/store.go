@@ -11,8 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/exaring/otelpgx"
 	"github.com/golang-migrate/migrate/v4"
-	// Register the "pgx5" database driver for golang-migrate.
+	// Blank import registers the "pgx5" database driver for golang-migrate;
+	// the scheme never appears in our code by name.
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5"
@@ -39,10 +41,34 @@ type Store struct {
 	q    *db.Queries
 }
 
+// Option tunes the store connection.
+type Option func(*poolConfig)
+
+type poolConfig struct {
+	connTracer pgx.QueryTracer
+}
+
+// WithQueryTracing instruments every query with OpenTelemetry spans
+// (otelpgx); enable only after the global tracer provider is installed.
+func WithQueryTracing() Option {
+	return func(c *poolConfig) { c.connTracer = otelpgx.NewTracer() }
+}
+
 // Open connects the pool, verifies connectivity, and applies pending
 // migrations from the given directory (an fs.FS rooted at migrations/postgres).
-func Open(ctx context.Context, url string, migrations fs.FS) (*Store, error) {
-	pool, err := pgxpool.New(ctx, url)
+func Open(ctx context.Context, url string, migrations fs.FS, opts ...Option) (*Store, error) {
+	cfg := poolConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	poolCfg, err := pgxpool.ParseConfig(url)
+	if err != nil {
+		return nil, fmt.Errorf("postgres parse config: %w", err)
+	}
+	if cfg.connTracer != nil {
+		poolCfg.ConnConfig.Tracer = cfg.connTracer
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return nil, fmt.Errorf("postgres connect: %w", err)
 	}

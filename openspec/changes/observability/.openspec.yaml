@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-26
+goal: Give the service production observability — structured request logs, Prometheus metrics, distributed tracing, profiling, and build metadata.

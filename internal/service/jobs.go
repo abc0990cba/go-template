@@ -28,6 +28,7 @@ type JobService struct {
 	store          JobsRepo
 	reports        ReportsRepo
 	queue          JobQueue
+	observer       JobObserver
 	logger         *slog.Logger
 	client         *http.Client
 	maxConcurrency int
@@ -50,6 +51,9 @@ func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Jo
 	job, err := s.NewRecord(ctx, typ, payload)
 	if err != nil {
 		return model.Job{}, err
+	}
+	if s.observer != nil {
+		s.observer.JobQueued(ctx)
 	}
 	if s.queue == nil {
 		s.store.AddEvent(ctx, "job_queued")
@@ -105,6 +109,7 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return fmt.Errorf("mark job running: %w", err)
 	}
+	start := time.Now()
 	if err := run(ctx); err != nil {
 		job.Status = "failed"
 		job.Error = err.Error()
@@ -116,6 +121,9 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 	job.UpdatedAt = time.Now()
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return fmt.Errorf("save job result: %w", err)
+	}
+	if s.observer != nil {
+		s.observer.JobFinished(ctx, job.Type, job.Status, time.Since(start))
 	}
 	return nil
 }

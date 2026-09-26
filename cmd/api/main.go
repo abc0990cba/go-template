@@ -15,17 +15,38 @@ import (
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/httpapp"
+	"github.com/your-org/go-template/internal/observ"
 	asynqqueue "github.com/your-org/go-template/internal/platform/queue"
 	"github.com/your-org/go-template/internal/service"
 )
 
+// Build metadata, stamped at link time:
+//
+//	go build -ldflags "-X main.version=1.0.0 -X main.commit=$(git rev-parse --short HEAD)"
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	cfg, err := config.Load()
-	logger := newLogger(cfg.LogLevel)
+	logger := newLogger(cfg.LogFormat, cfg.LogLevel)
 	if err != nil {
 		logger.Error("invalid configuration", "err", err)
 		os.Exit(1)
 	}
+	build := observ.Build{Version: version, Commit: commit, Date: date}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	shutdownTracing, err := observ.SetupTracing(ctx, cfg.OTLPEndpoint, build)
+	if err != nil {
+		logger.Error("setup tracing", "err", err)
+		os.Exit(1)
+	}
+	defer func() { _ = shutdownTracing(context.Background()) }()
 
 	repos, closeStore, err := bootstrap.Store(cfg, logger)
 	if err != nil {
@@ -37,8 +58,8 @@ func main() {
 	jobQueue, closeQueue := openQueue(cfg)
 	defer closeQueue()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, jobQueue, logger, cfg)
-	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger)
+	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, jobQueue, observ.NewJobObserver(), logger, cfg)
+	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -48,9 +69,6 @@ func main() {
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	serveErr := make(chan error, 1)
 	go func() {
@@ -76,8 +94,13 @@ func main() {
 	}
 }
 
-func newLogger(level slog.Level) *slog.Logger {
-	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+// newLogger picks text for humans and json for log shippers.
+func newLogger(format string, level slog.Level) *slog.Logger {
+	opts := &slog.HandlerOptions{Level: level}
+	if format == "json" {
+		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, opts))
 }
 
 // openQueue returns the asynq-backed job queue, or nil in single-process
