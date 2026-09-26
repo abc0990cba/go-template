@@ -39,11 +39,14 @@ func TestQueueEndToEnd(t *testing.T) {
 	store := repository.NewMemoryStore()
 	jobQueue := queue.New(addr)
 	t.Cleanup(func() { _ = jobQueue.Close() })
-	services := service.NewContainer(store, store, store, store, store, nil, nil, jobQueue, nil, testLogger(), testConfig(t))
+	services := service.NewContainer(service.Deps{
+		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
+		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Mailer: nil, Queue: jobQueue,
+	}, testLogger(), testConfig(t))
 
 	// The worker side: the same mux the worker binary runs.
 	server := asynq.NewServer(asynq.RedisClientOpt{Addr: addr}, asynq.Config{Concurrency: 2})
-	mux := queue.NewMux(services.Jobs, testLogger())
+	mux := queue.NewMux(services.Jobs, testLogger(), services.Webhooks)
 	go func() { _ = server.Run(mux) }()
 	t.Cleanup(server.Shutdown)
 

@@ -54,6 +54,30 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	return i, err
 }
 
+const deleteDemoUsers = `-- name: DeleteDemoUsers :execrows
+DELETE FROM users WHERE id LIKE 'demo-%'
+`
+
+func (q *Queries) DeleteDemoUsers(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDemoUsers)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deletePasswordCredential = `-- name: DeletePasswordCredential :execrows
+DELETE FROM password_credentials WHERE user_id = $1
+`
+
+func (q *Queries) DeletePasswordCredential(ctx context.Context, userID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deletePasswordCredential, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteUser = `-- name: DeleteUser :execrows
 DELETE FROM users WHERE id = $1
 `

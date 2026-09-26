@@ -113,3 +113,14 @@ func pprofHandler() gin.HandlerFunc {
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	return gin.WrapH(mux)
 }
+
+// openapi serves the raw contract; Scalar on /docs renders it.
+func (a *App) openapi(c *gin.Context) {
+	c.File("api/openapi/openapi.yaml")
+}
+
+// docs renders the Scalar API reference over the contract.
+func (a *App) docs(c *gin.Context) {
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(http.StatusOK, `<!doctype html><html><head><title>API Docs</title><script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script></head><body><script id="api-reference" data-url="/openapi.yaml"></script></body></html>`)
+}

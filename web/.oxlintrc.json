@@ -1,0 +1,38 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "perf": "warn",
+    "suspicious": "error",
+    "style": "warn",
+    "pedantic": "warn",
+    "restriction": "warn"
+  },
+  "plugins": ["typescript", "react", "react-perf", "jsx-a11y", "unicorn", "oxc"],
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "src/routeTree.gen.ts",
+    "src/components/ui/**",
+    "src/hooks/use-mobile.ts"
+  ],
+  "settings": {
+    "react": {
+      "version": "19",
+      "jsxRuntime": "react-jsx"
+    }
+  },
+  "rules": {
+    "no-console": "error",
+    "no-alert": "error",
+    "no-debugger": "error",
+    "unicorn/no-array-reduce": "error",
+    "@typescript-eslint/no-non-null-assertion": "error",
+    "react/react-in-jsx-scope": "off",
+    "typescript/explicit-function-return-type": "off",
+    "typescript/no-magic-numbers": "off",
+    "eslint/no-magic-numbers": "off",
+    "react/no-unstable-nested-components": "off",
+    "react/incompatible-library": "off"
+  }
+}

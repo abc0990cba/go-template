@@ -27,10 +27,11 @@ type AuthService struct {
 	sessionTTL time.Duration
 }
 
-// emit records an analytics event when a sink is configured.
-func (s *AuthService) emit(ctx context.Context, event string) {
+// emit records an analytics event attributed to the acting user when a sink
+// is configured.
+func (s *AuthService) emit(ctx context.Context, event, userID string) {
 	if s.events != nil {
-		s.events.AddEvent(ctx, event)
+		s.events.AddEvent(ctx, event, userID)
 	}
 }
 
@@ -46,10 +47,10 @@ func (s *AuthService) Register(ctx context.Context, email, name, password string
 		return model.User{}, "", err
 	}
 	token := newID()
-	if err := s.store.CreateSession(ctx, token, user.ID, s.sessionTTL); err != nil {
+	if err := s.store.CreateSession(ctx, token, user.ID, "", s.sessionTTL); err != nil {
 		return model.User{}, "", err
 	}
-	s.emit(ctx, "user_registered")
+	s.emit(ctx, "user_registered", user.ID)
 	return user, token, nil
 }
 
@@ -61,10 +62,10 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (model.
 		return model.User{}, "", ErrInvalidCredentials
 	}
 	token := newID()
-	if err := s.store.CreateSession(ctx, token, user.ID, s.sessionTTL); err != nil {
+	if err := s.store.CreateSession(ctx, token, user.ID, "", s.sessionTTL); err != nil {
 		return model.User{}, "", err
 	}
-	s.emit(ctx, "user_logged_in")
+	s.emit(ctx, "user_logged_in", user.ID)
 	return user, token, nil
 }
 
@@ -76,11 +77,57 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 // CurrentUser resolves the session token to its user; reading also slides
 // the session expiry.
 func (s *AuthService) CurrentUser(ctx context.Context, token string) (model.User, error) {
-	userID, err := s.store.GetSession(ctx, token, s.sessionTTL)
+	session, err := s.store.GetSession(ctx, token, s.sessionTTL)
 	if err != nil {
 		return model.User{}, err
 	}
-	return s.store.GetUser(ctx, userID)
+	return s.store.GetUser(ctx, session.UserID)
+}
+
+// CurrentSession resolves the token with its impersonation context.
+func (s *AuthService) CurrentSession(ctx context.Context, token string) (model.Session, error) {
+	return s.store.GetSession(ctx, token, s.sessionTTL)
+}
+
+// Impersonate opens a session for the target on behalf of the admin. The
+// admin's own sessions stay untouched; stopping creates a fresh one.
+func (s *AuthService) Impersonate(ctx context.Context, adminID, targetID string) (string, error) {
+	target, err := s.store.GetUser(ctx, targetID)
+	if err != nil {
+		return "", err
+	}
+	token := newID()
+	if err := s.store.CreateSession(ctx, token, target.ID, adminID, s.sessionTTL); err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// StopImpersonation revokes the impersonated session and issues a fresh
+// session for the admin, returning the new token.
+func (s *AuthService) StopImpersonation(ctx context.Context, token string) (string, error) {
+	session, err := s.store.GetSession(ctx, token, s.sessionTTL)
+	if err != nil {
+		return "", err
+	}
+	if session.ImpersonatedBy == "" {
+		return "", validationError("this session is not impersonating")
+	}
+	if err := s.store.DeleteSession(ctx, token); err != nil {
+		return "", err
+	}
+	adminToken := newID()
+	if err := s.store.CreateSession(ctx, adminToken, session.ImpersonatedBy, "", s.sessionTTL); err != nil {
+		return "", err
+	}
+	return adminToken, nil
+}
+
+// UserByEmail resolves a user by email (case-insensitive), independent of
+// any session — used by seeding and account flows.
+func (s *AuthService) UserByEmail(ctx context.Context, email string) (model.User, error) {
+	user, _, err := s.store.GetUserByEmail(ctx, strings.ToLower(email))
+	return user, err
 }
 
 // LogoutAll revokes every session of the user (for example, after a
@@ -115,7 +162,7 @@ func (s *AuthService) LinkIdentity(ctx context.Context, userID string, profile m
 		AvatarURL:       profile.AvatarURL,
 	})
 	if err == nil {
-		s.emit(ctx, "oauth_linked")
+		s.emit(ctx, "oauth_linked", userID)
 	}
 	return err
 }
@@ -128,6 +175,18 @@ func (s *AuthService) UnlinkProvider(ctx context.Context, userID, provider strin
 // Identities lists the identities linked to the user.
 func (s *AuthService) Identities(ctx context.Context, userID string) ([]model.AuthIdentity, error) {
 	return s.store.ListIdentities(ctx, userID)
+}
+
+// Sessions lists the user's active sessions for the profile page.
+func (s *AuthService) Sessions(ctx context.Context, userID string) ([]model.SessionInfo, error) {
+	return s.store.ListSessions(ctx, userID)
+}
+
+// HashPassword derives an Argon2id encoding of password. It is exported for
+// seeding paths that bypass Register (the demo dataset) and must stay the
+// single place password encodings are produced.
+func HashPassword(password string) string {
+	return hashPassword(password)
 }
 
 func hashPassword(password string) string {

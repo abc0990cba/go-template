@@ -10,6 +10,8 @@ services:
       APP_HTTP_ADDR: ":8080"
       APP_DATABASE_URL: postgres://app:app@postgres:5432/app?sslmode=disable
       APP_REDIS_ADDR: redis:6379
+      APP_SMTP_HOST: ${APP_SMTP_HOST:-}
+      APP_SMTP_PORT: ${APP_SMTP_PORT:-1025}
       APP_LOG_FORMAT: json
       APP_OTLP_ENDPOINT: jaeger:4318
       APP_COOKIE_SECURE: "0" # plain http behind a local port; enable in production
@@ -18,6 +20,7 @@ services:
       APP_CLICKHOUSE_PASSWORD: app
       APP_DEMO_EMAIL: demo@go-template.local
       APP_DEMO_PASSWORD: demo-password-123
+      APP_DEMO_SEED: "1" # idempotent demo dataset: users, jobs, reports, events
     ports:
       - "8080:8080"
     depends_on:
@@ -34,6 +37,8 @@ services:
     environment:
       APP_DATABASE_URL: postgres://app:app@postgres:5432/app?sslmode=disable
       APP_REDIS_ADDR: redis:6379
+      APP_SMTP_HOST: ${APP_SMTP_HOST:-}
+      APP_SMTP_PORT: ${APP_SMTP_PORT:-1025}
       APP_REPORT_CRON: "0 3 * * *"
       APP_CLICKHOUSE_ADDR: clickhouse:9000
       APP_CLICKHOUSE_USER: app
@@ -83,6 +88,13 @@ services:
       - "9000:9000"
     volumes:
       - clickdata:/var/lib/clickhouse
+
+  mailpit:
+    image: axllent/mailpit:v1.24
+    profiles: ["mail"] # start with: docker compose --profile mail up
+    ports:
+      - "8025:8025" # Web UI to read dev email
+      - "1025:1025" # SMTP
 
   jaeger:
     image: jaegertracing/all-in-one:1.63.0

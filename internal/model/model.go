@@ -53,13 +53,69 @@ type EnrichmentProfile struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Job is a background task record with its lifecycle status.
+// Session is the resolution of an opaque session token: the user it
+// belongs to and, for impersonation sessions, the admin behind it.
+type Session struct {
+	UserID         string
+	ImpersonatedBy string
+}
+
+// SessionInfo describes one active session of a user. ID is a short prefix
+// of the opaque token — enough to tell sessions apart, useless to resume one.
+type SessionInfo struct {
+	ID        string    `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+}
+
+// EventRecord is a single analytics event from the trail, as delivered by
+// the SSE stream and the recent-events endpoint. Properties carries a JSON
+// object of dimensions (feature, source, country) for breakdowns.
+type EventRecord struct {
+	Name       string    `json:"name"`
+	OccurredAt time.Time `json:"occurred_at"`
+	UserID     string    `json:"user_id,omitempty"`
+	Properties string    `json:"properties,omitempty"`
+}
+
+// NameCount is one labeled aggregate: a breakdown row or a counter.
+type NameCount struct {
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
+}
+
+// DayCount is one day of a daily aggregate such as DAU.
+type DayCount struct {
+	Day   string `json:"day"`
+	Count int64  `json:"count"`
+}
+
+// EventDayPoint aggregates one calendar day of the event trail by name;
+// charts render it as a stacked series.
+type EventDayPoint struct {
+	Day    string           `json:"day"` // YYYY-MM-DD
+	Events map[string]int64 `json:"events"`
+	Total  int64            `json:"total"`
+}
+
+// OAuthProviderInfo tells the UI whether an identity provider is configured,
+// so link buttons render disabled instead of failing at click time.
+type OAuthProviderInfo struct {
+	Name       string `json:"name"`
+	Configured bool   `json:"configured"`
+}
+
+// Job is a background task record with its lifecycle status. OrgID and
+// CreatedBy attribute the job to the organization context and user that
+// queued it (empty for platform/anonymous runs).
 type Job struct {
 	ID        string    `json:"id"`
 	Type      string    `json:"type"`
 	Status    string    `json:"status"`
 	Payload   string    `json:"payload"`
 	Error     string    `json:"error"`
+	OrgID     string    `json:"org_id,omitempty"`
+	CreatedBy string    `json:"created_by,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -70,8 +126,66 @@ type Report struct {
 	Status    string    `json:"status"`
 	Result    string    `json:"result"`
 	Error     string    `json:"error"`
+	OrgID     string    `json:"org_id,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Organization is a tenant: a Casbin domain grouping users and scoping
+// policies. The reserved domain "*" means the whole platform.
+type Organization struct {
+	ID        string    `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// OrgMember is one membership with the user snapshot the members list
+// renders. Role assignments live in the policy engine, not here.
+type OrgMember struct {
+	OrgID    string    `json:"org_id"`
+	UserID   string    `json:"user_id"`
+	Email    string    `json:"email"`
+	Name     string    `json:"name"`
+	JoinedAt time.Time `json:"joined_at"`
+}
+
+// Role is the human-readable metadata of a Casbin role key. System roles
+// cannot be renamed away or deleted from the admin UI.
+type Role struct {
+	Key         string    `json:"key"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	IsSystem    bool      `json:"is_system"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// PolicyRule is one stored policy (ptype "p": subject, domain, object,
+// action) or grouping rule (ptype "g": user, role, domain) as shown by the
+// raw policy editor.
+type PolicyRule struct {
+	PType   string `json:"ptype"`
+	Subject string `json:"subject"`
+	Domain  string `json:"domain"`
+	Object  string `json:"object,omitempty"`
+	Action  string `json:"action,omitempty"`
+}
+
+// AuditEntry is one immutable audit record: an actor performed action on a
+// resource, with the request context and an optional before/after diff.
+type AuditEntry struct {
+	ID           string    `json:"id"`
+	ActorID      string    `json:"actor_id"`
+	ActorEmail   string    `json:"actor_email"`
+	Action       string    `json:"action"`
+	ResourceType string    `json:"resource_type"`
+	ResourceID   string    `json:"resource_id,omitempty"`
+	Domain       string    `json:"domain,omitempty"`
+	Diff         string    `json:"diff,omitempty"`
+	IP           string    `json:"ip,omitempty"`
+	RequestID    string    `json:"request_id,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // AnalyticsSummary aggregates the counters shown on the dashboard.
@@ -91,4 +205,83 @@ type AnalyticsSummary struct {
 	EventsJobsQueued    int `json:"events_jobs_queued,omitempty"`
 	EventsJobsDone      int `json:"events_jobs_done,omitempty"`
 	EventsJobsFailed    int `json:"events_jobs_failed,omitempty"`
+}
+
+// Setting is one stored system setting or feature flag; Value is the JSON
+// literal of the definition's type (true, 365, "text").
+type Setting struct {
+	Key         string    `json:"key"`
+	Value       string    `json:"value"`
+	Description string    `json:"description"`
+	UpdatedBy   string    `json:"updated_by"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// Notification is one in-app notification delivered to a user through the
+// bell and the notifications page, and live over SSE.
+type Notification struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	Type      string     `json:"type"`
+	Title     string     `json:"title"`
+	Body      string     `json:"body"`
+	Link      string     `json:"link"`
+	ReadAt    *time.Time `json:"read_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// EmailToken is a single-use, hashed token for password resets and email
+// verification. The raw token exists only in the email body.
+type EmailToken struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	Kind      string     `json:"kind"`
+	ExpiresAt time.Time  `json:"expires_at"`
+	UsedAt    *time.Time `json:"used_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// APIKey is a personal key for programmatic access. The raw secret exists
+// only at creation; Prefix is safe to display, KeyHash stays in the store.
+type APIKey struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix"`
+	Scopes     []string   `json:"scopes"`
+	OrgID      string     `json:"org_id,omitempty"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	ExpiresAt  *time.Time `json:"expires_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// WebhookEndpoint subscribes one URL to a set of event names ("*" = all).
+// The secret signs every delivery with HMAC-SHA256.
+type WebhookEndpoint struct {
+	ID          string    `json:"id"`
+	URL         string    `json:"url"`
+	Secret      string    `json:"-"`
+	Events      []string  `json:"events"`
+	Description string    `json:"description"`
+	Active      bool      `json:"active"`
+	OrgID       string    `json:"org_id,omitempty"`
+	CreatedBy   string    `json:"created_by,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// WebhookDelivery is one recorded delivery attempt chain of an event to an
+// endpoint. Attempts accumulate across retries.
+type WebhookDelivery struct {
+	ID                 string     `json:"id"`
+	EndpointID         string     `json:"endpoint_id"`
+	Event              string     `json:"event"`
+	Payload            string     `json:"payload"`
+	Status             string     `json:"status"`
+	Attempts           int        `json:"attempts"`
+	LastResponseStatus int        `json:"last_response_status"`
+	LastError          string     `json:"last_error"`
+	DeliveredAt        *time.Time `json:"delivered_at"`
+	CreatedAt          time.Time  `json:"created_at"`
 }

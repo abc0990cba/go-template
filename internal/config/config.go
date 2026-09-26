@@ -39,6 +39,7 @@ type Config struct {
 	ClickHousePass  string
 	DemoEmail       string
 	DemoPassword    string
+	DemoSeed        bool
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -47,6 +48,11 @@ type Config struct {
 	GoogleSecret    string
 	GitHubClientID  string
 	GitHubSecret    string
+	SMTPHost        string
+	SMTPPort        int
+	SMTPUsername    string
+	SMTPPassword    string
+	SMTPFrom        string
 }
 
 // Load reads configuration from the environment. Invalid values fail startup
@@ -75,10 +81,15 @@ func Load() (Config, error) {
 		ClickHousePass: os.Getenv("APP_CLICKHOUSE_PASSWORD"),
 		DemoEmail:      os.Getenv("APP_DEMO_EMAIL"),
 		DemoPassword:   os.Getenv("APP_DEMO_PASSWORD"),
+		DemoSeed:       os.Getenv("APP_DEMO_SEED") == "1",
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
 		GitHubSecret:   os.Getenv("GITHUB_CLIENT_SECRET"),
+		SMTPHost:       os.Getenv("APP_SMTP_HOST"),
+		SMTPUsername:   os.Getenv("APP_SMTP_USERNAME"),
+		SMTPPassword:   os.Getenv("APP_SMTP_PASSWORD"),
+		SMTPFrom:       env("APP_SMTP_FROM", "no-reply@go-template.local"),
 	}
 
 	var err error
@@ -123,6 +134,9 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("APP_LOG_FORMAT must be text or json, got %q", cfg.LogFormat)
 	}
 	if cfg.AuthRateRPS, err = floatEnv("APP_AUTH_RATE_RPS", 5); err != nil {
+		return Config{}, err
+	}
+	if cfg.SMTPPort, err = intEnv("APP_SMTP_PORT", 1025); err != nil {
 		return Config{}, err
 	}
 	if cfg.SessionTTL <= 0 {

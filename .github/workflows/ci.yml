@@ -6,6 +6,24 @@ on:
   pull_request:
 
 jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install
+        run: cd web && npm ci
+      - name: Lint (oxlint) and format check (oxfmt)
+        run: cd web && npm run lint && npm run format:check
+      - name: Type-check and build
+        run: cd web && npm run build
+      - name: Test (vitest)
+        run: cd web && npm test
+
   build-test:
     runs-on: ubuntu-latest
     steps:

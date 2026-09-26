@@ -19,6 +19,13 @@ tags:
   - name: jobs
   - name: reports
   - name: analytics
+  - name: rbac
+  - name: audit
+  - name: settings
+  - name: notifications
+  - name: apikeys
+  - name: impersonation
+  - name: webhooks
 paths:
   /health/live:
     get:
@@ -197,12 +204,32 @@ paths:
   /api/jobs:
     get:
       tags: [jobs]
-      summary: List background jobs, newest first
+      summary: List background jobs with offset, cursor, or keyset pagination
       operationId: listJobs
       security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: after
+          in: query
+          description: Last job id of the previous page (cursor and keyset modes)
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Substring filter over type and error
+          schema: { type: string }
+        - name: status
+          in: query
+          description: Filter by lifecycle status
+          schema: { type: string, enum: [queued, running, done, failed] }
+        - name: type
+          in: query
+          description: Filter by job type
+          schema: { type: string }
       responses:
         "200":
-          description: All jobs
+          description: One page of jobs plus the next-page cursor
           content:
             application/json:
               schema: { $ref: "#/components/schemas/JobList" }
@@ -232,12 +259,24 @@ paths:
   /api/reports:
     get:
       tags: [reports]
-      summary: List snapshot reports
+      summary: List snapshot reports with offset, cursor, or keyset pagination
       operationId: listReports
       security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: after
+          in: query
+          description: Last report id of the previous page (cursor and keyset modes)
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Substring filter over status and result
+          schema: { type: string }
       responses:
         "200":
-          description: All reports
+          description: One page of reports plus the next-page cursor
           content:
             application/json:
               schema: { $ref: "#/components/schemas/ReportList" }
@@ -259,12 +298,932 @@ paths:
       tags: [analytics]
       summary: Dashboard counters
       operationId: getAnalyticsSummary
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: Aggregated counters
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AnalyticsSummary" }
+  /api/jobs/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [jobs]
+      summary: Get a job by id
+      operationId: getJob
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The job
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Job" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/jobs/process:
+    post:
+      tags: [jobs]
+      summary: Claim and run the oldest queued job in-process (no-op with a distributed queue)
+      operationId: processJob
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Whether a job was processed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [processed]
+                properties:
+                  processed: { type: boolean }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/enrichment-profiles:
+    get:
+      tags: [jobs]
+      summary: List fetched enrichment profiles with offset, cursor, or keyset pagination
+      operationId: listEnrichmentProfiles
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: after
+          in: query
+          schema: { type: string }
+          description: Cursor of the previous page (cursor and keyset modes)
+        - name: q
+          in: query
+          description: Substring filter over source and payload
+          schema: { type: string }
+        - name: user_id
+          in: query
+          description: Restrict to one user's profiles
+          schema: { type: string }
+      responses:
+        "200":
+          description: One page of enrichment profiles
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/EnrichmentProfile" }
+                  next_cursor: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/reports/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [reports]
+      summary: Get a report by id
+      operationId: getReport
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The report
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Report" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/analytics/timeseries:
+    get:
+      tags: [analytics]
+      summary: Daily event counts over the trailing window
+      operationId: getAnalyticsTimeseries
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: days
+          in: query
+          description: Window length in days (1..90)
+          schema: { type: integer, minimum: 1, maximum: 90, default: 30 }
+      responses:
+        "200":
+          description: One point per day with per-event counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [days, data]
+                properties:
+                  days: { type: integer }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/EventDayPoint" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/analytics/events:
+    get:
+      tags: [analytics]
+      summary: Newest events of the trail
+      operationId: listRecentEvents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        "200":
+          description: Newest events, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/EventRecord" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/events/stream:
+    get:
+      tags: [analytics]
+      summary: Server-Sent Events stream (analytics events, job updates, snapshots)
+      description: |
+        text/event-stream. Every message is one JSON object on the data line:
+        `{"type":"analytics.event|job.updated|snapshot|connected","payload":{...}}`.
+        Snapshots arrive every ~5s and carry the summary plus the newest jobs;
+        heartbeats are comment lines.
+      operationId: streamEvents
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Event stream
+          content:
+            text/event-stream:
+              schema: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/sessions:
+    get:
+      tags: [auth]
+      summary: Active sessions of the current user
+      operationId: listSessions
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Sessions newest first, the current one flagged
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/SessionInfo" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/me/identities:
+    get:
+      tags: [auth]
+      summary: OAuth identities linked to the current user
+      operationId: listMyIdentities
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Linked identities
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuthIdentity" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/oauth/providers:
+    get:
+      tags: [auth]
+      summary: Which identity providers have credentials configured
+      operationId: listOAuthProviders
+      responses:
+        "200":
+          description: Provider configuration status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/OAuthProviderInfo" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/profile/logout-all:
+    post:
+      tags: [auth]
+      summary: Revoke every session of the current user
+      operationId: logoutAll
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: All sessions revoked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/profile/unlink/{provider}:
+    post:
+      tags: [auth]
+      summary: Detach an OAuth identity from the current user
+      operationId: unlinkProvider
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, enum: [google, github] }
+      responses:
+        "204": { description: Identity unlinked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/rbac/catalog:
+    get:
+      tags: [rbac]
+      summary: The resource/action permission catalog
+      operationId: getRbacCatalog
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Resources with their actions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [resources]
+                properties:
+                  resources:
+                    type: array
+                    items: { $ref: "#/components/schemas/RbacResource" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/roles:
+    get:
+      tags: [rbac]
+      summary: List role metadata
+      operationId: listRoles
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/RoleList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [rbac]
+      summary: Create a custom role
+      operationId: createRole
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, name]
+              properties:
+                key: { type: string }
+                name: { type: string }
+                description: { type: string }
+      responses:
+        "201": { $ref: "#/components/responses/RoleRef" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/roles/{key}:
+    put:
+      tags: [rbac]
+      summary: Update role display metadata
+      operationId: updateRole
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/roleKey" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+      responses:
+        "204": { description: Updated }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [rbac]
+      summary: Delete a custom role with its rules
+      operationId: deleteRole
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/roleKey" }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/roles/{key}/permissions:
+    get:
+      tags: [rbac]
+      summary: The role's policy rules
+      operationId: getRolePermissions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/roleKey" }]
+      responses:
+        "200": { $ref: "#/components/responses/PolicyRuleList" }
+        default: { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [rbac]
+      summary: Replace the role's permission set in one domain
+      operationId: setRolePermissions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/roleKey" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                domain: { type: string, default: "*" }
+                permissions:
+                  type: array
+                  items: { $ref: "#/components/schemas/Permission" }
+      responses:
+        "204": { description: Saved }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/policies:
+    get:
+      tags: [rbac]
+      summary: Raw policy rules of one type
+      operationId: listPolicies
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: ptype
+          in: query
+          schema: { type: string, enum: [p, g], default: p }
+      responses:
+        "200": { $ref: "#/components/responses/PolicyRuleList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [rbac]
+      summary: Add one raw rule
+      operationId: addPolicyRule
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyRule" }
+      responses:
+        "201": { description: Added }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [rbac]
+      summary: Remove one raw rule
+      operationId: removePolicyRule
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/PolicyRule" }
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/{id}/roles:
+    get:
+      tags: [rbac]
+      summary: The user's role assignments in the active domain
+      operationId: listUserRoles
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/userId" }]
+      responses:
+        "200": { $ref: "#/components/responses/PolicyRuleList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [rbac]
+      summary: Assign a role to the user
+      operationId: assignUserRole
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/userId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string }
+                domain: { type: string }
+      responses:
+        "204": { description: Assigned }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [rbac]
+      summary: Revoke a role from the user
+      operationId: unassignUserRole
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/userId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string }
+                domain: { type: string }
+      responses:
+        "204": { description: Revoked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/orgs:
+    get:
+      tags: [rbac]
+      summary: List organizations
+      operationId: listOrgs
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/mode" }
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+        - { name: q, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: One page of organizations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Organization" }
+                  next_cursor: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [rbac]
+      summary: Create an organization
+      operationId: createOrg
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                slug: { type: string }
+      responses:
+        "201": { $ref: "#/components/responses/OrganizationRef" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/orgs/{orgId}:
+    get:
+      tags: [rbac]
+      summary: Get an organization
+      operationId: getOrg
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/orgId" }]
+      responses:
+        "200": { $ref: "#/components/responses/OrganizationRef" }
+        default: { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [rbac]
+      summary: Update an organization
+      operationId: updateOrg
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/orgId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                slug: { type: string }
+      responses:
+        "204": { description: Updated }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [rbac]
+      summary: Delete an organization
+      operationId: deleteOrg
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/orgId" }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/orgs/{orgId}/members:
+    get:
+      tags: [rbac]
+      summary: List members with their user snapshot
+      operationId: listOrgMembers
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/orgId" }]
+      responses:
+        "200": { $ref: "#/components/responses/OrgMemberList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [rbac]
+      summary: Add a member
+      operationId: addOrgMember
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/orgId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: string }
+      responses:
+        "204": { description: Added }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/orgs/{orgId}/members/{userId}:
+    delete:
+      tags: [rbac]
+      summary: Remove a member (tenant roles are revoked)
+      operationId: removeOrgMember
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/orgId" }
+        - { name: userId, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Removed }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/audit:
+    get:
+      tags: [audit]
+      summary: Page the immutable audit trail
+      operationId: listAudit
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+        - { name: actor, in: query, schema: { type: string } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: resource, in: query, schema: { type: string } }
+      responses:
+        "200":
+          description: Newest audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEntry" }
+                  next_cursor: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/settings:
+    get:
+      tags: [settings]
+      summary: The settings catalog with current values
+      operationId: listSettings
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/SettingList" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/settings/{key}:
+    put:
+      tags: [settings]
+      summary: Update one setting (audited)
+      operationId: updateSetting
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: key, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value]
+              properties:
+                value: { type: string }
+      responses:
+        "204": { description: Saved }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/settings/public:
+    get:
+      tags: [settings]
+      summary: Public feature flags (no auth)
+      operationId: getPublicSettings
+      responses:
+        "200":
+          description: Key/value map of public flags
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: { type: string }
+  /api/notifications:
+    get:
+      tags: [notifications]
+      summary: The caller's notifications
+      operationId: listNotifications
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+      responses:
+        "200": { $ref: "#/components/responses/NotificationList" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/notifications/unread-count:
+    get:
+      tags: [notifications]
+      summary: Unread badge count
+      operationId: getUnreadCount
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [count]
+                properties:
+                  count: { type: integer }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/notifications/{id}/read:
+    post:
+      tags: [notifications]
+      summary: Mark one notification read
+      operationId: markNotificationRead
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/notificationId" }]
+      responses:
+        "204": { description: Marked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/notifications/read-all:
+    post:
+      tags: [notifications]
+      summary: Mark every notification read
+      operationId: markAllNotificationsRead
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Marked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request a password reset email (always 204)
+      operationId: forgotPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string }
+      responses:
+        "204": { description: Accepted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/reset-password:
+    post:
+      tags: [auth]
+      summary: Consume a reset token and set a new password
+      operationId: resetPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 8 }
+      responses:
+        "204": { description: Updated }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/verify-email:
+    post:
+      tags: [auth]
+      summary: Consume an email verification token
+      operationId: verifyEmail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "204": { description: Verified }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/api-keys:
+    get:
+      tags: [apikeys]
+      summary: List the caller's API keys
+      operationId: listApiKeys
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/APIKeyList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [apikeys]
+      summary: Issue a key (secret shown once)
+      operationId: createApiKey
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                scopes: { type: array, items: { type: string } }
+                ttl: { type: string, description: "Optional duration, e.g. 720h" }
+      responses:
+        "201":
+          description: The key with its one-time secret
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key: { $ref: "#/components/schemas/APIKey" }
+                  secret: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/api-keys/{id}:
+    delete:
+      tags: [apikeys]
+      summary: Revoke a key
+      operationId: revokeApiKey
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/apiKeyId" }]
+      responses:
+        "204": { description: Revoked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/impersonation:
+    post:
+      tags: [impersonation]
+      summary: Start an impersonation session
+      operationId: startImpersonation
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_id]
+              properties:
+                user_id: { type: string }
+      responses:
+        "200":
+          description: Impersonating
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  user_id: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/impersonation/stop:
+    post:
+      tags: [impersonation]
+      summary: End impersonation and restore the admin session
+      operationId: stopImpersonation
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Stopped }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/webhooks:
+    get:
+      tags: [webhooks]
+      summary: List webhook endpoints
+      operationId: listWebhooks
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200": { $ref: "#/components/responses/WebhookEndpointList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [webhooks]
+      summary: Create an endpoint (secret shown once)
+      operationId: createWebhook
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string }
+                events: { type: array, items: { type: string } }
+                secret: { type: string }
+                description: { type: string }
+      responses:
+        "201":
+          description: Created endpoint with one-time secret
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  url: { type: string }
+                  secret: { type: string }
+                  events: { type: array, items: { type: string } }
+                  active: { type: boolean }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/webhooks/{id}:
+    put:
+      tags: [webhooks]
+      summary: Update an endpoint
+      operationId: updateWebhook
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/webhookId" }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url: { type: string }
+                events: { type: array, items: { type: string } }
+                description: { type: string }
+                active: { type: boolean }
+      responses:
+        "204": { description: Updated }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [webhooks]
+      summary: Delete an endpoint (deliveries cascade)
+      operationId: deleteWebhook
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/webhookId" }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/webhooks/{id}/deliveries:
+    get:
+      tags: [webhooks]
+      summary: Page the delivery log
+      operationId: listWebhookDeliveries
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/webhookId" }
+        - { $ref: "#/components/parameters/limit" }
+      responses:
+        "200": { $ref: "#/components/responses/WebhookDeliveryList" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/webhooks/{id}/test:
+    post:
+      tags: [webhooks]
+      summary: Fire one synthetic test event
+      operationId: testWebhook
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/webhookId" }]
+      responses:
+        "202":
+          description: Queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/analytics/breakdown:
+    get:
+      tags: [analytics]
+      summary: Group events by one JSON property dimension
+      operationId: getAnalyticsBreakdown
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: by, in: query, schema: { type: string, enum: [feature, source, country], default: feature } }
+        - { name: days, in: query, schema: { type: integer, minimum: 1, maximum: 90, default: 30 } }
+      responses:
+        "200":
+          description: Top values with counts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days: { type: integer }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/NameCount" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/analytics/dau:
+    get:
+      tags: [analytics]
+      summary: Distinct active users per day
+      operationId: getAnalyticsDAU
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: days, in: query, schema: { type: integer, minimum: 1, maximum: 90, default: 30 } }
+      responses:
+        "200":
+          description: One point per day
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days: { type: integer }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/DayCount" }
+        default: { $ref: "#/components/responses/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -273,6 +1232,31 @@ components:
       description: Opaque session token from register/login.
   parameters:
     userId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    roleKey:
+      name: key
+      in: path
+      required: true
+      schema: { type: string }
+    orgId:
+      name: orgId
+      in: path
+      required: true
+      schema: { type: string }
+    notificationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    apiKeyId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+    webhookId:
       name: id
       in: path
       required: true
@@ -302,12 +1286,256 @@ components:
             required: [status]
             properties:
               status: { type: string, example: ok }
+    RoleList:
+      description: Role metadata
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/Role" }
+    PolicyRuleList:
+      description: Policy or grouping rules
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/PolicyRule" }
+    OrgMemberList:
+      description: Organization members
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/OrgMember" }
+    SettingList:
+      description: Settings catalog
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/Setting" }
+    NotificationList:
+      description: Notifications newest first
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/Notification" }
+    APIKeyList:
+      description: API keys newest first
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/APIKey" }
+    WebhookEndpointList:
+      description: Webhook endpoints
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/WebhookEndpoint" }
+    WebhookDeliveryList:
+      description: Delivery log newest first
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data]
+            properties:
+              data:
+                type: array
+                items: { $ref: "#/components/schemas/WebhookDelivery" }
+    RoleRef:
+      description: A created role
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Role" }
+    OrganizationRef:
+      description: A created organization
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Organization" }
     Problem:
       description: RFC 9457 problem document
       content:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    RbacResource:
+      type: object
+      required: [key, description, actions]
+      properties:
+        key: { type: string }
+        description: { type: string }
+        actions: { type: array, items: { type: string } }
+    Permission:
+      type: object
+      required: [object, action]
+      properties:
+        object: { type: string }
+        action: { type: string }
+    Role:
+      type: object
+      required: [key, name, description, is_system, created_at]
+      properties:
+        key: { type: string }
+        name: { type: string }
+        description: { type: string }
+        is_system: { type: boolean }
+        created_at: { type: string, format: date-time }
+    PolicyRule:
+      type: object
+      required: [ptype, subject, domain]
+      properties:
+        ptype: { type: string, enum: [p, g] }
+        subject: { type: string }
+        domain: { type: string }
+        object: { type: string }
+        action: { type: string }
+    Organization:
+      type: object
+      required: [id, name, slug, created_at, updated_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        slug: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    OrgMember:
+      type: object
+      required: [org_id, user_id, email, name, joined_at]
+      properties:
+        org_id: { type: string }
+        user_id: { type: string }
+        email: { type: string }
+        name: { type: string }
+        joined_at: { type: string, format: date-time }
+    AuditEntry:
+      type: object
+      required: [id, actor_id, actor_email, action, resource_type, created_at]
+      properties:
+        id: { type: string }
+        actor_id: { type: string }
+        actor_email: { type: string }
+        action: { type: string }
+        resource_type: { type: string }
+        resource_id: { type: string }
+        domain: { type: string }
+        diff: { type: string }
+        ip: { type: string }
+        request_id: { type: string }
+        created_at: { type: string, format: date-time }
+    SettingDefinition:
+      type: object
+      required: [key, type, default, group, label, public, is_flag]
+      properties:
+        key: { type: string }
+        type: { type: string, enum: [bool, int, string] }
+        default: { type: string }
+        group: { type: string }
+        label: { type: string }
+        public: { type: boolean }
+        is_flag: { type: boolean }
+    Setting:
+      allOf:
+        - $ref: "#/components/schemas/SettingDefinition"
+        - type: object
+          required: [value]
+          properties:
+            value: { type: string }
+            updated_by: { type: string }
+            updated_at: { type: string, format: date-time }
+    Notification:
+      type: object
+      required: [id, user_id, type, title, body, link, read_at, created_at]
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        link: { type: string }
+        read_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+    APIKey:
+      type: object
+      required: [id, user_id, name, prefix, scopes, created_at]
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        name: { type: string }
+        prefix: { type: string }
+        scopes: { type: array, items: { type: string } }
+        last_used_at: { type: [string, "null"], format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+        revoked_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+    WebhookEndpoint:
+      type: object
+      required: [id, url, events, active, created_at, updated_at]
+      properties:
+        id: { type: string }
+        url: { type: string }
+        events: { type: array, items: { type: string } }
+        description: { type: string }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    WebhookDelivery:
+      type: object
+      required: [id, endpoint_id, event, payload, status, attempts, last_response_status, created_at]
+      properties:
+        id: { type: string }
+        endpoint_id: { type: string }
+        event: { type: string }
+        payload: { type: string }
+        status: { type: string, enum: [pending, success, failed] }
+        attempts: { type: integer }
+        last_response_status: { type: integer }
+        last_error: { type: string }
+        delivered_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+    NameCount:
+      type: object
+      required: [name, count]
+      properties:
+        name: { type: string }
+        count: { type: integer, format: int64 }
+    DayCount:
+      type: object
+      required: [day, count]
+      properties:
+        day: { type: string }
+        count: { type: integer, format: int64 }
     User:
       type: object
       required: [id, email, name, created_at, updated_at]
@@ -376,6 +1604,9 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/Job" }
+        next_cursor:
+          type: string
+          description: Empty on the last page.
     Report:
       type: object
       required: [id, status, result, error, created_at, updated_at]
@@ -393,6 +1624,9 @@ components:
         data:
           type: array
           items: { $ref: "#/components/schemas/Report" }
+        next_cursor:
+          type: string
+          description: Empty on the last page.
     AnalyticsSummary:
       type: object
       required:
@@ -414,6 +1648,57 @@ components:
         events_jobs_queued: { type: integer }
         events_jobs_done: { type: integer }
         events_jobs_failed: { type: integer }
+    EnrichmentProfile:
+      type: object
+      required: [user_id, source, payload, created_at]
+      properties:
+        user_id: { type: string }
+        source: { type: string, example: randomuser.me }
+        payload: { type: string, description: Raw JSON profile from the source }
+        created_at: { type: string, format: date-time }
+    SessionInfo:
+      type: object
+      required: [id, created_at, expires_at, current]
+      properties:
+        id: { type: string, description: Short non-secret prefix of the session token }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+        current: { type: boolean }
+    AuthIdentity:
+      type: object
+      required: [user_id, provider, provider_subject, email, name, linked_at, last_login_at]
+      properties:
+        user_id: { type: string }
+        provider: { type: string, enum: [password, google, github] }
+        provider_subject: { type: string }
+        email: { type: string }
+        name: { type: string }
+        avatar_url: { type: string }
+        linked_at: { type: string, format: date-time }
+        last_login_at: { type: string, format: date-time }
+    OAuthProviderInfo:
+      type: object
+      required: [name, configured]
+      properties:
+        name: { type: string }
+        configured: { type: boolean }
+    EventRecord:
+      type: object
+      required: [name, occurred_at]
+      properties:
+        name: { type: string, example: user_logged_in }
+        occurred_at: { type: string, format: date-time }
+        user_id: { type: string }
+    EventDayPoint:
+      type: object
+      required: [day, events, total]
+      properties:
+        day: { type: string, example: "2026-09-26" }
+        events:
+          type: object
+          description: Count per event name
+          additionalProperties: { type: integer }
+        total: { type: integer }
     Problem:
       type: object
       description: RFC 9457 problem details; internal error details are never leaked.

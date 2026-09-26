@@ -10,26 +10,145 @@ import (
 	"time"
 )
 
-const listReports = `-- name: ListReports :many
-SELECT id, status, result, error, created_at, updated_at
-FROM reports
-ORDER BY created_at DESC
+const deleteDemoReports = `-- name: DeleteDemoReports :execrows
+DELETE FROM reports WHERE id LIKE 'demo-%'
 `
 
-func (q *Queries) ListReports(ctx context.Context) ([]Report, error) {
-	rows, err := q.db.Query(ctx, listReports)
+func (q *Queries) DeleteDemoReports(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDemoReports)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getReport = `-- name: GetReport :one
+SELECT id, status, result, error, org_id, created_at, updated_at
+FROM reports
+WHERE id = $1
+`
+
+type GetReportRow struct {
+	ID        string
+	Status    string
+	Result    string
+	Error     string
+	OrgID     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) GetReport(ctx context.Context, id string) (GetReportRow, error) {
+	row := q.db.QueryRow(ctx, getReport, id)
+	var i GetReportRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.Result,
+		&i.Error,
+		&i.OrgID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listReportsKeyset = `-- name: ListReportsKeyset :many
+SELECT id, status, result, error, org_id, created_at, updated_at
+FROM reports
+WHERE ($1::text = '' OR (status || ' ' || result) ILIKE '%' || $1::text || '%')
+  AND (
+    created_at < (SELECT c.created_at FROM reports c WHERE c.id = $2)
+    OR (created_at = (SELECT c.created_at FROM reports c WHERE c.id = $2) AND id > $2)
+  )
+ORDER BY created_at DESC, id ASC
+LIMIT $3
+`
+
+type ListReportsKeysetParams struct {
+	Query string
+	After string
+	Lim   int32
+}
+
+type ListReportsKeysetRow struct {
+	ID        string
+	Status    string
+	Result    string
+	Error     string
+	OrgID     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) ListReportsKeyset(ctx context.Context, arg ListReportsKeysetParams) ([]ListReportsKeysetRow, error) {
+	rows, err := q.db.Query(ctx, listReportsKeyset, arg.Query, arg.After, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Report
+	var items []ListReportsKeysetRow
 	for rows.Next() {
-		var i Report
+		var i ListReportsKeysetRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Status,
 			&i.Result,
 			&i.Error,
+			&i.OrgID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listReportsOffset = `-- name: ListReportsOffset :many
+SELECT id, status, result, error, org_id, created_at, updated_at
+FROM reports
+WHERE ($1::text = '' OR (status || ' ' || result) ILIKE '%' || $1::text || '%')
+ORDER BY created_at DESC, id ASC
+LIMIT $3
+OFFSET $2
+`
+
+type ListReportsOffsetParams struct {
+	Query string
+	Off   int32
+	Lim   int32
+}
+
+type ListReportsOffsetRow struct {
+	ID        string
+	Status    string
+	Result    string
+	Error     string
+	OrgID     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) ListReportsOffset(ctx context.Context, arg ListReportsOffsetParams) ([]ListReportsOffsetRow, error) {
+	rows, err := q.db.Query(ctx, listReportsOffset, arg.Query, arg.Off, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListReportsOffsetRow
+	for rows.Next() {
+		var i ListReportsOffsetRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Status,
+			&i.Result,
+			&i.Error,
+			&i.OrgID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -44,12 +163,13 @@ func (q *Queries) ListReports(ctx context.Context) ([]Report, error) {
 }
 
 const upsertReport = `-- name: UpsertReport :exec
-INSERT INTO reports (id, status, result, error, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO reports (id, status, result, error, org_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (id) DO UPDATE
 SET status = EXCLUDED.status,
     result = EXCLUDED.result,
     error = EXCLUDED.error,
+    org_id = EXCLUDED.org_id,
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at
 `
@@ -59,6 +179,7 @@ type UpsertReportParams struct {
 	Status    string
 	Result    string
 	Error     string
+	OrgID     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -69,6 +190,7 @@ func (q *Queries) UpsertReport(ctx context.Context, arg UpsertReportParams) erro
 		arg.Status,
 		arg.Result,
 		arg.Error,
+		arg.OrgID,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

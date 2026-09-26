@@ -253,12 +253,12 @@ func TestSessions(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
 
-	if err := store.CreateSession(ctx, "tok", "u1", time.Hour); err != nil {
+	if err := store.CreateSession(ctx, "tok", "u1", "", time.Hour); err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	userID, err := store.GetSession(ctx, "tok", time.Hour)
-	if err != nil || userID != "u1" {
-		t.Fatalf("get session: userID=%q err=%v", userID, err)
+	session, err := store.GetSession(ctx, "tok", time.Hour)
+	if err != nil || session.UserID != "u1" {
+		t.Fatalf("get session: session=%+v err=%v", session, err)
 	}
 	if err := store.DeleteSession(ctx, "tok"); err != nil {
 		t.Fatalf("delete session: %v", err)
@@ -280,7 +280,7 @@ func TestJobsListIsNewestFirst(t *testing.T) {
 		}
 	}
 
-	jobs, err := store.ListJobs(ctx)
+	jobs, _, err := store.ListJobs(ctx, ListOptions{})
 	if err != nil {
 		t.Fatalf("list jobs: %v", err)
 	}

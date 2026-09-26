@@ -69,3 +69,30 @@ func (q *Queue) Enqueue(ctx context.Context, job model.Job) error {
 
 // Close releases the client connection.
 func (q *Queue) Close() error { return q.client.Close() }
+
+
+// WebhookEnqueuer pushes webhook deliveries onto the asynq queue; it
+// implements the service.WebhookDispatcher port for multi-process mode.
+type WebhookEnqueuer struct {
+	client *asynq.Client
+}
+
+// NewWebhookEnqueuer opens the producer against a Redis address.
+func NewWebhookEnqueuer(redisAddr string) *WebhookEnqueuer {
+	return &WebhookEnqueuer{client: asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})}
+}
+
+// Deliver enqueues the delivery for the worker process.
+func (w *WebhookEnqueuer) Deliver(ctx context.Context, endpoint model.WebhookEndpoint, delivery model.WebhookDelivery, _ []byte) {
+	body, err := json.Marshal(jobs.WebhookDeliver{
+		PayloadVersion: 1, EndpointID: endpoint.ID, DeliveryID: delivery.ID,
+	})
+	if err != nil {
+		return
+	}
+	headers := map[string]string{}
+	observ.InjectHeaders(ctx, headers)
+	task := asynq.NewTaskWithHeaders(jobs.TypeWebhookDeliver, body, headers)
+	_, _ = w.client.EnqueueContext(ctx, task,
+		asynq.TaskID(delivery.ID), asynq.MaxRetry(3), asynq.Timeout(30*time.Second), asynq.Queue("default"))
+}

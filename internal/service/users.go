@@ -53,3 +53,8 @@ func (s *UserService) Get(ctx context.Context, id string) (model.User, error) {
 func (s *UserService) List(ctx context.Context, opts repository.ListUsersOptions) ([]model.User, string, error) {
 	return s.store.ListUsers(ctx, opts)
 }
+
+// Count returns the total number of users.
+func (s *UserService) Count(ctx context.Context) int {
+	return s.store.CountUsers(ctx)
+}

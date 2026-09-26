@@ -19,6 +19,8 @@ func httpError(err error) (int, string) {
 		return http.StatusConflict, "conflict"
 	case errors.Is(err, service.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid credentials"
+	case errors.Is(err, service.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
 	case service.IsValidationError(err):
 		return http.StatusBadRequest, "validation failed"
 	default:

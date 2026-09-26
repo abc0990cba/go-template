@@ -21,7 +21,10 @@ func testContainer(t *testing.T) *Container {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := repository.NewMemoryStore()
-	return NewContainer(store, store, store, store, store, nil, nil, nil, nil, logger, cfg)
+	return NewContainer(Deps{
+		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
+		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Mailer: nil,
+	}, logger, cfg)
 }
 
 func TestRegisterLoginAndLinkProviders(t *testing.T) {

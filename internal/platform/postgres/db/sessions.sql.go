@@ -7,21 +7,28 @@ package db
 
 import (
 	"context"
+	"time"
 )
 
 const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (token, user_id, expires_at)
-VALUES ($1, $2, now() + make_interval(secs => $3))
+INSERT INTO sessions (token, user_id, impersonated_by, expires_at)
+VALUES ($1, $2, $3, now() + make_interval(secs => $4))
 `
 
 type CreateSessionParams struct {
-	Token  string
-	UserID string
-	Secs   float64
+	Token          string
+	UserID         string
+	ImpersonatedBy string
+	Secs           float64
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
-	_, err := q.db.Exec(ctx, createSession, arg.Token, arg.UserID, arg.Secs)
+	_, err := q.db.Exec(ctx, createSession,
+		arg.Token,
+		arg.UserID,
+		arg.ImpersonatedBy,
+		arg.Secs,
+	)
 	return err
 }
 
@@ -47,7 +54,7 @@ const getSession = `-- name: GetSession :one
 UPDATE sessions
 SET expires_at = now() + make_interval(secs => $2)
 WHERE token = $1 AND expires_at > now()
-RETURNING user_id
+RETURNING user_id, impersonated_by
 `
 
 type GetSessionParams struct {
@@ -55,9 +62,47 @@ type GetSessionParams struct {
 	Secs  float64
 }
 
-func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (string, error) {
+type GetSessionRow struct {
+	UserID         string
+	ImpersonatedBy string
+}
+
+func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (GetSessionRow, error) {
 	row := q.db.QueryRow(ctx, getSession, arg.Token, arg.Secs)
-	var user_id string
-	err := row.Scan(&user_id)
-	return user_id, err
+	var i GetSessionRow
+	err := row.Scan(&i.UserID, &i.ImpersonatedBy)
+	return i, err
+}
+
+const listSessions = `-- name: ListSessions :many
+SELECT left(token, 8) AS id, created_at, expires_at
+FROM sessions
+WHERE user_id = $1 AND expires_at > now()
+ORDER BY created_at DESC
+`
+
+type ListSessionsRow struct {
+	ID        string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+}
+
+func (q *Queries) ListSessions(ctx context.Context, userID string) ([]ListSessionsRow, error) {
+	rows, err := q.db.Query(ctx, listSessions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSessionsRow
+	for rows.Next() {
+		var i ListSessionsRow
+		if err := rows.Scan(&i.ID, &i.CreatedAt, &i.ExpiresAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

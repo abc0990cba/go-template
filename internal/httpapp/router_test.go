@@ -3,16 +3,16 @@ package httpapp
 import (
 	"encoding/json"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
 )
 
 func newTestServer(t *testing.T) *httptest.Server {
@@ -21,12 +21,27 @@ func newTestServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatalf("load config: %v", err)
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := discardLogger()
 	store := repository.NewMemoryStore()
-	services := service.NewContainer(store, store, store, store, store, nil, nil, nil, nil, logger, cfg)
-	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}))
+	services := newTestContainer(t, store, nil, logger)
+	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))
 	t.Cleanup(server.Close)
 	return server
+}
+
+// registerAndLogin creates a fresh account and returns its bearer token.
+func registerAndLogin(t *testing.T, server *httptest.Server, email string) string {
+	t.Helper()
+	status, body := callJSON(t, server, http.MethodPost, "/api/auth/register",
+		`{"email":"`+email+`","name":"Ada","password":"password123"}`, "")
+	if status != http.StatusCreated {
+		t.Fatalf("register %s: want 201, got %d (%v)", email, status, body)
+	}
+	token, _ := body["token"].(string)
+	if token == "" {
+		t.Fatal("register: want non-empty token")
+	}
+	return token
 }
 
 func callJSON(t *testing.T, server *httptest.Server, method, path, body, token string) (int, map[string]any) {
@@ -129,28 +144,35 @@ func TestAuthFlowAndErrorMapping(t *testing.T) {
 
 func TestUserEndpoints(t *testing.T) {
 	server := newTestServer(t)
+	token := registerAndLogin(t, server, "owner@example.com")
 
-	status, _ := callJSON(t, server, http.MethodPost, "/api/users", `{"email":"no-email"}`, "")
+	status, _ := callJSON(t, server, http.MethodPost, "/api/users", `{"email":"no-email"}`, token)
 	if status != http.StatusBadRequest {
 		t.Errorf("create user with invalid email: want 400, got %d", status)
 	}
 
-	status, _ = callJSON(t, server, http.MethodPost, "/api/users", `{"email":"ada@example.com","name":"Ada"}`, "")
+	status, _ = callJSON(t, server, http.MethodPost, "/api/users", `{"email":"ada@example.com","name":"Ada"}`, token)
 	if status != http.StatusCreated {
 		t.Fatalf("create user: want 201, got %d", status)
 	}
-	status, _ = callJSON(t, server, http.MethodPost, "/api/users", `{"email":"ada@example.com","name":"Ada"}`, "")
+	status, _ = callJSON(t, server, http.MethodPost, "/api/users", `{"email":"ada@example.com","name":"Ada"}`, token)
 	if status != http.StatusConflict {
 		t.Errorf("duplicate user: want 409, got %d", status)
 	}
 
-	status, body := callJSON(t, server, http.MethodGet, "/api/users?limit=1", "", "")
+	status, body := callJSON(t, server, http.MethodGet, "/api/users?limit=1", "", token)
 	if status != http.StatusOK {
 		t.Fatalf("list users: want 200, got %d", status)
 	}
 	data, _ := body["data"].([]any)
 	if len(data) != 1 {
 		t.Errorf("list users: want 1 entry, got %d (%v)", len(data), body)
+	}
+
+	// The API no longer answers anonymous data requests.
+	status, _ = callJSON(t, server, http.MethodGet, "/api/users", "", "")
+	if status != http.StatusUnauthorized {
+		t.Errorf("list users without token: want 401, got %d", status)
 	}
 }
 
@@ -227,31 +249,32 @@ func TestMetricsAndVersionEndpoints(t *testing.T) {
 
 func TestUserManagementAndJobEndpoints(t *testing.T) {
 	server := newTestServer(t)
+	token := registerAndLogin(t, server, "ada@example.com")
+	// The caller's own account, used for identity-sensitive checks below.
+	_, body := callJSON(t, server, http.MethodGet, "/api/me", "", token)
 
-	status, body := callJSON(t, server, http.MethodPost, "/api/auth/register",
-		`{"email":"ada@example.com","name":"Ada","password":"password123"}`, "")
+	// GET/PUT/DELETE by id, against a managed user (deleting the caller's
+	// own account would cascade the session away with it).
+	status, managed := callJSON(t, server, http.MethodPost, "/api/users",
+		`{"email":"managed@example.com","name":"Managed"}`, token)
 	if status != http.StatusCreated {
-		t.Fatalf("register: want 201, got %d", status)
+		t.Fatalf("create managed user: %d %v", status, managed)
 	}
-	token, _ := body["token"].(string)
-	_, body = callJSON(t, server, http.MethodGet, "/api/me", "", token)
-	userID, _ := body["id"].(string)
-
-	// GET/PATCH/DELETE by id.
-	status, body = callJSON(t, server, http.MethodGet, "/api/users/"+userID, "", token)
-	if status != http.StatusOK || body["id"] != userID {
+	managedID, _ := managed["id"].(string)
+	status, body = callJSON(t, server, http.MethodGet, "/api/users/"+managedID, "", token)
+	if status != http.StatusOK || body["id"] != managedID {
 		t.Errorf("get user: %d %v", status, body)
 	}
-	status, body = callJSON(t, server, http.MethodPut, "/api/users/"+userID,
+	status, body = callJSON(t, server, http.MethodPut, "/api/users/"+managedID,
 		`{"email":"renamed@example.com","name":"Renamed"}`, token)
 	if status != http.StatusOK || body["name"] != "Renamed" {
 		t.Errorf("update user: %d %v", status, body)
 	}
-	status, _ = callJSON(t, server, http.MethodDelete, "/api/users/"+userID, "", token)
+	status, _ = callJSON(t, server, http.MethodDelete, "/api/users/"+managedID, "", token)
 	if status != http.StatusNoContent {
 		t.Errorf("delete user: want 204, got %d", status)
 	}
-	status, _ = callJSON(t, server, http.MethodGet, "/api/users/"+userID, "", token)
+	status, _ = callJSON(t, server, http.MethodGet, "/api/users/"+managedID, "", token)
 	if status != http.StatusNotFound {
 		t.Errorf("get deleted user: want 404, got %d", status)
 	}
@@ -281,5 +304,102 @@ func TestUserManagementAndJobEndpoints(t *testing.T) {
 	}
 	if body["title"] != "not found" {
 		t.Errorf("problem title: want not found, got %v", body["title"])
+	}
+}
+
+func TestPaginationModesAcrossCollections(t *testing.T) {
+	server := newTestServer(t)
+	token := registerAndLogin(t, server, "pager@example.com")
+
+	// A deterministic population: the registering user plus 7 managed ones,
+	// created in ascending order.
+	ids := make([]string, 0, 8)
+	_, me := callJSON(t, server, http.MethodGet, "/api/me", "", token)
+	ids = append(ids, me["id"].(string))
+	for i := 1; i <= 7; i++ {
+		email := "page-" + strings.Repeat("x", 20) + strconv.Itoa(i) + "@example.com"
+		status, body := callJSON(t, server, http.MethodPost, "/api/users",
+			`{"email":"`+email+`","name":"Page `+strconv.Itoa(i)+`"}`, token)
+		if status != http.StatusCreated {
+			t.Fatalf("seed user %d: %d", i, status)
+		}
+		ids = append(ids, body["id"].(string))
+	}
+
+	for _, mode := range []string{"offset", "cursor", "keyset"} {
+		seen := 0
+		after := ""
+		pages := 0
+		for seen < 8 && pages < 10 {
+			path := "/api/users?mode=" + mode + "&limit=3"
+			if after != "" {
+				path += "&after=" + after
+				if mode == "offset" {
+					path = "/api/users?mode=offset&limit=3&offset=" + strconv.Itoa(seen)
+				}
+			}
+			status, body := callJSON(t, server, http.MethodGet, path, "", token)
+			if status != http.StatusOK {
+				t.Fatalf("%s page %d: %d", mode, pages, status)
+			}
+			data, _ := body["data"].([]any)
+			if len(data) == 0 {
+				break
+			}
+			seen += len(data)
+			pages++
+			if next, _ := body["next_cursor"].(string); next != "" {
+				after = next
+			} else {
+				break
+			}
+		}
+		if seen != 8 {
+			t.Errorf("mode %s: want to page through 8 users, saw %d", mode, seen)
+		}
+	}
+
+	// Job and report listings answer in every mode too.
+	for _, path := range []string{"/api/jobs", "/api/reports", "/api/enrichment-profiles"} {
+		for _, mode := range []string{"offset", "cursor", "keyset"} {
+			status, _ := callJSON(t, server, http.MethodGet, path+"?mode="+mode+"&limit=1", "", token)
+			if status != http.StatusOK {
+				t.Errorf("%s mode %s: want 200, got %d", path, mode, status)
+			}
+		}
+	}
+}
+
+func TestAnalyticsAndSessionEndpoints(t *testing.T) {
+	server := newTestServer(t)
+	token := registerAndLogin(t, server, "analytics@example.com")
+
+	status, body := callJSON(t, server, http.MethodGet, "/api/analytics/summary", "", token)
+	if status != http.StatusOK || body["total_users"] == nil {
+		t.Errorf("summary: %d %v", status, body)
+	}
+	status, _ = callJSON(t, server, http.MethodGet, "/api/analytics/timeseries?days=7", "", token)
+	if status != http.StatusOK {
+		t.Errorf("timeseries: want 200, got %d", status)
+	}
+	status, _ = callJSON(t, server, http.MethodGet, "/api/analytics/events?limit=5", "", token)
+	if status != http.StatusOK {
+		t.Errorf("recent events: want 200, got %d", status)
+	}
+
+	status, body = callJSON(t, server, http.MethodGet, "/api/sessions", "", token)
+	if status != http.StatusOK {
+		t.Fatalf("sessions: want 200, got %d", status)
+	}
+	if data, _ := body["data"].([]any); len(data) != 1 {
+		t.Errorf("sessions: want exactly the current session, got %v", body)
+	}
+
+	status, body = callJSON(t, server, http.MethodGet, "/api/oauth/providers", "", "")
+	if status != http.StatusOK {
+		t.Fatalf("oauth providers: want 200, got %d", status)
+	}
+	if data, _ := body["data"].([]any); len(data) != 2 {
+		t.Errorf("oauth providers: want 2 entries, got %v", body)
 	}
 }

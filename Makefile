@@ -1,4 +1,4 @@
-.PHONY: run worker test test-integration test-e2e test-performance seed-users perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down openspec-validate
+.PHONY: run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down openspec-validate
 run:
 	go run ./cmd/api
 
@@ -21,6 +21,29 @@ test-performance:
 #   make docker-up && make seed-users && make perf-login
 seed-users:
 	go run ./cmd/seed -users ${USERS:-100000}
+
+# Demo dataset for the SPA: realistic users, jobs, reports, and a 30-day
+# event history (ClickHouse when configured).
+seed-demo:
+	go run ./cmd/seed-demo
+
+seed-demo-reset:
+	go run ./cmd/seed-demo -reset
+
+web-install:
+	cd web && npm ci
+
+web-dev:
+	cd web && npm run dev
+
+web-build:
+	cd web && npm run build
+
+web-lint:
+	cd web && npm run lint && npm run format:check
+
+web-test:
+	cd web && npm test
 
 K6 = k6 run
 perf-login:
@@ -49,7 +72,6 @@ coverage:
 generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest -config api/openapi/openapi.cfg.yaml api/openapi/openapi.yaml
-	go run github.com/a-h/templ/cmd/templ@latest generate
 
 docker-up:
 	docker compose up --build

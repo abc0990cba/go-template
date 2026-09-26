@@ -4,6 +4,15 @@ sql:
     schema:
       - migrations/postgres/000001_init.up.sql
       - migrations/postgres/000002_sessions.up.sql
+      - migrations/postgres/000003_listing.up.sql
+      - migrations/postgres/000004_rbac.up.sql
+      - migrations/postgres/000005_audit.up.sql
+      - migrations/postgres/000006_settings.up.sql
+      - migrations/postgres/000007_notifications.up.sql
+      - migrations/postgres/000008_email_tokens.up.sql
+      - migrations/postgres/000009_api_keys.up.sql
+      - migrations/postgres/000010_impersonation.up.sql
+      - migrations/postgres/000011_webhooks.up.sql
     queries: queries
     gen:
       go:

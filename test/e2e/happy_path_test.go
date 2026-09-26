@@ -123,7 +123,7 @@ func TestAPIHappyPath(t *testing.T) {
 	}
 
 	// Analytics and reports endpoints answer for the new state.
-	if status, _ = call(t, client, http.MethodGet, "/api/analytics/summary", "", ""); status != http.StatusOK {
+	if status, _ = call(t, client, http.MethodGet, "/api/analytics/summary", "", token); status != http.StatusOK {
 		t.Errorf("analytics: want 200, got %d", status)
 	}
 	if status, _ = call(t, client, http.MethodGet, "/api/reports", "", token); status != http.StatusOK {

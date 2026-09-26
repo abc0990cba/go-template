@@ -15,9 +15,20 @@ import (
 
 // NewMux builds the worker handler set on top of the job service. Handlers
 // decode the versioned payloads, treat malformed ones as non-retryable, and
-// sync the operational job record around execution.
-func NewMux(jobService *service.JobService, logger *slog.Logger) *asynq.ServeMux {
+// sync the operational job record around execution. webhooks may be nil to
+// skip the webhook task.
+func NewMux(jobService *service.JobService, logger *slog.Logger, webhooks *service.WebhooksService) *asynq.ServeMux {
 	mux := asynq.NewServeMux()
+
+	if webhooks != nil {
+		mux.HandleFunc(jobs.TypeWebhookDeliver, func(ctx context.Context, t *asynq.Task) error {
+			var p jobs.WebhookDeliver
+			if err := json.Unmarshal(t.Payload(), &p); err != nil {
+				return asynqPermanent(fmt.Errorf("decode %s payload: %w", t.Type(), err))
+			}
+			return webhooks.DeliverQueued(ctx, p.EndpointID, p.DeliveryID)
+		})
+	}
 
 	mux.HandleFunc(jobs.TypeEnrichBatch, func(ctx context.Context, t *asynq.Task) error {
 		var p jobs.EnrichBatch
@@ -44,7 +55,7 @@ func NewMux(jobService *service.JobService, logger *slog.Logger) *asynq.ServeMux
 		// once, before execution starts.
 		jobID := p.JobID
 		if jobID == "" {
-			record, err := jobService.NewRecord(ctx, jobs.TypeReportGenerate, "{}")
+			record, err := jobService.NewRecord(ctx, jobs.TypeReportGenerate, "{}", "")
 			if err != nil {
 				return err
 			}

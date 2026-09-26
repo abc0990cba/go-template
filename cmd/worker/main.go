@@ -15,8 +15,10 @@ import (
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/queue"
+	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -46,7 +48,21 @@ func main() {
 	}
 	defer closeStore()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, repos.Events, repos.EventStats, nil, observ.NewJobObserver(), logger, cfg)
+	services := service.NewContainer(service.Deps{
+		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
+		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks,
+		Events: repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
+	}, logger, cfg)
+
+	// Job transitions flow to the api process over Redis pub/sub so browser
+	// SSE streams see worker activity live.
+	if cfg.RedisAddr != "" {
+		bridge := realtime.NewRedisBridge(cfg.RedisAddr, realtime.NewHub(), logger)
+		defer func() { _ = bridge.Close() }()
+		services.Jobs.WithJobNotifier(func(job model.Job) {
+			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+		})
+	}
 
 	_ = stop
 	if cfg.RedisAddr == "" {
@@ -83,7 +99,7 @@ func runLocal(ctx context.Context, services *service.Container, kind string, log
 			logger.Info("worker stopped")
 			return
 		case <-ticker.C:
-			if err := services.Jobs.ProcessOne(ctx); err != nil {
+			if _, err := services.Jobs.ProcessOne(ctx); err != nil {
 				logger.Error("job processing failed", "err", err)
 			}
 		}
@@ -97,7 +113,7 @@ func runAsynq(ctx context.Context, services *service.Container, cfg config.Confi
 		Concurrency:    cfg.MaxConcurrency,
 		RetryDelayFunc: asynq.DefaultRetryDelayFunc,
 	})
-	mux := queue.NewMux(services.Jobs, logger)
+	mux := queue.NewMux(services.Jobs, logger, services.Webhooks)
 
 	scheduler := asynq.NewScheduler(opt, nil)
 	if cfg.ReportCron != "" {

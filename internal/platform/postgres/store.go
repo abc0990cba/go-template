@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/your-org/go-template/internal/model"
@@ -150,10 +152,10 @@ func (s *Store) CreateUser(ctx context.Context, user model.User, passwordHash st
 	return s.tx(ctx, func(q *db.Queries) error {
 		created, err := q.CreateUser(ctx, params)
 		if err != nil {
-			return err
+			return mapErr(err)
 		}
 		if err := q.UpsertPasswordCredential(ctx, db.UpsertPasswordCredentialParams{UserID: created.ID, PasswordHash: passwordHash}); err != nil {
-			return err
+			return mapErr(err)
 		}
 		return q.InsertIdentity(ctx, db.InsertIdentityParams{
 			Provider:        "password",
@@ -307,16 +309,17 @@ func (s *Store) ListIdentities(ctx context.Context, userID string) ([]model.Auth
 	return identities, nil
 }
 
-// CreateSession stores a token with the given TTL.
-func (s *Store) CreateSession(ctx context.Context, token, userID string, ttl time.Duration) error {
-	return mapErr(s.q.CreateSession(ctx, db.CreateSessionParams{Token: token, UserID: userID, Secs: ttl.Seconds()}))
+// CreateSession stores a token with the given TTL. impersonatedBy is the
+// admin behind an impersonation session ("" for normal logins).
+func (s *Store) CreateSession(ctx context.Context, token, userID, impersonatedBy string, ttl time.Duration) error {
+	return mapErr(s.q.CreateSession(ctx, db.CreateSessionParams{Token: token, UserID: userID, ImpersonatedBy: impersonatedBy, Secs: ttl.Seconds()}))
 }
 
 // GetSession resolves only unexpired tokens and slides the expiry forward
-// in the same statement.
-func (s *Store) GetSession(ctx context.Context, token string, ttl time.Duration) (string, error) {
-	userID, err := s.q.GetSession(ctx, db.GetSessionParams{Token: token, Secs: ttl.Seconds()})
-	return userID, mapErr(err)
+// in the same statement. It reports the impersonator, if any.
+func (s *Store) GetSession(ctx context.Context, token string, ttl time.Duration) (model.Session, error) {
+	row, err := s.q.GetSession(ctx, db.GetSessionParams{Token: token, Secs: ttl.Seconds()})
+	return model.Session{UserID: row.UserID, ImpersonatedBy: row.ImpersonatedBy}, mapErr(err)
 }
 
 // DeleteSession revokes a token.
@@ -356,7 +359,8 @@ func (s *Store) ConsumeOAuthState(ctx context.Context, state string, now time.Ti
 func (s *Store) SaveJob(ctx context.Context, job model.Job) error {
 	return mapErr(s.q.UpsertJob(ctx, db.UpsertJobParams{
 		ID: job.ID, Type: job.Type, Status: job.Status, Column4: job.Payload,
-		Error: job.Error, CreatedAt: job.CreatedAt, UpdatedAt: job.UpdatedAt,
+		Error: job.Error, OrgID: job.OrgID, CreatedBy: job.CreatedBy,
+		CreatedAt: job.CreatedAt, UpdatedAt: job.UpdatedAt,
 	}))
 }
 
@@ -368,24 +372,131 @@ func (s *Store) GetJob(ctx context.Context, id string) (model.Job, error) {
 	}
 	return model.Job{
 		ID: row.ID, Type: row.Type, Status: row.Status, Payload: row.Payload,
-		Error: row.Error, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Error: row.Error, OrgID: row.OrgID, CreatedBy: row.CreatedBy,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}, nil
 }
 
-// ListJobs returns all jobs newest first.
-func (s *Store) ListJobs(ctx context.Context) ([]model.Job, error) {
-	rows, err := s.q.ListJobs(ctx)
-	if err != nil {
-		return nil, mapErr(err)
+// listPage applies the shared pagination strategy to a keyset/offset query
+// pair: limit is fetched with one extra row to detect a next page, and the
+// returned cursor is the last emitted row's key.
+func (s *Store) ListJobs(ctx context.Context, opts repository.ListOptions) ([]model.Job, string, error) {
+	const def = 25
+	limit := int32(def)
+	if opts.Limit > 0 && opts.Limit <= 100 {
+		limit = int32(opts.Limit)
 	}
-	jobs := make([]model.Job, 0, len(rows))
+	if opts.Mode == "cursor" || opts.Mode == "keyset" {
+		params := db.ListJobsKeysetParams{Query: opts.Query, Status: opts.Status, Typ: opts.Type, After: opts.After, Lim: limit + 1}
+		if opts.After == "" { // first keyset page: no continuation predicate
+			rows, err := s.q.ListJobsOffset(ctx, db.ListJobsOffsetParams{Query: opts.Query, Status: opts.Status, Typ: opts.Type, Off: 0, Lim: limit + 1})
+			if err != nil {
+				return nil, "", mapErr(err)
+			}
+			jobs, next := jobsFromRows(offsetToJobs(rows), limit)
+			return jobs, next, nil
+		}
+		rows, err := s.q.ListJobsKeyset(ctx, params)
+		if err != nil {
+			return nil, "", mapErr(err)
+		}
+		jobs, next := jobsFromRows(keysetToJobs(rows), limit)
+		return jobs, next, nil
+	}
+	off := int32(0)
+	if opts.Offset > 0 {
+		off = int32(min(opts.Offset, 1<<31-1)) // #nosec G115 -- clamped to int32 range
+	}
+	rows, err := s.q.ListJobsOffset(ctx, db.ListJobsOffsetParams{Query: opts.Query, Status: opts.Status, Typ: opts.Type, Off: off, Lim: limit + 1})
+	if err != nil {
+		return nil, "", mapErr(err)
+	}
+	jobs, next := jobsFromRows(offsetToJobs(rows), limit)
+	return jobs, next, nil
+}
+
+func keysetToJobs(rows []db.ListJobsKeysetRow) []model.Job {
+	out := make([]model.Job, 0, len(rows))
 	for _, row := range rows {
-		jobs = append(jobs, model.Job{
+		out = append(out, model.Job{
 			ID: row.ID, Type: row.Type, Status: row.Status, Payload: row.Payload,
-			Error: row.Error, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			Error: row.Error, OrgID: row.OrgID, CreatedBy: row.CreatedBy,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		})
 	}
-	return jobs, nil
+	return out
+}
+
+func offsetToJobs(rows []db.ListJobsOffsetRow) []model.Job {
+	out := make([]model.Job, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, model.Job{
+			ID: row.ID, Type: row.Type, Status: row.Status, Payload: row.Payload,
+			Error: row.Error, OrgID: row.OrgID, CreatedBy: row.CreatedBy,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		})
+	}
+	return out
+}
+
+// jobsFromRows trims the limit+1th row and derives the next cursor.
+func jobsFromRows(jobs []model.Job, limit int32) ([]model.Job, string) {
+	next := ""
+	if len(jobs) > int(limit) {
+		jobs = jobs[:limit]
+		next = jobs[limit-1].ID
+	}
+	return jobs, next
+}
+
+// ListEnrichments pages the append-only enrichment trail. Its keyset cursor
+// carries both created_at and the seq column: "<unix nano>:<seq>".
+func (s *Store) ListEnrichments(ctx context.Context, opts repository.ListOptions) ([]model.EnrichmentProfile, string, error) {
+	const def = 25
+	limit := int32(def)
+	if opts.Limit > 0 && opts.Limit <= 100 {
+		limit = int32(opts.Limit)
+	}
+	var (
+		rows []db.UserEnrichmentProfile
+		err  error
+	)
+	if opts.Mode == "cursor" || opts.Mode == "keyset" {
+		if opts.After == "" {
+			rows, err = s.q.ListEnrichmentsOffset(ctx, db.ListEnrichmentsOffsetParams{Query: opts.Query, UserID: opts.UserID, Off: 0, Lim: limit + 1})
+		} else {
+			afterAt, afterSeq, ok := repository.SplitEnrichmentCursor(opts.After)
+			if !ok {
+				return nil, "", fmt.Errorf("%w: malformed enrichment cursor", repository.ErrNotFound)
+			}
+			rows, err = s.q.ListEnrichmentsKeyset(ctx, db.ListEnrichmentsKeysetParams{
+				Query: opts.Query, UserID: opts.UserID, AfterAt: afterAt,
+				AfterSeq: pgtype.Int8{Int64: afterSeq, Valid: true}, Lim: limit + 1,
+			})
+		}
+	} else {
+		off := int32(0)
+		if opts.Offset > 0 {
+			off = int32(min(opts.Offset, 1<<31-1)) // #nosec G115 -- clamped to int32 range
+		}
+		rows, err = s.q.ListEnrichmentsOffset(ctx, db.ListEnrichmentsOffsetParams{Query: opts.Query, UserID: opts.UserID, Off: off, Lim: limit + 1})
+	}
+	if err != nil {
+		return nil, "", mapErr(err)
+	}
+	next := ""
+	if len(rows) > int(limit) {
+		rows = rows[:limit]
+		last := rows[limit-1]
+		next = strconv.FormatInt(last.CreatedAt.UnixNano(), 10) + ":" + strconv.FormatInt(last.Seq.Int64, 10)
+	}
+	profiles := make([]model.EnrichmentProfile, 0, len(rows))
+	for _, row := range rows {
+		profiles = append(profiles, model.EnrichmentProfile{
+			UserID: row.UserID, Source: row.Source, Payload: row.Payload, CreatedAt: row.CreatedAt,
+		})
+	}
+	return profiles, next, nil
 }
 
 // AddEnrichment appends one enrichment profile.
@@ -399,29 +510,135 @@ func (s *Store) AddEnrichment(ctx context.Context, profile model.EnrichmentProfi
 func (s *Store) SaveReport(ctx context.Context, report model.Report) error {
 	return mapErr(s.q.UpsertReport(ctx, db.UpsertReportParams{
 		ID: report.ID, Status: report.Status, Result: report.Result, Error: report.Error,
-		CreatedAt: report.CreatedAt, UpdatedAt: report.UpdatedAt,
+		OrgID: report.OrgID, CreatedAt: report.CreatedAt, UpdatedAt: report.UpdatedAt,
 	}))
 }
 
-// ListReports returns all reports newest first.
-func (s *Store) ListReports(ctx context.Context) ([]model.Report, error) {
-	rows, err := s.q.ListReports(ctx)
+// GetReport returns a report by id.
+func (s *Store) GetReport(ctx context.Context, id string) (model.Report, error) {
+	row, err := s.q.GetReport(ctx, id)
+	if err != nil {
+		return model.Report{}, mapErr(err)
+	}
+	return model.Report{
+		ID: row.ID, Status: row.Status, Result: row.Result, Error: row.Error,
+		OrgID: row.OrgID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+	}, nil
+}
+
+// ListReports pages reports newest first; cursor/keyset continue after
+// After, and the returned cursor is empty on the last page.
+func (s *Store) ListReports(ctx context.Context, opts repository.ListOptions) ([]model.Report, string, error) {
+	limit := int32(25)
+	if opts.Limit > 0 && opts.Limit <= 100 {
+		limit = int32(opts.Limit)
+	}
+	listFrom := func(rows []db.ListReportsOffsetRow) ([]model.Report, string, error) {
+		reports := make([]model.Report, 0, len(rows))
+		for _, row := range rows {
+			reports = append(reports, model.Report{
+				ID: row.ID, Status: row.Status, Result: row.Result, Error: row.Error,
+				OrgID: row.OrgID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			})
+		}
+		next := ""
+		if len(reports) > int(limit) {
+			reports = reports[:limit]
+			next = reports[limit-1].ID
+		}
+		return reports, next, nil
+	}
+	if opts.Mode == "cursor" || opts.Mode == "keyset" {
+		if opts.After == "" {
+			rows, err := s.q.ListReportsOffset(ctx, db.ListReportsOffsetParams{Query: opts.Query, Off: 0, Lim: limit + 1})
+			if err != nil {
+				return nil, "", mapErr(err)
+			}
+			return listFrom(rows)
+		}
+		rows, err := s.q.ListReportsKeyset(ctx, db.ListReportsKeysetParams{Query: opts.Query, After: opts.After, Lim: limit + 1})
+		if err != nil {
+			return nil, "", mapErr(err)
+		}
+		reports := make([]model.Report, 0, len(rows))
+		for _, row := range rows {
+			reports = append(reports, model.Report{
+				ID: row.ID, Status: row.Status, Result: row.Result, Error: row.Error,
+				OrgID: row.OrgID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			})
+		}
+		next := ""
+		if len(reports) > int(limit) {
+			reports = reports[:limit]
+			next = reports[limit-1].ID
+		}
+		return reports, next, nil
+	}
+	off := int32(0)
+	if opts.Offset > 0 {
+		off = int32(min(opts.Offset, 1<<31-1)) // #nosec G115 -- clamped to int32 range
+	}
+	rows, err := s.q.ListReportsOffset(ctx, db.ListReportsOffsetParams{Query: opts.Query, Off: off, Lim: limit + 1})
+	if err != nil {
+		return nil, "", mapErr(err)
+	}
+	return listFrom(rows)
+}
+
+// ListSessions returns the user's unexpired sessions newest first, keyed by
+// a short prefix of the opaque token.
+func (s *Store) ListSessions(ctx context.Context, userID string) ([]model.SessionInfo, error) {
+	rows, err := s.q.ListSessions(ctx, userID)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	reports := make([]model.Report, 0, len(rows))
+	sessions := make([]model.SessionInfo, 0, len(rows))
 	for _, row := range rows {
-		reports = append(reports, model.Report{
-			ID: row.ID, Status: row.Status, Result: row.Result, Error: row.Error,
-			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-		})
+		sessions = append(sessions, model.SessionInfo{ID: row.ID, CreatedAt: row.CreatedAt, ExpiresAt: row.ExpiresAt})
 	}
-	return reports, nil
+	return sessions, nil
 }
 
-// AddEvent is a no-op until the analytics pipeline stores events in
-// ClickHouse; operational counters do not depend on it.
-func (s *Store) AddEvent(_ context.Context, _ string) {}
+// AddEvent is a no-op: events persist in ClickHouse, and operational
+// counters do not depend on it.
+func (s *Store) AddEvent(_ context.Context, _ string, _ string) {}
+
+// ResetDemoData removes everything the demo seed created: demo users
+// (credentials, identities, and sessions cascade), jobs, reports, and
+// enrichment profiles. It backs bootstrap's optional reset extension.
+func (s *Store) ResetDemoData(ctx context.Context) error {
+	return s.tx(ctx, func(q *db.Queries) error {
+		if _, err := q.DeleteDemoJobs(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoReports(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoEnrichments(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoOrgs(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoNotifications(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoAPIKeys(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoEmailTokens(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoWebhookEndpoints(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoAudit(ctx); err != nil {
+			return mapErr(err)
+		}
+		_, err := q.DeleteDemoUsers(ctx)
+		return mapErr(err)
+	})
+}
 
 // Analytics computes dashboard counters with filtered subqueries.
 func (s *Store) Analytics(ctx context.Context) model.AnalyticsSummary {

@@ -32,3 +32,8 @@ go.work.sum
 # .vscode/
 # ZCode workspace metadata
 .zcode/
+
+# Frontend
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep

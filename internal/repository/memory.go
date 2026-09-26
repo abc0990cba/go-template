@@ -5,14 +5,30 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/your-org/go-template/internal/model"
 )
+
+// topNameCounts sorts a count map and keeps the largest n entries.
+func topNameCounts(counts map[string]int64, n int) []model.NameCount {
+	out := make([]model.NameCount, 0, len(counts))
+	for name, count := range counts {
+		out = append(out, model.NameCount{Name: name, Count: count})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Count > out[j].Count })
+	if len(out) > n {
+		out = out[:n]
+	}
+	return out
+}
 
 // ErrNotFound is returned when a requested entity does not exist. Handlers
 // map it to HTTP 404.
@@ -23,21 +39,66 @@ var ErrNotFound = errors.New("not found")
 // Handlers map it to HTTP 409.
 var ErrConflict = errors.New("conflict")
 
-// ListUsersOptions controls user listing. Mode selects the pagination
+// ListOptions controls every paginated listing. Mode selects the pagination
 // strategy: "offset" pages by Offset, "cursor" and "keyset" continue after
-// the user id in After.
-type ListUsersOptions struct {
+// the entity id (or enrichment sequence) in After. Status and Type
+// optionally narrow job listings; other entities ignore them.
+type ListOptions struct {
 	Query  string
 	Mode   string
 	Limit  int
 	Offset int
 	After  string
+	Status string // jobs only: filter by status
+	Type   string // jobs only: filter by job type
+	UserID string // enrichments only: filter by user id
+}
+
+// ListUsersOptions is the historical name for user listings; it is the same
+// type so handlers and stores share one option surface.
+type ListUsersOptions = ListOptions
+
+// AuditOptions filters audit listings: ListOptions carries pagination, the
+// extra fields narrow by actor, action, or resource type.
+type AuditOptions struct {
+	ListOptions
+	Actor    string
+	Action   string
+	Resource string
+}
+
+// SplitEnrichmentCursor splits an enrichment "after" cursor back into its
+// (created_at, sequence) components; the enrichment table has no id column,
+// so its keyset cursor carries both.
+func SplitEnrichmentCursor(cursor string) (time.Time, int64, bool) {
+	before, after, ok := strings.Cut(cursor, ":")
+	if !ok {
+		return time.Time{}, 0, false
+	}
+	nanos, err := strconv.ParseInt(before, 10, 64)
+	if err != nil {
+		return time.Time{}, 0, false
+	}
+	seq, err := strconv.ParseInt(after, 10, 64)
+	if err != nil {
+		return time.Time{}, 0, false
+	}
+	return time.Unix(0, nanos), seq, true
 }
 
 // sessionEntry is one live session with its sliding expiry.
 type sessionEntry struct {
-	userID    string
-	expiresAt time.Time
+	userID         string
+	impersonatedBy string
+	expiresAt      time.Time
+}
+
+// eventRecord is one analytics event with the moment it happened.
+type eventRecord struct {
+	name       string
+	userID     string
+	at         time.Time
+	properties string
 }
 
 // MemoryStore is an in-process, mutex-guarded store. Data does not survive
@@ -51,8 +112,33 @@ type MemoryStore struct {
 	oauthStates map[string]model.OAuthState
 	jobs        map[string]model.Job
 	reports     map[string]model.Report
-	enrichments []model.EnrichmentProfile
-	events      []string
+	enrichments []enrichmentRow
+	enrichSeq   int64
+	events      []eventRecord
+	orgs        map[string]model.Organization
+	orgMembers  []model.OrgMember
+	roles       map[string]model.Role
+	rules       []model.PolicyRule
+	ruleSeq     int64
+	auditLog    []model.AuditEntry
+	settings    map[string]model.Setting
+	notifs      []model.Notification
+	emailTokens []emailTokenRow
+	apiKeys     []apiKeyRow
+	webhooks    []model.WebhookEndpoint
+	deliveries  []model.WebhookDelivery
+}
+
+// apiKeyRow pairs the stored key with its hash.
+type apiKeyRow struct {
+	key  model.APIKey
+	hash string
+}
+
+// emailTokenRow pairs the stored token with its hash for lookup.
+type emailTokenRow struct {
+	token model.EmailToken
+	hash  string
 }
 
 // NewMemoryStore returns an empty store ready for use.
@@ -64,6 +150,9 @@ func NewMemoryStore() *MemoryStore {
 		oauthStates: map[string]model.OAuthState{},
 		jobs:        map[string]model.Job{},
 		reports:     map[string]model.Report{},
+		orgs:        map[string]model.Organization{},
+		roles:       map[string]model.Role{},
+		settings:    map[string]model.Setting{},
 	}
 }
 
@@ -103,7 +192,7 @@ func (s *MemoryStore) UpdateUser(ctx context.Context, user model.User) error {
 	return nil
 }
 
-// DeleteUser removes the user by id.
+// DeleteUser removes the user by id and cascades org memberships.
 func (s *MemoryStore) DeleteUser(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -111,6 +200,13 @@ func (s *MemoryStore) DeleteUser(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 	delete(s.users, id)
+	members := s.orgMembers[:0]
+	for _, member := range s.orgMembers {
+		if member.UserID != id {
+			members = append(members, member)
+		}
+	}
+	s.orgMembers = members
 	return nil
 }
 
@@ -282,29 +378,31 @@ func (s *MemoryStore) ListIdentities(ctx context.Context, userID string) ([]mode
 }
 
 // CreateSession maps an opaque session token to a user id with a TTL.
-func (s *MemoryStore) CreateSession(ctx context.Context, token, userID string, ttl time.Duration) error {
+// impersonatedBy marks an impersonation session ("" for normal logins).
+func (s *MemoryStore) CreateSession(ctx context.Context, token, userID, impersonatedBy string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.sessions[token] = sessionEntry{userID: userID, expiresAt: time.Now().Add(ttl)}
+	s.sessions[token] = sessionEntry{userID: userID, impersonatedBy: impersonatedBy, expiresAt: time.Now().Add(ttl)}
 	return nil
 }
 
 // GetSession returns the user id behind a session token and slides its
-// expiry forward (renewal on use). Expired tokens are removed.
-func (s *MemoryStore) GetSession(ctx context.Context, token string, ttl time.Duration) (string, error) {
+// expiry forward (renewal on use). Expired tokens are removed. It reports
+// the impersonator, if any.
+func (s *MemoryStore) GetSession(ctx context.Context, token string, ttl time.Duration) (model.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.sessions[token]
 	if !ok {
-		return "", ErrNotFound
+		return model.Session{}, ErrNotFound
 	}
 	if time.Now().After(entry.expiresAt) {
 		delete(s.sessions, token)
-		return "", ErrNotFound
+		return model.Session{}, ErrNotFound
 	}
 	entry.expiresAt = time.Now().Add(ttl)
 	s.sessions[token] = entry
-	return entry.userID, nil
+	return model.Session{UserID: entry.userID, ImpersonatedBy: entry.impersonatedBy}, nil
 }
 
 // DeleteSession revokes a session token.
@@ -327,6 +425,236 @@ func (s *MemoryStore) DeleteSessionsForUser(ctx context.Context, userID string) 
 	return nil
 }
 
+// SetPasswordCredential upserts the stored password hash; "" removes the
+// credential entirely.
+func (s *MemoryStore) SetPasswordCredential(ctx context.Context, userID, passwordHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	if passwordHash == "" {
+		delete(s.passwords, user.Email)
+		return nil
+	}
+	s.passwords[user.Email] = passwordHash
+	return nil
+}
+
+// CreateEmailToken stores a hashed single-use token.
+func (s *MemoryStore) CreateEmailToken(ctx context.Context, token model.EmailToken, tokenHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if token.CreatedAt.IsZero() {
+		token.CreatedAt = time.Now()
+	}
+	s.emailTokens = append(s.emailTokens, emailTokenRow{token: token, hash: tokenHash})
+	return nil
+}
+
+// GetEmailTokenByHash resolves a token by its hash.
+func (s *MemoryStore) GetEmailTokenByHash(ctx context.Context, tokenHash string) (model.EmailToken, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, row := range s.emailTokens {
+		if row.hash == tokenHash {
+			return row.token, nil
+		}
+	}
+	return model.EmailToken{}, ErrNotFound
+}
+
+// MarkEmailTokenUsed consumes the token.
+func (s *MemoryStore) MarkEmailTokenUsed(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, row := range s.emailTokens {
+		if row.token.ID == id {
+			if row.token.UsedAt != nil {
+				return ErrNotFound
+			}
+			now := time.Now()
+			s.emailTokens[i].token.UsedAt = &now
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// CreateAPIKey stores a key with its hash.
+func (s *MemoryStore) CreateAPIKey(ctx context.Context, key model.APIKey, keyHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if key.CreatedAt.IsZero() {
+		key.CreatedAt = time.Now()
+	}
+	s.apiKeys = append(s.apiKeys, apiKeyRow{key: key, hash: keyHash})
+	return nil
+}
+
+// ListAPIKeysForUser returns the user's keys newest first.
+func (s *MemoryStore) ListAPIKeysForUser(ctx context.Context, userID string) ([]model.APIKey, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.APIKey
+	for _, row := range s.apiKeys {
+		if row.key.UserID == userID {
+			out = append(out, row.key)
+		}
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out, nil
+}
+
+// GetAPIKeyByPrefix resolves a live key by prefix and returns its hash.
+func (s *MemoryStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (model.APIKey, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, row := range s.apiKeys {
+		if row.key.Prefix == prefix && row.key.RevokedAt == nil {
+			return row.key, row.hash, nil
+		}
+	}
+	return model.APIKey{}, "", ErrNotFound
+}
+
+// TouchAPIKey stamps last use.
+func (s *MemoryStore) TouchAPIKey(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, row := range s.apiKeys {
+		if row.key.ID == id {
+			now := time.Now()
+			s.apiKeys[i].key.LastUsedAt = &now
+		}
+	}
+	return nil
+}
+
+// RevokeAPIKey marks the key revoked.
+func (s *MemoryStore) RevokeAPIKey(ctx context.Context, id, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, row := range s.apiKeys {
+		if row.key.ID == id && row.key.UserID == userID {
+			if row.key.RevokedAt != nil {
+				return ErrNotFound
+			}
+			now := time.Now()
+			s.apiKeys[i].key.RevokedAt = &now
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// InsertWebhookEndpoint stores an endpoint.
+func (s *MemoryStore) InsertWebhookEndpoint(ctx context.Context, endpoint model.WebhookEndpoint) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.webhooks = append(s.webhooks, endpoint)
+	return nil
+}
+
+// UpdateWebhookEndpoint overwrites the endpoint.
+func (s *MemoryStore) UpdateWebhookEndpoint(ctx context.Context, endpoint model.WebhookEndpoint) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, existing := range s.webhooks {
+		if existing.ID == endpoint.ID {
+			s.webhooks[i] = endpoint
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// DeleteWebhookEndpoint removes the endpoint.
+func (s *MemoryStore) DeleteWebhookEndpoint(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, existing := range s.webhooks {
+		if existing.ID == id {
+			s.webhooks = append(s.webhooks[:i], s.webhooks[i+1:]...)
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// GetWebhookEndpoint returns one endpoint.
+func (s *MemoryStore) GetWebhookEndpoint(ctx context.Context, id string) (model.WebhookEndpoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, existing := range s.webhooks {
+		if existing.ID == id {
+			return existing, nil
+		}
+	}
+	return model.WebhookEndpoint{}, ErrNotFound
+}
+
+// ListWebhookEndpoints returns every endpoint.
+func (s *MemoryStore) ListWebhookEndpoints(ctx context.Context) ([]model.WebhookEndpoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]model.WebhookEndpoint, len(s.webhooks))
+	copy(out, s.webhooks)
+	return out, nil
+}
+
+// InsertWebhookDelivery records a pending delivery.
+func (s *MemoryStore) InsertWebhookDelivery(ctx context.Context, delivery model.WebhookDelivery) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if delivery.CreatedAt.IsZero() {
+		delivery.CreatedAt = time.Now()
+	}
+	s.deliveries = append(s.deliveries, delivery)
+	return nil
+}
+
+// UpdateWebhookDelivery rewrites the delivery attempt data.
+func (s *MemoryStore) UpdateWebhookDelivery(ctx context.Context, delivery model.WebhookDelivery) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, existing := range s.deliveries {
+		if existing.ID == delivery.ID {
+			delivery.CreatedAt = existing.CreatedAt
+			s.deliveries[i] = delivery
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// ListWebhookDeliveries pages the endpoint's delivery log newest first.
+func (s *MemoryStore) ListWebhookDeliveries(ctx context.Context, endpointID string, limit, offset int) ([]model.WebhookDelivery, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var rows []model.WebhookDelivery
+	for _, delivery := range s.deliveries {
+		if delivery.EndpointID == endpointID {
+			rows = append(rows, delivery)
+		}
+	}
+	for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+		rows[i], rows[j] = rows[j], rows[i]
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := max(offset, 0)
+	if start >= len(rows) {
+		return nil, nil
+	}
+	end := min(start+limit, len(rows))
+	return rows[start:end], nil
+}
+
 // SaveJob upserts a job by id.
 func (s *MemoryStore) SaveJob(ctx context.Context, job model.Job) error {
 	s.mu.Lock()
@@ -346,16 +674,100 @@ func (s *MemoryStore) GetJob(ctx context.Context, id string) (model.Job, error) 
 	return job, nil
 }
 
-// ListJobs returns all jobs newest first.
-func (s *MemoryStore) ListJobs(ctx context.Context) ([]model.Job, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// listJobsLocked returns the jobs matching opts, newest first with the id as
+// tiebreaker, and the next-page cursor (empty on the last page). Caller holds
+// the lock.
+func (s *MemoryStore) listJobsLocked(opts ListOptions) ([]model.Job, string) {
 	jobs := make([]model.Job, 0, len(s.jobs))
+	query := strings.ToLower(opts.Query)
 	for _, job := range s.jobs {
+		if opts.Status != "" && job.Status != opts.Status {
+			continue
+		}
+		if opts.Type != "" && job.Type != opts.Type {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(job.Type+" "+job.Error), query) {
+			continue
+		}
 		jobs = append(jobs, job)
 	}
-	sort.Slice(jobs, func(i, j int) bool { return jobs[i].CreatedAt.After(jobs[j].CreatedAt) })
-	return jobs, nil
+	sort.Slice(jobs, func(i, j int) bool {
+		if jobs[i].CreatedAt.Equal(jobs[j].CreatedAt) {
+			return jobs[i].ID < jobs[j].ID
+		}
+		return jobs[i].CreatedAt.After(jobs[j].CreatedAt)
+	})
+	rows, next := pageSlice(jobs, func(job model.Job) string { return job.ID }, opts)
+	return rows, next
+}
+
+// ListJobs returns one page of jobs plus the next-page cursor.
+func (s *MemoryStore) ListJobs(ctx context.Context, opts ListOptions) ([]model.Job, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows, next := s.listJobsLocked(opts)
+	return rows, next, nil
+}
+
+// listReportsLocked mirrors listJobsLocked for reports. Caller holds the lock.
+func (s *MemoryStore) listReportsLocked(opts ListOptions) ([]model.Report, string) {
+	reports := make([]model.Report, 0, len(s.reports))
+	query := strings.ToLower(opts.Query)
+	for _, report := range s.reports {
+		if query != "" && !strings.Contains(strings.ToLower(report.Status+" "+report.Result), query) {
+			continue
+		}
+		reports = append(reports, report)
+	}
+	sort.Slice(reports, func(i, j int) bool {
+		if reports[i].CreatedAt.Equal(reports[j].CreatedAt) {
+			return reports[i].ID < reports[j].ID
+		}
+		return reports[i].CreatedAt.After(reports[j].CreatedAt)
+	})
+	rows, next := pageSlice(reports, func(report model.Report) string { return report.ID }, opts)
+	return rows, next
+}
+
+// ListReports returns one page of reports plus the next-page cursor.
+func (s *MemoryStore) ListReports(ctx context.Context, opts ListOptions) ([]model.Report, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows, next := s.listReportsLocked(opts)
+	return rows, next, nil
+}
+
+// pageSlice applies the shared pagination strategy to an already sorted
+// slice: offset pages by Offset, cursor/keyset resume after the cursor the
+// key function returned. Limit is clamped to 1..100 with a 25 default.
+func pageSlice[T any](rows []T, key func(T) string, opts ListOptions) ([]T, string) {
+	limit := opts.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := 0
+	if opts.Mode == "cursor" || opts.Mode == "keyset" {
+		if opts.After != "" {
+			for i, row := range rows {
+				if key(row) == opts.After {
+					start = i + 1
+					break
+				}
+			}
+		}
+	} else {
+		start = max(opts.Offset, 0)
+	}
+	if start >= len(rows) {
+		return nil, ""
+	}
+	end := min(start+limit, len(rows))
+	next := ""
+	if end < len(rows) {
+		next = key(rows[end-1])
+	}
+	return rows[start:end], next
 }
 
 // SaveReport upserts a report by id.
@@ -366,30 +778,239 @@ func (s *MemoryStore) SaveReport(ctx context.Context, report model.Report) error
 	return nil
 }
 
-// ListReports returns all reports.
-func (s *MemoryStore) ListReports(ctx context.Context) ([]model.Report, error) {
+// GetReport returns a report by id.
+func (s *MemoryStore) GetReport(ctx context.Context, id string) (model.Report, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	reports := make([]model.Report, 0, len(s.reports))
-	for _, report := range s.reports {
-		reports = append(reports, report)
+	report, ok := s.reports[id]
+	if !ok {
+		return model.Report{}, ErrNotFound
 	}
-	return reports, nil
+	return report, nil
 }
 
-// AddEnrichment appends an enrichment profile record.
+// enrichmentRow pairs a stored profile with its insertion sequence, the
+// keyset tiebreaker mirroring the Postgres seq column.
+type enrichmentRow struct {
+	profile model.EnrichmentProfile
+	seq     int64
+}
+
+// AddEnrichment appends an enrichment profile record with a monotonic
+// sequence used as the keyset tiebreaker.
 func (s *MemoryStore) AddEnrichment(ctx context.Context, profile model.EnrichmentProfile) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.enrichments = append(s.enrichments, profile)
+	s.enrichSeq++
+	if profile.CreatedAt.IsZero() {
+		profile.CreatedAt = time.Now()
+	}
+	s.enrichments = append(s.enrichments, enrichmentRow{profile: profile, seq: s.enrichSeq})
 	return nil
 }
 
-// AddEvent records a named analytics event.
-func (s *MemoryStore) AddEvent(ctx context.Context, event string) {
+// ListEnrichments returns one page of enrichment profiles newest first. The
+// cursor is "<created_at unix nano>:<sequence>", shared with the Postgres
+// adapter so both stores speak the same cursor dialect.
+func (s *MemoryStore) ListEnrichments(ctx context.Context, opts ListOptions) ([]model.EnrichmentProfile, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := make([]enrichmentRow, 0, len(s.enrichments))
+	query := strings.ToLower(opts.Query)
+	for _, row := range s.enrichments {
+		if opts.UserID != "" && row.profile.UserID != opts.UserID {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(row.profile.Source+" "+row.profile.Payload), query) {
+			continue
+		}
+		rows = append(rows, row)
+	}
+	sort.SliceStable(rows, func(i, j int) bool { return rows[i].profile.CreatedAt.After(rows[j].profile.CreatedAt) })
+	limit := opts.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := 0
+	if opts.Mode == "cursor" || opts.Mode == "keyset" {
+		if afterAt, afterSeq, ok := SplitEnrichmentCursor(opts.After); ok {
+			for i, row := range rows {
+				createdAt, seq := row.profile.CreatedAt, row.seq
+				if createdAt.After(afterAt) || (createdAt.Equal(afterAt) && seq > afterSeq) {
+					start = i
+					break
+				}
+			}
+		}
+	} else {
+		start = max(opts.Offset, 0)
+	}
+	if start >= len(rows) {
+		return nil, "", nil
+	}
+	end := min(start+limit, len(rows))
+	cursor := ""
+	if end < len(rows) {
+		last := rows[end-1]
+		cursor = strconv.FormatInt(last.profile.CreatedAt.UnixNano(), 10) + ":" + strconv.FormatInt(last.seq, 10)
+	}
+	out := make([]model.EnrichmentProfile, 0, end-start)
+	for _, row := range rows[start:end] {
+		out = append(out, row.profile)
+	}
+	return out, cursor, nil
+}
+
+// ListSessions returns the user's active sessions newest first, keyed by a
+// short prefix of the opaque token.
+func (s *MemoryStore) ListSessions(ctx context.Context, userID string) ([]model.SessionInfo, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	var sessions []model.SessionInfo
+	for token, entry := range s.sessions {
+		if entry.userID != userID || now.After(entry.expiresAt) {
+			continue
+		}
+		sessions = append(sessions, model.SessionInfo{
+			ID:        tokenPrefix(token),
+			CreatedAt: now, // the fake does not track creation time
+			ExpiresAt: entry.expiresAt,
+		})
+	}
+	sort.Slice(sessions, func(i, j int) bool { return sessions[i].ExpiresAt.After(sessions[j].ExpiresAt) })
+	return sessions, nil
+}
+
+// RecentEvents returns the most recent analytics events, newest first.
+func (s *MemoryStore) RecentEvents(ctx context.Context, limit int) ([]model.EventRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	out := make([]model.EventRecord, 0, limit)
+	for i := len(s.events) - 1; i >= 0 && len(out) < limit; i-- {
+		out = append(out, model.EventRecord{Name: s.events[i].name, OccurredAt: s.events[i].at, UserID: s.events[i].userID, Properties: s.events[i].properties})
+	}
+	return out, nil
+}
+
+// EventCounts aggregates the local event trail by name.
+func (s *MemoryStore) EventCounts(ctx context.Context) (map[string]int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	counts := map[string]int64{}
+	for _, e := range s.events {
+		counts[e.name]++
+	}
+	return counts, nil
+}
+
+// InsertEvents bulk-loads historical events (demo seed backfill); the fake
+// just appends them in the given order.
+func (s *MemoryStore) InsertEvents(ctx context.Context, events []model.EventRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.events = append(s.events, event)
+	for _, e := range events {
+		s.events = append(s.events, eventRecord{name: e.Name, userID: e.UserID, at: e.OccurredAt, properties: e.Properties})
+	}
+	return nil
+}
+
+// DeleteDemoEvents drops events attributed to demo users (demo reset).
+func (s *MemoryStore) DeleteDemoEvents(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.events[:0]
+	for _, e := range s.events {
+		if strings.HasPrefix(e.userID, "demo-") {
+			continue
+		}
+		next = append(next, e)
+	}
+	s.events = next
+	return nil
+}
+
+// EventTimeseries aggregates the local event trail by calendar day.
+func (s *MemoryStore) EventTimeseries(ctx context.Context, days int) ([]model.EventDayPoint, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	since := time.Now().AddDate(0, 0, -days).Truncate(24 * time.Hour)
+	byDay := map[string]map[string]int64{}
+	for _, event := range s.events {
+		if event.at.Before(since) {
+			continue
+		}
+		day := event.at.Format("2006-01-02")
+		counts, ok := byDay[day]
+		if !ok {
+			counts = map[string]int64{}
+			byDay[day] = counts
+		}
+		counts[event.name]++
+	}
+	return dayPoints(byDay), nil
+}
+
+// EventBreakdown groups the window's events by one JSON property dimension.
+func (s *MemoryStore) EventBreakdown(ctx context.Context, dimension string, days int) ([]model.NameCount, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	since := time.Now().AddDate(0, 0, -days)
+	key := fmt.Sprintf(`"%s":`, dimension)
+	counts := map[string]int64{}
+	for _, event := range s.events {
+		if event.at.Before(since) {
+			continue
+		}
+		var properties map[string]any
+		_ = json.Unmarshal([]byte(event.properties), &properties)
+		if value, ok := properties[dimension].(string); ok {
+			counts[value]++
+			continue
+		}
+		_ = key
+		counts[""]++
+	}
+	delete(counts, "")
+	return topNameCounts(counts, 10), nil
+}
+
+// DailyActiveUsers counts distinct event-attributed users per day.
+func (s *MemoryStore) DailyActiveUsers(ctx context.Context, days int) ([]model.DayCount, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	since := time.Now().AddDate(0, 0, -days)
+	byDay := map[string]map[string]bool{}
+	for _, event := range s.events {
+		if event.at.Before(since) || event.userID == "" {
+			continue
+		}
+		day := event.at.Format("2006-01-02")
+		if byDay[day] == nil {
+			byDay[day] = map[string]bool{}
+		}
+		byDay[day][event.userID] = true
+	}
+	days2 := make([]string, 0, len(byDay))
+	for day := range byDay {
+		days2 = append(days2, day)
+	}
+	sort.Strings(days2)
+	out := make([]model.DayCount, 0, len(days2))
+	for _, day := range days2 {
+		out = append(out, model.DayCount{Day: day, Count: int64(len(byDay[day]))})
+	}
+	return out, nil
+}
+
+// AddEvent records a named analytics event tied to the acting user.
+func (s *MemoryStore) AddEvent(ctx context.Context, event, userID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events = append(s.events, eventRecord{name: event, userID: userID, at: time.Now()})
 }
 
 // Analytics computes the dashboard summary from the current state.
@@ -420,7 +1041,7 @@ func (s *MemoryStore) Analytics(ctx context.Context) model.AnalyticsSummary {
 	}
 	summary.EnrichmentSucceeded = len(s.enrichments)
 	for _, event := range s.events {
-		switch event {
+		switch event.name {
 		case "user_registered":
 			summary.EventsRegistered++
 		case "user_logged_in":
@@ -436,4 +1057,616 @@ func (s *MemoryStore) Analytics(ctx context.Context) model.AnalyticsSummary {
 		}
 	}
 	return summary
+}
+
+// CreateOrg stores an organization; ids are unique, slugs conflict.
+func (s *MemoryStore) CreateOrg(ctx context.Context, org model.Organization) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, existing := range s.orgs {
+		if existing.Slug == org.Slug {
+			return ErrConflict
+		}
+	}
+	if org.CreatedAt.IsZero() {
+		org.CreatedAt = time.Now()
+	}
+	if org.UpdatedAt.IsZero() {
+		org.UpdatedAt = org.CreatedAt
+	}
+	s.orgs[org.ID] = org
+	return nil
+}
+
+// GetOrg returns an organization by id.
+func (s *MemoryStore) GetOrg(ctx context.Context, id string) (model.Organization, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	org, ok := s.orgs[id]
+	if !ok {
+		return model.Organization{}, ErrNotFound
+	}
+	return org, nil
+}
+
+// UpdateOrg overwrites name and slug, refreshing UpdatedAt.
+func (s *MemoryStore) UpdateOrg(ctx context.Context, org model.Organization) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.orgs[org.ID]; !ok {
+		return ErrNotFound
+	}
+	for id, existing := range s.orgs {
+		if id != org.ID && existing.Slug == org.Slug {
+			return ErrConflict
+		}
+	}
+	org.UpdatedAt = time.Now()
+	s.orgs[org.ID] = org
+	return nil
+}
+
+// DeleteOrg removes the organization; memberships cascade.
+func (s *MemoryStore) DeleteOrg(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.orgs[id]; !ok {
+		return ErrNotFound
+	}
+	delete(s.orgs, id)
+	members := s.orgMembers[:0]
+	for _, member := range s.orgMembers {
+		if member.OrgID != id {
+			members = append(members, member)
+		}
+	}
+	s.orgMembers = members
+	return nil
+}
+
+// ListOrgs returns a page of organizations newest first.
+func (s *MemoryStore) ListOrgs(ctx context.Context, opts ListOptions) ([]model.Organization, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	orgs := make([]model.Organization, 0, len(s.orgs))
+	query := strings.ToLower(opts.Query)
+	for _, org := range s.orgs {
+		if query != "" && !strings.Contains(strings.ToLower(org.Name+" "+org.Slug), query) {
+			continue
+		}
+		orgs = append(orgs, org)
+	}
+	sort.Slice(orgs, func(i, j int) bool {
+		if orgs[i].CreatedAt.Equal(orgs[j].CreatedAt) {
+			return orgs[i].ID < orgs[j].ID
+		}
+		return orgs[i].CreatedAt.After(orgs[j].CreatedAt)
+	})
+	rows, next := pageSlice(orgs, func(org model.Organization) string { return org.ID }, opts)
+	return rows, next, nil
+}
+
+// ListOrgsForUser returns the organizations the user belongs to, name order.
+func (s *MemoryStore) ListOrgsForUser(ctx context.Context, userID string) ([]model.Organization, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var orgs []model.Organization
+	for _, member := range s.orgMembers {
+		if member.UserID != userID {
+			continue
+		}
+		if org, ok := s.orgs[member.OrgID]; ok {
+			orgs = append(orgs, org)
+		}
+	}
+	sort.Slice(orgs, func(i, j int) bool { return orgs[i].Name < orgs[j].Name })
+	return orgs, nil
+}
+
+// AddOrgMember records a membership; duplicates are a no-op and unknown
+// organizations or users are ErrNotFound.
+func (s *MemoryStore) AddOrgMember(ctx context.Context, member model.OrgMember) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.orgs[member.OrgID]; !ok {
+		return ErrNotFound
+	}
+	if _, ok := s.users[member.UserID]; !ok {
+		return ErrNotFound
+	}
+	for _, existing := range s.orgMembers {
+		if existing.OrgID == member.OrgID && existing.UserID == member.UserID {
+			return nil
+		}
+	}
+	if member.JoinedAt.IsZero() {
+		member.JoinedAt = time.Now()
+	}
+	s.orgMembers = append(s.orgMembers, member)
+	return nil
+}
+
+// RemoveOrgMember detaches the user from the organization.
+func (s *MemoryStore) RemoveOrgMember(ctx context.Context, orgID, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	members := s.orgMembers[:0]
+	for _, member := range s.orgMembers {
+		if member.OrgID == orgID && member.UserID == userID {
+			continue
+		}
+		members = append(members, member)
+	}
+	s.orgMembers = members
+	return nil
+}
+
+// IsOrgMember reports membership.
+func (s *MemoryStore) IsOrgMember(ctx context.Context, orgID, userID string) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, member := range s.orgMembers {
+		if member.OrgID == orgID && member.UserID == userID {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// ListOrgMembers returns the members of an organization with their user
+// snapshot, oldest join first.
+func (s *MemoryStore) ListOrgMembers(ctx context.Context, orgID string) ([]model.OrgMember, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.orgs[orgID]; !ok {
+		return nil, ErrNotFound
+	}
+	var members []model.OrgMember
+	for _, member := range s.orgMembers {
+		if member.OrgID != orgID {
+			continue
+		}
+		if user, ok := s.users[member.UserID]; ok {
+			member.Email = user.Email
+			member.Name = user.Name
+		}
+		members = append(members, member)
+	}
+	sort.Slice(members, func(i, j int) bool { return members[i].JoinedAt.Before(members[j].JoinedAt) })
+	return members, nil
+}
+
+// CreateRole stores role metadata; keys are unique, re-seeding is a no-op.
+func (s *MemoryStore) CreateRole(ctx context.Context, role model.Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.roles[role.Key]; ok {
+		return nil
+	}
+	if role.CreatedAt.IsZero() {
+		role.CreatedAt = time.Now()
+	}
+	s.roles[role.Key] = role
+	return nil
+}
+
+// GetRole returns role metadata by key.
+func (s *MemoryStore) GetRole(ctx context.Context, key string) (model.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	role, ok := s.roles[key]
+	if !ok {
+		return model.Role{}, ErrNotFound
+	}
+	return role, nil
+}
+
+// UpdateRole overwrites display metadata; keys and the system flag are
+// immutable.
+func (s *MemoryStore) UpdateRole(ctx context.Context, role model.Role) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.roles[role.Key]
+	if !ok {
+		return ErrNotFound
+	}
+	existing.Name = role.Name
+	existing.Description = role.Description
+	s.roles[role.Key] = existing
+	return nil
+}
+
+// DeleteRole removes role metadata.
+func (s *MemoryStore) DeleteRole(ctx context.Context, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.roles[key]; !ok {
+		return ErrNotFound
+	}
+	delete(s.roles, key)
+	return nil
+}
+
+// ListRoles returns every role, creation order.
+func (s *MemoryStore) ListRoles(ctx context.Context) ([]model.Role, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	roles := make([]model.Role, 0, len(s.roles))
+	for _, role := range s.roles {
+		roles = append(roles, role)
+	}
+	sort.Slice(roles, func(i, j int) bool { return roles[i].CreatedAt.Before(roles[j].CreatedAt) })
+	return roles, nil
+}
+
+// ListPolicyRules returns stored rules of one ptype in insertion order —
+// the same order the Casbin adapter loads them in.
+func (s *MemoryStore) ListPolicyRules(ctx context.Context, ptype string) ([]model.PolicyRule, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var rules []model.PolicyRule
+	for _, rule := range s.rules {
+		if rule.PType == ptype {
+			rules = append(rules, rule)
+		}
+	}
+	return rules, nil
+}
+
+// InsertPolicyRule appends one rule; duplicates are a no-op so re-seeding
+// stays idempotent.
+func (s *MemoryStore) InsertPolicyRule(ctx context.Context, rule model.PolicyRule) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, existing := range s.rules {
+		if policyRuleEqual(existing, rule) {
+			return nil
+		}
+	}
+	s.ruleSeq++
+	s.rules = append(s.rules, rule)
+	return nil
+}
+
+// DeletePolicyRule removes the exact rule.
+func (s *MemoryStore) DeletePolicyRule(ctx context.Context, rule model.PolicyRule) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.rules[:0]
+	for _, existing := range s.rules {
+		if policyRuleEqual(existing, rule) {
+			continue
+		}
+		next = append(next, existing)
+	}
+	s.rules = next
+	return nil
+}
+
+// DeleteFilteredPolicyRules removes every rule of the ptype whose subject
+// and domain match — replacing a role's permission set in one domain.
+func (s *MemoryStore) DeleteFilteredPolicyRules(ctx context.Context, ptype, subject, domain string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.rules[:0]
+	for _, existing := range s.rules {
+		if existing.PType == ptype && existing.Subject == subject && existing.Domain == domain {
+			continue
+		}
+		next = append(next, existing)
+	}
+	s.rules = next
+	return nil
+}
+
+// DeletePolicyRulesByType removes every rule of the ptype (adapter
+// SavePolicy rebuild).
+func (s *MemoryStore) DeletePolicyRulesByType(ctx context.Context, ptype string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.rules[:0]
+	for _, existing := range s.rules {
+		if existing.PType != ptype {
+			next = append(next, existing)
+		}
+	}
+	s.rules = next
+	return nil
+}
+
+// RecordAudit appends one immutable audit record.
+func (s *MemoryStore) RecordAudit(ctx context.Context, entry model.AuditEntry) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = time.Now()
+	}
+	s.auditLog = append(s.auditLog, entry)
+	return nil
+}
+
+// ListAudit returns the trail newest first, filtered by the options. The
+// fake keeps every record; retention is a PostgreSQL concern.
+func (s *MemoryStore) ListAudit(ctx context.Context, opts AuditOptions) ([]model.AuditEntry, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := make([]model.AuditEntry, 0, len(s.auditLog))
+	for _, entry := range s.auditLog {
+		if opts.Actor != "" && entry.ActorID != opts.Actor {
+			continue
+		}
+		if opts.Action != "" && entry.Action != opts.Action {
+			continue
+		}
+		if opts.Resource != "" && entry.ResourceType != opts.Resource {
+			continue
+		}
+		rows = append(rows, entry)
+	}
+	// Newest first without reordering the append-only slice.
+	for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+		rows[i], rows[j] = rows[j], rows[i]
+	}
+	limit := opts.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := max(opts.Offset, 0)
+	if start >= len(rows) {
+		return nil, nil
+	}
+	end := min(start+limit, len(rows))
+	return rows[start:end], nil
+}
+
+// UpsertSetting stores one setting.
+func (s *MemoryStore) UpsertSetting(ctx context.Context, setting model.Setting) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.settings[setting.Key] = setting
+	return nil
+}
+
+// GetSetting returns one setting by key.
+func (s *MemoryStore) GetSetting(ctx context.Context, key string) (model.Setting, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	setting, ok := s.settings[key]
+	if !ok {
+		return model.Setting{}, ErrNotFound
+	}
+	return setting, nil
+}
+
+// ListSettings returns every setting ordered by key.
+func (s *MemoryStore) ListSettings(ctx context.Context) ([]model.Setting, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]model.Setting, 0, len(s.settings))
+	for _, setting := range s.settings {
+		out = append(out, setting)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out, nil
+}
+
+// CreateNotification appends one notification.
+func (s *MemoryStore) CreateNotification(ctx context.Context, notification model.Notification) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if notification.CreatedAt.IsZero() {
+		notification.CreatedAt = time.Now()
+	}
+	s.notifs = append(s.notifs, notification)
+	return nil
+}
+
+// ListNotifications returns the user's notifications newest first.
+func (s *MemoryStore) ListNotifications(ctx context.Context, userID string, limit, offset int) ([]model.Notification, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var rows []model.Notification
+	for _, n := range s.notifs {
+		if n.UserID == userID {
+			rows = append(rows, n)
+		}
+	}
+	for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
+		rows[i], rows[j] = rows[j], rows[i]
+	}
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := max(offset, 0)
+	if start >= len(rows) {
+		return nil, nil
+	}
+	end := min(start+limit, len(rows))
+	return rows[start:end], nil
+}
+
+// CountUnreadNotifications returns the user's unread count.
+func (s *MemoryStore) CountUnreadNotifications(ctx context.Context, userID string) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var n int64
+	for _, notification := range s.notifs {
+		if notification.UserID == userID && notification.ReadAt == nil {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// MarkNotificationRead stamps one notification as read.
+func (s *MemoryStore) MarkNotificationRead(ctx context.Context, id, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, notification := range s.notifs {
+		if notification.ID == id && notification.UserID == userID {
+			if notification.ReadAt == nil {
+				now := time.Now()
+				s.notifs[i].ReadAt = &now
+			}
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// MarkAllNotificationsRead stamps every unread notification of the user.
+func (s *MemoryStore) MarkAllNotificationsRead(ctx context.Context, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for i, notification := range s.notifs {
+		if notification.UserID == userID && notification.ReadAt == nil {
+			s.notifs[i].ReadAt = &now
+		}
+	}
+	return nil
+}
+
+// GetNotification returns one notification by id.
+func (s *MemoryStore) GetNotification(ctx context.Context, id string) (model.Notification, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, notification := range s.notifs {
+		if notification.ID == id {
+			return notification, nil
+		}
+	}
+	return model.Notification{}, ErrNotFound
+}
+
+// DeleteDemoNotifications drops demo-seeded notifications (demo reset).
+func (s *MemoryStore) DeleteDemoNotifications(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.notifs[:0]
+	for _, notification := range s.notifs {
+		if strings.HasPrefix(notification.ID, "demo-") || strings.HasPrefix(notification.UserID, "demo-") {
+			continue
+		}
+		next = append(next, notification)
+	}
+	s.notifs = next
+	return nil
+}
+
+// DeleteDemoGroupRules drops demo role assignments (demo reset).
+func (s *MemoryStore) DeleteDemoGroupRules(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.rules[:0]
+	for _, rule := range s.rules {
+		if rule.PType == "g" && strings.HasPrefix(rule.Subject, "demo-") {
+			continue
+		}
+		next = append(next, rule)
+	}
+	s.rules = next
+	return nil
+}
+
+// DeleteDemoOrgRules drops demo org-scoped policies (demo reset).
+func (s *MemoryStore) DeleteDemoOrgRules(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	next := s.rules[:0]
+	for _, rule := range s.rules {
+		if rule.PType == "p" && strings.HasPrefix(rule.Domain, "demo-") {
+			continue
+		}
+		next = append(next, rule)
+	}
+	s.rules = next
+	return nil
+}
+
+// policyRuleEqual compares the five significant rule columns.
+func policyRuleEqual(a, b model.PolicyRule) bool {
+	return a.PType == b.PType && a.Subject == b.Subject && a.Domain == b.Domain &&
+		a.Object == b.Object && a.Action == b.Action
+}
+
+// ResetDemoData drops demo-seeded entities (bootstrap reset extension).
+func (s *MemoryStore) ResetDemoData(ctx context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id := range s.users {
+		if strings.HasPrefix(id, "demo-") {
+			delete(s.users, id)
+		}
+	}
+	for id := range s.jobs {
+		if strings.HasPrefix(id, "demo-") {
+			delete(s.jobs, id)
+		}
+	}
+	for id := range s.reports {
+		if strings.HasPrefix(id, "demo-") {
+			delete(s.reports, id)
+		}
+	}
+	for id := range s.orgs {
+		if strings.HasPrefix(id, "demo-") {
+			delete(s.orgs, id)
+		}
+	}
+	members := s.orgMembers[:0]
+	for _, member := range s.orgMembers {
+		if strings.HasPrefix(member.OrgID, "demo-") || strings.HasPrefix(member.UserID, "demo-") {
+			continue
+		}
+		members = append(members, member)
+	}
+	s.orgMembers = members
+	s.enrichments = nil
+	s.enrichSeq = 0
+	s.emailTokens = nil
+	endpoints := s.webhooks[:0]
+	for _, endpoint := range s.webhooks {
+		if !strings.HasPrefix(endpoint.ID, "demo-") {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	s.webhooks = endpoints
+	pending := s.deliveries[:0]
+	for _, delivery := range s.deliveries {
+		if strings.HasPrefix(delivery.ID, "demo-") || strings.HasPrefix(delivery.EndpointID, "demo-") {
+			continue
+		}
+		pending = append(pending, delivery)
+	}
+	s.deliveries = pending
+	return nil
+}
+
+// tokenPrefix derives the public session id: a short prefix of the opaque
+// token, enough to tell sessions apart and useless to resume one.
+func tokenPrefix(token string) string {
+	if len(token) <= 8 {
+		return token
+	}
+	return token[:8]
+}
+
+// dayPoints converts a day→event→count map into the sorted response shape.
+func dayPoints(byDay map[string]map[string]int64) []model.EventDayPoint {
+	days := make([]string, 0, len(byDay))
+	for day := range byDay {
+		days = append(days, day)
+	}
+	sort.Strings(days)
+	points := make([]model.EventDayPoint, 0, len(days))
+	for _, day := range days {
+		counts := byDay[day]
+		var total int64
+		for _, n := range counts {
+			total += n
+		}
+		points = append(points, model.EventDayPoint{Day: day, Events: counts, Total: total})
+	}
+	return points
 }

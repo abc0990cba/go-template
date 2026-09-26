@@ -51,3 +51,9 @@ WHERE (sqlc.arg('query')::text = '' OR (u.email || ' ' || u.name) ILIKE '%' || s
   )
 ORDER BY u.created_at DESC, u.id ASC
 LIMIT sqlc.arg('lim');
+
+-- name: DeleteDemoUsers :execrows
+DELETE FROM users WHERE id LIKE 'demo-%';
+
+-- name: DeletePasswordCredential :execrows
+DELETE FROM password_credentials WHERE user_id = $1;

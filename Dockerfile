@@ -1,3 +1,11 @@
+# Frontend stage: build the React SPA into static assets.
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/ .
+RUN npm run build
+
 # Build stage: static binaries, no cgo; build metadata is stamped here.
 FROM golang:1.26-alpine AS build
 ARG VERSION=dev
@@ -8,6 +16,8 @@ ENV CGO_ENABLED=0
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
+# The SPA dist is embedded via go:embed; it must exist before `go build`.
+COPY --from=web /web/dist ./web/dist
 RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" -o /out/api ./cmd/api
 RUN go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.date=${DATE}" -o /out/worker ./cmd/worker
 

@@ -14,15 +14,12 @@ import (
 func (a *App) oauthLogin(c *gin.Context) {
 	provider := c.Param("provider")
 	if !a.oauth.IsConfigured(provider) {
-		a.render(c, loginPage(provider+" oauth is not configured", a.csrfToken(c)))
+		c.Redirect(http.StatusSeeOther, "/profile?oauth_error="+provider+"+oauth+is+not+configured")
 		return
 	}
 	// Linking requires an active session by policy; login via OAuth alone
-	// is out of scope for this change.
-	user, ok := a.currentUser(c)
-	if !ok {
-		return
-	}
+	// is out of scope for this change. apiAuthHandler resolved the user.
+	user := a.currentUser(c)
 	state := model.OAuthState{
 		State:    newRandomToken(),
 		Provider: provider,
@@ -47,33 +44,38 @@ func (a *App) oauthLogin(c *gin.Context) {
 func (a *App) oauthCallback(c *gin.Context) {
 	provider := c.Param("provider")
 	q := c.Request.URL.Query()
+	// Every failure funnels back to the profile page with a readable query
+	// message; the SPA surfaces it as a dismissible alert.
+	back := func(msg string) {
+		c.Redirect(http.StatusSeeOther, "/profile?oauth_error="+msg)
+	}
 	if failure := q.Get("error"); failure != "" {
-		a.renderProfileData(c, "provider rejected the request: "+failure)
+		back("provider+rejected+the+request")
 		return
 	}
 	state, err := a.services.Auth.ConsumeState(c.Request.Context(), q.Get("state"))
 	if err != nil || state.Provider != provider {
-		a.problem(c, http.StatusBadRequest, "invalid oauth state", nil)
+		back("invalid+oauth+state")
 		return
 	}
 	if state.UserID == "" {
-		a.problem(c, http.StatusBadRequest, "oauth state is not linked to a session", nil)
+		back("oauth+state+is+not+linked+to+a+session")
 		return
 	}
 	// The state's user must still own the session that started the flow.
 	user, err := a.services.Auth.CurrentUser(c.Request.Context(), a.sessionToken(c))
 	if err != nil || user.ID != state.UserID {
-		a.problem(c, http.StatusUnauthorized, "session expired during oauth", nil)
+		back("session+expired+during+oauth")
 		return
 	}
 	profile, err := a.oauth.ExchangeProfile(c.Request.Context(), provider, q.Get("code"))
 	if err != nil {
 		a.logger.Error("oauth exchange failed", "provider", provider, "err", err)
-		a.renderProfileData(c, "oauth exchange failed")
+		back("oauth+exchange+failed")
 		return
 	}
 	if err := a.services.Auth.LinkIdentity(c.Request.Context(), user.ID, profile); err != nil {
-		a.renderProfileData(c, err.Error())
+		back("linking+identity+failed")
 		return
 	}
 	c.Redirect(http.StatusSeeOther, "/profile")

@@ -4,13 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/reliability"
+	"github.com/your-org/go-template/internal/repository"
 )
 
 // JobQueue pushes jobs onto the distributed queue. A nil implementation
@@ -30,23 +33,66 @@ type JobService struct {
 	queue          JobQueue
 	observer       JobObserver
 	events         EventSink
+	notifier       func(model.Job)
+	notifications  *NotificationsService
 	logger         *slog.Logger
 	client         *http.Client
 	maxConcurrency int
 }
 
-// emit records an analytics event when a sink is configured.
+// WithJobNotifier registers a callback fired on every job status transition
+// (queued, running, done, failed). The realtime layer uses it to push live
+// updates to the UI; without it nothing is published.
+func (s *JobService) WithJobNotifier(notify func(model.Job)) *JobService {
+	s.notifier = notify
+	return s
+}
+
+func (s *JobService) notify(job model.Job) {
+	if s.notifier != nil {
+		s.notifier(job)
+	}
+}
+
+// WithNotifications registers the notification service; job completion then
+// also notifies the user who queued the job (when attribution exists).
+func (s *JobService) WithNotifications(n *NotificationsService) *JobService {
+	s.notifications = n
+	return s
+}
+
+// notifyOwner tells the queueing user how their job ended. System jobs
+// carry no owner and stay silent.
+func (s *JobService) notifyOwner(ctx context.Context, job model.Job) {
+	if s.notifications == nil || job.CreatedBy == "" {
+		return
+	}
+	verb := "finished"
+	if job.Status == "failed" {
+		verb = "failed"
+	}
+	title := "Job " + job.Type + " " + verb
+	body := job.Error
+	if body == "" {
+		body = "Completed successfully."
+	}
+	_ = s.notifications.Create(ctx, job.CreatedBy, "job."+job.Status, title, body, "/jobs")
+}
+
+// emit records an analytics event when a sink is configured. Jobs have no
+// acting user, so the attribution is empty.
 func (s *JobService) emit(ctx context.Context, event string) {
 	if s.events != nil {
-		s.events.AddEvent(ctx, event)
+		s.events.AddEvent(ctx, event, "")
 	}
 }
 
 // NewRecord persists a queued job without publishing anything; the queue
-// producer and the scheduler both start from here.
-func (s *JobService) NewRecord(ctx context.Context, typ, payload string) (model.Job, error) {
+// producer and the scheduler both start from here. createdBy attributes the
+// job to a user ("" for system jobs) so completion can notify them.
+func (s *JobService) NewRecord(ctx context.Context, typ, payload, createdBy string) (model.Job, error) {
 	now := time.Now()
-	job := model.Job{ID: newID(), Type: typ, Status: "queued", Payload: payload, CreatedAt: now, UpdatedAt: now}
+	job := model.Job{ID: newID(), Type: typ, Status: "queued", Payload: payload, OrgID: "", CreatedBy: createdBy, CreatedAt: now, UpdatedAt: now}
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return model.Job{}, fmt.Errorf("save job: %w", err)
 	}
@@ -55,8 +101,8 @@ func (s *JobService) NewRecord(ctx context.Context, typ, payload string) (model.
 
 // Enqueue records the job and publishes it to the distributed queue. On a
 // publish failure the record is marked failed so the UI reflects reality.
-func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Job, error) {
-	job, err := s.NewRecord(ctx, typ, payload)
+func (s *JobService) Enqueue(ctx context.Context, typ, payload, createdBy string) (model.Job, error) {
+	job, err := s.NewRecord(ctx, typ, payload, createdBy)
 	if err != nil {
 		return model.Job{}, err
 	}
@@ -64,6 +110,7 @@ func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Jo
 		s.observer.JobQueued(ctx)
 	}
 	s.emit(ctx, "job_queued")
+	s.notify(job)
 	if s.queue == nil {
 		return job, nil
 	}
@@ -72,36 +119,47 @@ func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Jo
 		job.Error = err.Error()
 		job.UpdatedAt = time.Now()
 		_ = s.store.SaveJob(ctx, job)
+		s.notify(job)
 		return job, fmt.Errorf("enqueue: %w", err)
 	}
 	return job, nil
 }
 
-// List returns all jobs newest first.
-func (s *JobService) List(ctx context.Context) ([]model.Job, error) {
-	return s.store.ListJobs(ctx)
+// List returns one page of jobs plus the next-page cursor, newest first.
+func (s *JobService) List(ctx context.Context, opts repository.ListOptions) ([]model.Job, string, error) {
+	return s.store.ListJobs(ctx, opts)
+}
+
+// Get returns a job by id.
+func (s *JobService) Get(ctx context.Context, id string) (model.Job, error) {
+	return s.store.GetJob(ctx, id)
+}
+
+// EnrichmentProfiles returns one page of stored enrichment profiles.
+func (s *JobService) EnrichmentProfiles(ctx context.Context, opts repository.ListOptions) ([]model.EnrichmentProfile, string, error) {
+	return s.store.ListEnrichments(ctx, opts)
 }
 
 // ProcessOne claims and runs the oldest queued job locally. With a
 // distributed queue configured it is a no-op: another process owns
-// execution.
-func (s *JobService) ProcessOne(ctx context.Context) error {
+// execution. The second return reports whether a job was processed.
+func (s *JobService) ProcessOne(ctx context.Context) (bool, error) {
 	if s.queue != nil {
-		return nil
+		return false, nil
 	}
-	pending, err := s.store.ListJobs(ctx)
+	pending, _, err := s.store.ListJobs(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
 	if err != nil {
-		return fmt.Errorf("list jobs: %w", err)
+		return false, fmt.Errorf("list jobs: %w", err)
 	}
 	for _, job := range pending {
 		if job.Status != "queued" {
 			continue
 		}
-		return s.RunJob(ctx, job.ID, func(ctx context.Context) error {
+		return true, s.RunJob(ctx, job.ID, func(ctx context.Context) error {
 			return s.process(ctx, job)
 		})
 	}
-	return nil
+	return false, nil
 }
 
 // RunJob syncs the operational record around the actual execution: running
@@ -116,6 +174,7 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return fmt.Errorf("mark job running: %w", err)
 	}
+	s.notify(job)
 	start := time.Now()
 	if err := run(ctx); err != nil {
 		job.Status = "failed"
@@ -129,6 +188,8 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 	if err := s.store.SaveJob(ctx, job); err != nil {
 		return fmt.Errorf("save job result: %w", err)
 	}
+	s.notify(job)
+	s.notifyOwner(ctx, job)
 	if s.observer != nil {
 		s.observer.JobFinished(ctx, job.Type, job.Status, time.Since(start))
 	}
@@ -136,7 +197,9 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 }
 
 // EnrichBatch fetches count external profiles with bounded concurrency and
-// retries; it is the body of user.enrich_batch.
+// retries; it is the body of user.enrich_batch. Each profile is stored with
+// its raw JSON payload — user_enrichment_profiles.payload is a jsonb column,
+// so the stored value must be valid JSON.
 func (s *JobService) EnrichBatch(ctx context.Context, count int) error {
 	return reliability.RunBounded(ctx, count, s.maxConcurrency, func(ctx context.Context, i int) error {
 		return reliability.Retry(ctx, 3, 100*time.Millisecond, func() error {
@@ -155,8 +218,18 @@ func (s *JobService) EnrichBatch(ctx context.Context, count int) error {
 			if resp.StatusCode >= 400 {
 				return reliability.PermanentError{Err: fmt.Errorf("permanent upstream status %d", resp.StatusCode)}
 			}
+			raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+			if err != nil {
+				return fmt.Errorf("read upstream profile: %w", err)
+			}
+			payload := strings.TrimSpace(string(raw))
+			if !json.Valid([]byte(payload)) {
+				// Defensive: keep the record jsonb-safe if the upstream
+				// body ever stops being JSON.
+				payload = fmt.Sprintf(`{"external_ref":%q}`, fmt.Sprintf("external-user-%d", i))
+			}
 			return s.store.AddEnrichment(ctx, model.EnrichmentProfile{
-				UserID: newID(), Source: "randomuser.me", Payload: fmt.Sprintf("external-user-%d", i), CreatedAt: time.Now(),
+				UserID: newID(), Source: "randomuser.me", Payload: payload, CreatedAt: time.Now(),
 			})
 		})
 	})

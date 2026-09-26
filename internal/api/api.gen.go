@@ -9,6 +9,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AuthIdentityProvider.
+const (
+	AuthIdentityProviderGithub   AuthIdentityProvider = "github"
+	AuthIdentityProviderGoogle   AuthIdentityProvider = "google"
+	AuthIdentityProviderPassword AuthIdentityProvider = "password"
+)
+
+// Valid indicates whether the value is a known member of the AuthIdentityProvider enum.
+func (e AuthIdentityProvider) Valid() bool {
+	switch e {
+	case AuthIdentityProviderGithub:
+		return true
+	case AuthIdentityProviderGoogle:
+		return true
+	case AuthIdentityProviderPassword:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobStatus.
 const (
 	JobStatusDone    JobStatus = "done"
@@ -33,6 +54,24 @@ func (e JobStatus) Valid() bool {
 	}
 }
 
+// Defines values for PolicyRulePtype.
+const (
+	PolicyRulePtypeG PolicyRulePtype = "g"
+	PolicyRulePtypeP PolicyRulePtype = "p"
+)
+
+// Valid indicates whether the value is a known member of the PolicyRulePtype enum.
+func (e PolicyRulePtype) Valid() bool {
+	switch e {
+	case PolicyRulePtypeG:
+		return true
+	case PolicyRulePtypeP:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ReportStatus.
 const (
 	ReportStatusDone   ReportStatus = "done"
@@ -45,6 +84,69 @@ func (e ReportStatus) Valid() bool {
 	case ReportStatusDone:
 		return true
 	case ReportStatusFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SettingType.
+const (
+	SettingTypeBool   SettingType = "bool"
+	SettingTypeInt    SettingType = "int"
+	SettingTypeString SettingType = "string"
+)
+
+// Valid indicates whether the value is a known member of the SettingType enum.
+func (e SettingType) Valid() bool {
+	switch e {
+	case SettingTypeBool:
+		return true
+	case SettingTypeInt:
+		return true
+	case SettingTypeString:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SettingDefinitionType.
+const (
+	SettingDefinitionTypeBool   SettingDefinitionType = "bool"
+	SettingDefinitionTypeInt    SettingDefinitionType = "int"
+	SettingDefinitionTypeString SettingDefinitionType = "string"
+)
+
+// Valid indicates whether the value is a known member of the SettingDefinitionType enum.
+func (e SettingDefinitionType) Valid() bool {
+	switch e {
+	case SettingDefinitionTypeBool:
+		return true
+	case SettingDefinitionTypeInt:
+		return true
+	case SettingDefinitionTypeString:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WebhookDeliveryStatus.
+const (
+	WebhookDeliveryStatusFailed  WebhookDeliveryStatus = "failed"
+	WebhookDeliveryStatusPending WebhookDeliveryStatus = "pending"
+	WebhookDeliveryStatusSuccess WebhookDeliveryStatus = "success"
+)
+
+// Valid indicates whether the value is a known member of the WebhookDeliveryStatus enum.
+func (e WebhookDeliveryStatus) Valid() bool {
+	switch e {
+	case WebhookDeliveryStatusFailed:
+		return true
+	case WebhookDeliveryStatusPending:
+		return true
+	case WebhookDeliveryStatusSuccess:
 		return true
 	default:
 		return false
@@ -72,6 +174,171 @@ func (e Mode) Valid() bool {
 	}
 }
 
+// Defines values for GetAnalyticsBreakdownParamsBy.
+const (
+	Country GetAnalyticsBreakdownParamsBy = "country"
+	Feature GetAnalyticsBreakdownParamsBy = "feature"
+	Source  GetAnalyticsBreakdownParamsBy = "source"
+)
+
+// Valid indicates whether the value is a known member of the GetAnalyticsBreakdownParamsBy enum.
+func (e GetAnalyticsBreakdownParamsBy) Valid() bool {
+	switch e {
+	case Country:
+		return true
+	case Feature:
+		return true
+	case Source:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListEnrichmentProfilesParamsMode.
+const (
+	ListEnrichmentProfilesParamsModeCursor ListEnrichmentProfilesParamsMode = "cursor"
+	ListEnrichmentProfilesParamsModeKeyset ListEnrichmentProfilesParamsMode = "keyset"
+	ListEnrichmentProfilesParamsModeOffset ListEnrichmentProfilesParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListEnrichmentProfilesParamsMode enum.
+func (e ListEnrichmentProfilesParamsMode) Valid() bool {
+	switch e {
+	case ListEnrichmentProfilesParamsModeCursor:
+		return true
+	case ListEnrichmentProfilesParamsModeKeyset:
+		return true
+	case ListEnrichmentProfilesParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListJobsParamsMode.
+const (
+	ListJobsParamsModeCursor ListJobsParamsMode = "cursor"
+	ListJobsParamsModeKeyset ListJobsParamsMode = "keyset"
+	ListJobsParamsModeOffset ListJobsParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListJobsParamsMode enum.
+func (e ListJobsParamsMode) Valid() bool {
+	switch e {
+	case ListJobsParamsModeCursor:
+		return true
+	case ListJobsParamsModeKeyset:
+		return true
+	case ListJobsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListJobsParamsStatus.
+const (
+	ListJobsParamsStatusDone    ListJobsParamsStatus = "done"
+	ListJobsParamsStatusFailed  ListJobsParamsStatus = "failed"
+	ListJobsParamsStatusQueued  ListJobsParamsStatus = "queued"
+	ListJobsParamsStatusRunning ListJobsParamsStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the ListJobsParamsStatus enum.
+func (e ListJobsParamsStatus) Valid() bool {
+	switch e {
+	case ListJobsParamsStatusDone:
+		return true
+	case ListJobsParamsStatusFailed:
+		return true
+	case ListJobsParamsStatusQueued:
+		return true
+	case ListJobsParamsStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOrgsParamsMode.
+const (
+	ListOrgsParamsModeCursor ListOrgsParamsMode = "cursor"
+	ListOrgsParamsModeKeyset ListOrgsParamsMode = "keyset"
+	ListOrgsParamsModeOffset ListOrgsParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListOrgsParamsMode enum.
+func (e ListOrgsParamsMode) Valid() bool {
+	switch e {
+	case ListOrgsParamsModeCursor:
+		return true
+	case ListOrgsParamsModeKeyset:
+		return true
+	case ListOrgsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListPoliciesParamsPtype.
+const (
+	ListPoliciesParamsPtypeG ListPoliciesParamsPtype = "g"
+	ListPoliciesParamsPtypeP ListPoliciesParamsPtype = "p"
+)
+
+// Valid indicates whether the value is a known member of the ListPoliciesParamsPtype enum.
+func (e ListPoliciesParamsPtype) Valid() bool {
+	switch e {
+	case ListPoliciesParamsPtypeG:
+		return true
+	case ListPoliciesParamsPtypeP:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UnlinkProviderParamsProvider.
+const (
+	UnlinkProviderParamsProviderGithub UnlinkProviderParamsProvider = "github"
+	UnlinkProviderParamsProviderGoogle UnlinkProviderParamsProvider = "google"
+)
+
+// Valid indicates whether the value is a known member of the UnlinkProviderParamsProvider enum.
+func (e UnlinkProviderParamsProvider) Valid() bool {
+	switch e {
+	case UnlinkProviderParamsProviderGithub:
+		return true
+	case UnlinkProviderParamsProviderGoogle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListReportsParamsMode.
+const (
+	ListReportsParamsModeCursor ListReportsParamsMode = "cursor"
+	ListReportsParamsModeKeyset ListReportsParamsMode = "keyset"
+	ListReportsParamsModeOffset ListReportsParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListReportsParamsMode enum.
+func (e ListReportsParamsMode) Valid() bool {
+	switch e {
+	case ListReportsParamsModeCursor:
+		return true
+	case ListReportsParamsModeKeyset:
+		return true
+	case ListReportsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListUsersParamsMode.
 const (
 	ListUsersParamsModeCursor ListUsersParamsMode = "cursor"
@@ -91,6 +358,19 @@ func (e ListUsersParamsMode) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// APIKey defines model for APIKey.
+type APIKey struct {
+	CreatedAt  time.Time  `json:"created_at"`
+	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
+	Id         string     `json:"id"`
+	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
+	Name       string     `json:"name"`
+	Prefix     string     `json:"prefix"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	Scopes     []string   `json:"scopes"`
+	UserId     string     `json:"user_id"`
 }
 
 // AnalyticsSummary defines model for AnalyticsSummary.
@@ -114,10 +394,72 @@ type AnalyticsSummary struct {
 	TotalUsers         int  `json:"total_users"`
 }
 
+// AuditEntry defines model for AuditEntry.
+type AuditEntry struct {
+	Action       string    `json:"action"`
+	ActorEmail   string    `json:"actor_email"`
+	ActorId      string    `json:"actor_id"`
+	CreatedAt    time.Time `json:"created_at"`
+	Diff         *string   `json:"diff,omitempty"`
+	Domain       *string   `json:"domain,omitempty"`
+	Id           string    `json:"id"`
+	Ip           *string   `json:"ip,omitempty"`
+	RequestId    *string   `json:"request_id,omitempty"`
+	ResourceId   *string   `json:"resource_id,omitempty"`
+	ResourceType string    `json:"resource_type"`
+}
+
+// AuthIdentity defines model for AuthIdentity.
+type AuthIdentity struct {
+	AvatarUrl       *string              `json:"avatar_url,omitempty"`
+	Email           string               `json:"email"`
+	LastLoginAt     time.Time            `json:"last_login_at"`
+	LinkedAt        time.Time            `json:"linked_at"`
+	Name            string               `json:"name"`
+	Provider        AuthIdentityProvider `json:"provider"`
+	ProviderSubject string               `json:"provider_subject"`
+	UserId          string               `json:"user_id"`
+}
+
+// AuthIdentityProvider defines model for AuthIdentity.Provider.
+type AuthIdentityProvider string
+
 // CreateUserRequest defines model for CreateUserRequest.
 type CreateUserRequest struct {
 	Email openapi_types.Email `json:"email"`
 	Name  *string             `json:"name,omitempty"`
+}
+
+// DayCount defines model for DayCount.
+type DayCount struct {
+	Count int64  `json:"count"`
+	Day   string `json:"day"`
+}
+
+// EnrichmentProfile defines model for EnrichmentProfile.
+type EnrichmentProfile struct {
+	CreatedAt time.Time `json:"created_at"`
+
+	// Payload Raw JSON profile from the source
+	Payload string `json:"payload"`
+	Source  string `json:"source"`
+	UserId  string `json:"user_id"`
+}
+
+// EventDayPoint defines model for EventDayPoint.
+type EventDayPoint struct {
+	Day string `json:"day"`
+
+	// Events Count per event name
+	Events map[string]int `json:"events"`
+	Total  int            `json:"total"`
+}
+
+// EventRecord defines model for EventRecord.
+type EventRecord struct {
+	Name       string    `json:"name"`
+	OccurredAt time.Time `json:"occurred_at"`
+	UserId     *string   `json:"user_id,omitempty"`
 }
 
 // Job defines model for Job.
@@ -139,6 +481,9 @@ type JobStatus string
 // JobList defines model for JobList.
 type JobList struct {
 	Data []Job `json:"data"`
+
+	// NextCursor Empty on the last page.
+	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -147,12 +492,79 @@ type LoginRequest struct {
 	Password string              `json:"password"`
 }
 
+// NameCount defines model for NameCount.
+type NameCount struct {
+	Count int64  `json:"count"`
+	Name  string `json:"name"`
+}
+
+// Notification defines model for Notification.
+type Notification struct {
+	Body      string     `json:"body"`
+	CreatedAt time.Time  `json:"created_at"`
+	Id        string     `json:"id"`
+	Link      string     `json:"link"`
+	ReadAt    *time.Time `json:"read_at"`
+	Title     string     `json:"title"`
+	Type      string     `json:"type"`
+	UserId    string     `json:"user_id"`
+}
+
+// OAuthProviderInfo defines model for OAuthProviderInfo.
+type OAuthProviderInfo struct {
+	Configured bool   `json:"configured"`
+	Name       string `json:"name"`
+}
+
+// OrgMember defines model for OrgMember.
+type OrgMember struct {
+	Email    string    `json:"email"`
+	JoinedAt time.Time `json:"joined_at"`
+	Name     string    `json:"name"`
+	OrgId    string    `json:"org_id"`
+	UserId   string    `json:"user_id"`
+}
+
+// Organization defines model for Organization.
+type Organization struct {
+	CreatedAt time.Time `json:"created_at"`
+	Id        string    `json:"id"`
+	Name      string    `json:"name"`
+	Slug      string    `json:"slug"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Permission defines model for Permission.
+type Permission struct {
+	Action string `json:"action"`
+	Object string `json:"object"`
+}
+
+// PolicyRule defines model for PolicyRule.
+type PolicyRule struct {
+	Action  *string         `json:"action,omitempty"`
+	Domain  string          `json:"domain"`
+	Object  *string         `json:"object,omitempty"`
+	Ptype   PolicyRulePtype `json:"ptype"`
+	Subject string          `json:"subject"`
+}
+
+// PolicyRulePtype defines model for PolicyRule.Ptype.
+type PolicyRulePtype string
+
 // Problem RFC 9457 problem details; internal error details are never leaked.
 type Problem struct {
 	Detail *string `json:"detail,omitempty"`
 	Status int     `json:"status"`
 	Title  string  `json:"title"`
 	Type   *string `json:"type,omitempty"`
+}
+
+// RbacResource defines model for RbacResource.
+type RbacResource struct {
+	Actions     []string `json:"actions"`
+	Description string   `json:"description"`
+	Key         string   `json:"key"`
 }
 
 // RegisterRequest defines model for RegisterRequest.
@@ -178,7 +590,60 @@ type ReportStatus string
 // ReportList defines model for ReportList.
 type ReportList struct {
 	Data []Report `json:"data"`
+
+	// NextCursor Empty on the last page.
+	NextCursor *string `json:"next_cursor,omitempty"`
 }
+
+// Role defines model for Role.
+type Role struct {
+	CreatedAt   time.Time `json:"created_at"`
+	Description string    `json:"description"`
+	IsSystem    bool      `json:"is_system"`
+	Key         string    `json:"key"`
+	Name        string    `json:"name"`
+}
+
+// SessionInfo defines model for SessionInfo.
+type SessionInfo struct {
+	CreatedAt time.Time `json:"created_at"`
+	Current   bool      `json:"current"`
+	ExpiresAt time.Time `json:"expires_at"`
+
+	// Id Short non-secret prefix of the session token
+	Id string `json:"id"`
+}
+
+// Setting defines model for Setting.
+type Setting struct {
+	Default   string      `json:"default"`
+	Group     string      `json:"group"`
+	IsFlag    bool        `json:"is_flag"`
+	Key       string      `json:"key"`
+	Label     string      `json:"label"`
+	Public    bool        `json:"public"`
+	Type      SettingType `json:"type"`
+	UpdatedAt *time.Time  `json:"updated_at,omitempty"`
+	UpdatedBy *string     `json:"updated_by,omitempty"`
+	Value     string      `json:"value"`
+}
+
+// SettingType defines model for Setting.Type.
+type SettingType string
+
+// SettingDefinition defines model for SettingDefinition.
+type SettingDefinition struct {
+	Default string                `json:"default"`
+	Group   string                `json:"group"`
+	IsFlag  bool                  `json:"is_flag"`
+	Key     string                `json:"key"`
+	Label   string                `json:"label"`
+	Public  bool                  `json:"public"`
+	Type    SettingDefinitionType `json:"type"`
+}
+
+// SettingDefinitionType defines model for SettingDefinition.Type.
+type SettingDefinitionType string
 
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
@@ -209,26 +674,308 @@ type UserWithToken struct {
 	User  User   `json:"user"`
 }
 
+// WebhookDelivery defines model for WebhookDelivery.
+type WebhookDelivery struct {
+	Attempts           int                   `json:"attempts"`
+	CreatedAt          time.Time             `json:"created_at"`
+	DeliveredAt        *time.Time            `json:"delivered_at,omitempty"`
+	EndpointId         string                `json:"endpoint_id"`
+	Event              string                `json:"event"`
+	Id                 string                `json:"id"`
+	LastError          *string               `json:"last_error,omitempty"`
+	LastResponseStatus int                   `json:"last_response_status"`
+	Payload            string                `json:"payload"`
+	Status             WebhookDeliveryStatus `json:"status"`
+}
+
+// WebhookDeliveryStatus defines model for WebhookDelivery.Status.
+type WebhookDeliveryStatus string
+
+// WebhookEndpoint defines model for WebhookEndpoint.
+type WebhookEndpoint struct {
+	Active      bool      `json:"active"`
+	CreatedAt   time.Time `json:"created_at"`
+	Description *string   `json:"description,omitempty"`
+	Events      []string  `json:"events"`
+	Id          string    `json:"id"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Url         string    `json:"url"`
+}
+
+// ApiKeyId defines model for apiKeyId.
+type ApiKeyId = string
+
 // Limit defines model for limit.
 type Limit = int
 
 // Mode defines model for mode.
 type Mode string
 
+// NotificationId defines model for notificationId.
+type NotificationId = string
+
 // Offset defines model for offset.
 type Offset = int
 
+// OrgId defines model for orgId.
+type OrgId = string
+
+// RoleKey defines model for roleKey.
+type RoleKey = string
+
 // UserId defines model for userId.
 type UserId = string
+
+// WebhookId defines model for webhookId.
+type WebhookId = string
+
+// APIKeyList defines model for APIKeyList.
+type APIKeyList struct {
+	Data []APIKey `json:"data"`
+}
+
+// NotificationList defines model for NotificationList.
+type NotificationList struct {
+	Data []Notification `json:"data"`
+}
+
+// OrgMemberList defines model for OrgMemberList.
+type OrgMemberList struct {
+	Data []OrgMember `json:"data"`
+}
+
+// OrganizationRef defines model for OrganizationRef.
+type OrganizationRef = Organization
+
+// PolicyRuleList defines model for PolicyRuleList.
+type PolicyRuleList struct {
+	Data []PolicyRule `json:"data"`
+}
+
+// RoleList defines model for RoleList.
+type RoleList struct {
+	Data []Role `json:"data"`
+}
+
+// RoleRef defines model for RoleRef.
+type RoleRef = Role
+
+// SettingList defines model for SettingList.
+type SettingList struct {
+	Data []Setting `json:"data"`
+}
 
 // Status defines model for Status.
 type Status struct {
 	Status string `json:"status"`
 }
 
+// WebhookDeliveryList defines model for WebhookDeliveryList.
+type WebhookDeliveryList struct {
+	Data []WebhookDelivery `json:"data"`
+}
+
+// WebhookEndpointList defines model for WebhookEndpointList.
+type WebhookEndpointList struct {
+	Data []WebhookEndpoint `json:"data"`
+}
+
+// GetAnalyticsBreakdownParams defines parameters for GetAnalyticsBreakdown.
+type GetAnalyticsBreakdownParams struct {
+	By   *GetAnalyticsBreakdownParamsBy `form:"by,omitempty" json:"by,omitempty"`
+	Days *int                           `form:"days,omitempty" json:"days,omitempty"`
+}
+
+// GetAnalyticsBreakdownParamsBy defines parameters for GetAnalyticsBreakdown.
+type GetAnalyticsBreakdownParamsBy string
+
+// GetAnalyticsDAUParams defines parameters for GetAnalyticsDAU.
+type GetAnalyticsDAUParams struct {
+	Days *int `form:"days,omitempty" json:"days,omitempty"`
+}
+
+// ListRecentEventsParams defines parameters for ListRecentEvents.
+type ListRecentEventsParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetAnalyticsTimeseriesParams defines parameters for GetAnalyticsTimeseries.
+type GetAnalyticsTimeseriesParams struct {
+	// Days Window length in days (1..90)
+	Days *int `form:"days,omitempty" json:"days,omitempty"`
+}
+
+// CreateApiKeyJSONBody defines parameters for CreateApiKey.
+type CreateApiKeyJSONBody struct {
+	Name   string    `json:"name"`
+	Scopes *[]string `json:"scopes,omitempty"`
+
+	// Ttl Optional duration, e.g. 720h
+	Ttl *string `json:"ttl,omitempty"`
+}
+
+// ListAuditParams defines parameters for ListAudit.
+type ListAuditParams struct {
+	Limit    *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset   *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+	Actor    *string `form:"actor,omitempty" json:"actor,omitempty"`
+	Action   *string `form:"action,omitempty" json:"action,omitempty"`
+	Resource *string `form:"resource,omitempty" json:"resource,omitempty"`
+}
+
+// ForgotPasswordJSONBody defines parameters for ForgotPassword.
+type ForgotPasswordJSONBody struct {
+	Email string `json:"email"`
+}
+
+// ResetPasswordJSONBody defines parameters for ResetPassword.
+type ResetPasswordJSONBody struct {
+	Password string `json:"password"`
+	Token    string `json:"token"`
+}
+
+// VerifyEmailJSONBody defines parameters for VerifyEmail.
+type VerifyEmailJSONBody struct {
+	Token string `json:"token"`
+}
+
+// ListEnrichmentProfilesParams defines parameters for ListEnrichmentProfiles.
+type ListEnrichmentProfilesParams struct {
+	Mode   *ListEnrichmentProfilesParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit                            `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset                           `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Cursor of the previous page (cursor and keyset modes)
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Q Substring filter over source and payload
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// UserId Restrict to one user's profiles
+	UserId *string `form:"user_id,omitempty" json:"user_id,omitempty"`
+}
+
+// ListEnrichmentProfilesParamsMode defines parameters for ListEnrichmentProfiles.
+type ListEnrichmentProfilesParamsMode string
+
+// StartImpersonationJSONBody defines parameters for StartImpersonation.
+type StartImpersonationJSONBody struct {
+	UserId string `json:"user_id"`
+}
+
+// ListJobsParams defines parameters for ListJobs.
+type ListJobsParams struct {
+	Mode   *ListJobsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset             `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Last job id of the previous page (cursor and keyset modes)
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Q Substring filter over type and error
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Status Filter by lifecycle status
+	Status *ListJobsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Type Filter by job type
+	Type *string `form:"type,omitempty" json:"type,omitempty"`
+}
+
+// ListJobsParamsMode defines parameters for ListJobs.
+type ListJobsParamsMode string
+
+// ListJobsParamsStatus defines parameters for ListJobs.
+type ListJobsParamsStatus string
+
 // EnqueueEnrichmentJSONBody defines parameters for EnqueueEnrichment.
 type EnqueueEnrichmentJSONBody struct {
 	Count int `json:"count"`
+}
+
+// ListNotificationsParams defines parameters for ListNotifications.
+type ListNotificationsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListOrgsParams defines parameters for ListOrgs.
+type ListOrgsParams struct {
+	Mode   *ListOrgsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit              `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset             `form:"offset,omitempty" json:"offset,omitempty"`
+	Q      *string             `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// ListOrgsParamsMode defines parameters for ListOrgs.
+type ListOrgsParamsMode string
+
+// CreateOrgJSONBody defines parameters for CreateOrg.
+type CreateOrgJSONBody struct {
+	Name string  `json:"name"`
+	Slug *string `json:"slug,omitempty"`
+}
+
+// UpdateOrgJSONBody defines parameters for UpdateOrg.
+type UpdateOrgJSONBody struct {
+	Name *string `json:"name,omitempty"`
+	Slug *string `json:"slug,omitempty"`
+}
+
+// AddOrgMemberJSONBody defines parameters for AddOrgMember.
+type AddOrgMemberJSONBody struct {
+	UserId string `json:"user_id"`
+}
+
+// ListPoliciesParams defines parameters for ListPolicies.
+type ListPoliciesParams struct {
+	Ptype *ListPoliciesParamsPtype `form:"ptype,omitempty" json:"ptype,omitempty"`
+}
+
+// ListPoliciesParamsPtype defines parameters for ListPolicies.
+type ListPoliciesParamsPtype string
+
+// UnlinkProviderParamsProvider defines parameters for UnlinkProvider.
+type UnlinkProviderParamsProvider string
+
+// ListReportsParams defines parameters for ListReports.
+type ListReportsParams struct {
+	Mode   *ListReportsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit                 `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset                `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Last report id of the previous page (cursor and keyset modes)
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Q Substring filter over status and result
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+}
+
+// ListReportsParamsMode defines parameters for ListReports.
+type ListReportsParamsMode string
+
+// CreateRoleJSONBody defines parameters for CreateRole.
+type CreateRoleJSONBody struct {
+	Description *string `json:"description,omitempty"`
+	Key         string  `json:"key"`
+	Name        string  `json:"name"`
+}
+
+// UpdateRoleJSONBody defines parameters for UpdateRole.
+type UpdateRoleJSONBody struct {
+	Description *string `json:"description,omitempty"`
+	Name        *string `json:"name,omitempty"`
+}
+
+// SetRolePermissionsJSONBody defines parameters for SetRolePermissions.
+type SetRolePermissionsJSONBody struct {
+	Domain      *string       `json:"domain,omitempty"`
+	Permissions *[]Permission `json:"permissions,omitempty"`
+}
+
+// UpdateSettingJSONBody defines parameters for UpdateSetting.
+type UpdateSettingJSONBody struct {
+	Value string `json:"value"`
 }
 
 // ListUsersParams defines parameters for ListUsers.
@@ -247,17 +994,104 @@ type ListUsersParams struct {
 // ListUsersParamsMode defines parameters for ListUsers.
 type ListUsersParamsMode string
 
+// UnassignUserRoleJSONBody defines parameters for UnassignUserRole.
+type UnassignUserRoleJSONBody struct {
+	Domain *string `json:"domain,omitempty"`
+	Role   string  `json:"role"`
+}
+
+// AssignUserRoleJSONBody defines parameters for AssignUserRole.
+type AssignUserRoleJSONBody struct {
+	Domain *string `json:"domain,omitempty"`
+	Role   string  `json:"role"`
+}
+
+// CreateWebhookJSONBody defines parameters for CreateWebhook.
+type CreateWebhookJSONBody struct {
+	Description *string   `json:"description,omitempty"`
+	Events      *[]string `json:"events,omitempty"`
+	Secret      *string   `json:"secret,omitempty"`
+	Url         string    `json:"url"`
+}
+
+// UpdateWebhookJSONBody defines parameters for UpdateWebhook.
+type UpdateWebhookJSONBody struct {
+	Active      *bool     `json:"active,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Events      *[]string `json:"events,omitempty"`
+	Url         *string   `json:"url,omitempty"`
+}
+
+// ListWebhookDeliveriesParams defines parameters for ListWebhookDeliveries.
+type ListWebhookDeliveriesParams struct {
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// CreateApiKeyJSONRequestBody defines body for CreateApiKey for application/json ContentType.
+type CreateApiKeyJSONRequestBody CreateApiKeyJSONBody
+
+// ForgotPasswordJSONRequestBody defines body for ForgotPassword for application/json ContentType.
+type ForgotPasswordJSONRequestBody ForgotPasswordJSONBody
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
 
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody = RegisterRequest
 
+// ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
+type ResetPasswordJSONRequestBody ResetPasswordJSONBody
+
+// VerifyEmailJSONRequestBody defines body for VerifyEmail for application/json ContentType.
+type VerifyEmailJSONRequestBody VerifyEmailJSONBody
+
+// StartImpersonationJSONRequestBody defines body for StartImpersonation for application/json ContentType.
+type StartImpersonationJSONRequestBody StartImpersonationJSONBody
+
 // EnqueueEnrichmentJSONRequestBody defines body for EnqueueEnrichment for application/json ContentType.
 type EnqueueEnrichmentJSONRequestBody EnqueueEnrichmentJSONBody
+
+// CreateOrgJSONRequestBody defines body for CreateOrg for application/json ContentType.
+type CreateOrgJSONRequestBody CreateOrgJSONBody
+
+// UpdateOrgJSONRequestBody defines body for UpdateOrg for application/json ContentType.
+type UpdateOrgJSONRequestBody UpdateOrgJSONBody
+
+// AddOrgMemberJSONRequestBody defines body for AddOrgMember for application/json ContentType.
+type AddOrgMemberJSONRequestBody AddOrgMemberJSONBody
+
+// RemovePolicyRuleJSONRequestBody defines body for RemovePolicyRule for application/json ContentType.
+type RemovePolicyRuleJSONRequestBody = PolicyRule
+
+// AddPolicyRuleJSONRequestBody defines body for AddPolicyRule for application/json ContentType.
+type AddPolicyRuleJSONRequestBody = PolicyRule
+
+// CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
+type CreateRoleJSONRequestBody CreateRoleJSONBody
+
+// UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
+type UpdateRoleJSONRequestBody UpdateRoleJSONBody
+
+// SetRolePermissionsJSONRequestBody defines body for SetRolePermissions for application/json ContentType.
+type SetRolePermissionsJSONRequestBody SetRolePermissionsJSONBody
+
+// UpdateSettingJSONRequestBody defines body for UpdateSetting for application/json ContentType.
+type UpdateSettingJSONRequestBody UpdateSettingJSONBody
 
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody = CreateUserRequest
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
+
+// UnassignUserRoleJSONRequestBody defines body for UnassignUserRole for application/json ContentType.
+type UnassignUserRoleJSONRequestBody UnassignUserRoleJSONBody
+
+// AssignUserRoleJSONRequestBody defines body for AssignUserRole for application/json ContentType.
+type AssignUserRoleJSONRequestBody AssignUserRoleJSONBody
+
+// CreateWebhookJSONRequestBody defines body for CreateWebhook for application/json ContentType.
+type CreateWebhookJSONRequestBody CreateWebhookJSONBody
+
+// UpdateWebhookJSONRequestBody defines body for UpdateWebhook for application/json ContentType.
+type UpdateWebhookJSONRequestBody UpdateWebhookJSONBody

@@ -12,56 +12,59 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// securityHeaders sets hardening headers on every response. The CSP allows
-// the CDN used by htmx and the docs page plus inline styles.
+// securityHeaders sets hardening headers on every response. The SPA is
+// served same-origin, so the CSP needs no external sources; inline styles
+// stay allowed because component libraries set style attributes.
 func (a *App) securityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Content-Security-Policy",
-			"default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
+			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:")
 		c.Next()
 	}
 }
 
-// newRandomToken is shared by csrf token generation and OAuth state.
+// newRandomToken is shared by session tokens and OAuth state.
 func newRandomToken() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// csrfIssue runs globally: it gives every visitor a token cookie and puts
-// the token into the request context so forms render the same value the
-// cookie carries. Without the context value the double-submit check could
-// never pass.
-func (a *App) csrfIssue() gin.HandlerFunc {
+// originCheck guards state-changing /api requests against cross-site posts.
+// Browsers always send Origin on cross-origin requests, and Sec-Fetch-Site
+// on modern ones; requests without either are non-browser clients (curl, k6)
+// and pass. The cookie stays SameSite=Lax as a second line of defense.
+func (a *App) originCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token, err := c.Cookie("app_csrf")
-		if err != nil || token == "" {
-			token = newRandomToken()
-			c.SetSameSite(http.SameSiteLaxMode)
-			c.SetCookie("app_csrf", token, 3600*24, "/", "", a.cfg.CookieSecure, false)
+		if c.Request.Method == http.MethodGet || c.Request.Method == http.MethodHead || c.Request.Method == http.MethodOptions {
+			c.Next()
+			return
 		}
-		c.Set("csrf_token", token)
+		if site := c.GetHeader("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "same-site" && site != "none" {
+			a.problem(c, http.StatusForbidden, "cross-site request rejected", nil)
+			c.Abort()
+			return
+		}
+		if origin := c.GetHeader("Origin"); origin != "" {
+			host := c.Request.Host
+			if !sameHost(origin, host) {
+				a.problem(c, http.StatusForbidden, "cross-origin request rejected", nil)
+				c.Abort()
+				return
+			}
+		}
 		c.Next()
 	}
 }
 
-// verifyCSRF enforces the double-submit pattern on HTML form posts: the
-// form field must match the app_csrf cookie. Routes under /api/ are exempt
-// because the JSON API does not rely on ambient cookie credentials.
-func (a *App) verifyCSRF(c *gin.Context) bool {
-	if strings.HasPrefix(c.Request.URL.Path, "/api/") {
-		return true
-	}
-	cookie, _ := c.Cookie("app_csrf")
-	if cookie == "" || c.PostForm("csrf_token") != cookie {
-		a.problem(c, http.StatusForbidden, "csrf token mismatch", nil)
-		return false
-	}
-	return true
+// sameHost compares an Origin header (scheme://host[:port]) with the
+// request's Host.
+func sameHost(origin, host string) bool {
+	origin = strings.TrimPrefix(strings.TrimPrefix(origin, "https://"), "http://")
+	return strings.EqualFold(strings.TrimSuffix(origin, "/"), host)
 }
 
 type bucketEntry struct {

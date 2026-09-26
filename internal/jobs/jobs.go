@@ -12,7 +12,16 @@ import (
 const (
 	TypeEnrichBatch    = "user.enrich_batch"
 	TypeReportGenerate = "user.report_generate"
+	TypeWebhookDeliver = "webhook.deliver"
 )
+
+// WebhookDeliver is the payload for TypeWebhookDeliver: one recorded
+// delivery to (re-)post through the queue path.
+type WebhookDeliver struct {
+	PayloadVersion int    `json:"payload_version"`
+	EndpointID     string `json:"endpoint_id"`
+	DeliveryID     string `json:"delivery_id"`
+}
 
 // EnrichBatch is the payload for TypeEnrichBatch. Bump PayloadVersion when
 // the shape changes incompatibly and handle old versions in the handler.

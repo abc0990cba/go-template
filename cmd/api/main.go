@@ -1,5 +1,5 @@
-// Command api runs the HTTP server: JSON API, server-rendered UI, and health
-// endpoints, with graceful shutdown on SIGINT/SIGTERM.
+// Command api runs the HTTP server: JSON API, the embedded SPA, the SSE
+// stream, and health endpoints, with graceful shutdown on SIGINT/SIGTERM.
 package main
 
 import (
@@ -17,8 +17,12 @@ import (
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/httpapp"
+	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/platform/mailer"
 	asynqqueue "github.com/your-org/go-template/internal/platform/queue"
+	"github.com/your-org/go-template/internal/platform/rbac"
+	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -63,12 +67,76 @@ func main() {
 	}
 	defer closeStore()
 
+	// Realtime: the hub fans live events out to SSE subscribers; with Redis
+	// present, the bridge also relays job transitions published by the
+	// worker process.
+	hub := realtime.NewHub()
+	bridge := openRealtimeBridge(ctx, cfg, hub, logger)
+	defer func() {
+		if bridge != nil {
+			_ = bridge.Close()
+		}
+	}()
+
+	// Every analytics event flows through the fan sink: the store trail and
+	// the ClickHouse buffer keep their behavior, and the hub publishes the
+	// event to connected browsers.
+	fan := realtime.NewFanSink(hub, nonNil(repos.Events)...)
+	var events service.EventSink = fan
+
 	jobQueue, closeQueue := openQueue(cfg)
 	defer closeQueue()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, repos.Events, repos.EventStats, jobQueue, observ.NewJobObserver(), logger, cfg)
-	bootstrap.SeedDemoUser(services.Auth, cfg.DemoEmail, cfg.DemoPassword, logger)
-	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build)
+	var webhookDispatcher service.WebhookDispatcher
+	if jobQueue != nil {
+		webhookDispatcher = asynqqueue.NewWebhookEnqueuer(cfg.RedisAddr)
+	}
+
+	// The policy engine guards every protected route; policies persist
+	// through the same store and system roles are re-seeded idempotently.
+	enforcer, err := rbac.NewEnforcer(repos.Rules)
+	if err != nil {
+		logger.Error("open rbac enforcer", "err", err)
+		os.Exit(1)
+	}
+
+	sender := openMailer(cfg, logger)
+	services := service.NewContainer(service.Deps{
+		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
+		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
+		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
+		Webhooks: repos.Webhooks, WebhookDispatcher: webhookDispatcher, Mailer: sender,
+		Realtime: func(n model.Notification) {
+			hub.Publish(realtime.NewEvent(realtime.TypeNotification, n))
+			if bridge != nil {
+				bridge.Publish(realtime.NewEvent(realtime.TypeNotification, n))
+			}
+		},
+		Events: events, EventStats: repos.EventStats, Queue: jobQueue,
+		Observer: observ.NewJobObserver(), RBACEnforcer: enforcer,
+	}, logger, cfg)
+	if err := services.RBAC.EnsureSystemRoles(ctx); err != nil {
+		logger.Error("seed system roles", "err", err)
+		os.Exit(1)
+	}
+	services.Jobs.WithJobNotifier(func(job model.Job) {
+		hub.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+		if bridge != nil {
+			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+		}
+	})
+
+	// The webhook fan-out receives every analytics event from the fan sink.
+	fan.Register(realtime.WebhookSink{Webhooks: services.Webhooks})
+	if webhookDispatcher == nil {
+		services.Webhooks.UseInlineDispatcher()
+	}
+	bootstrap.SeedDemoUser(services.Auth, services.RBAC, cfg.DemoEmail, cfg.DemoPassword, logger)
+	if cfg.DemoSeed {
+		bootstrap.SeedDemoData(services, repos, cfg, logger)
+	}
+
+	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build, hub)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -103,7 +171,28 @@ func main() {
 	}
 }
 
-// newLogger picks text for humans and json for log shippers.
+// openRealtimeBridge subscribes to the worker's realtime channel when Redis
+// is configured; nil otherwise (in-process events need no relay).
+func openRealtimeBridge(ctx context.Context, cfg config.Config, hub *realtime.Hub, logger *slog.Logger) *realtime.RedisBridge {
+	if cfg.RedisAddr == "" {
+		return nil
+	}
+	bridge := realtime.NewRedisBridge(cfg.RedisAddr, hub, logger)
+	go bridge.Run(ctx)
+	return bridge
+}
+
+// nonNil filters nil sinks so the fan sink only wraps real ones.
+func nonNil(sinks ...service.EventSink) []service.EventSink {
+	out := make([]service.EventSink, 0, len(sinks))
+	for _, sink := range sinks {
+		if sink != nil {
+			out = append(out, sink)
+		}
+	}
+	return out
+}
+
 // runHealthcheck is the container HEALTHCHECK probe; distroless images have
 // no shell or curl, so the binary checks itself.
 func runHealthcheck() int {
@@ -131,6 +220,19 @@ func newLogger(format string, level slog.Level) *slog.Logger {
 		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
 	}
 	return slog.New(slog.NewTextHandler(os.Stdout, opts))
+}
+
+// openMailer picks the SMTP transport when configured, the logging
+// fallback otherwise.
+func openMailer(cfg config.Config, logger *slog.Logger) mailer.Sender {
+	mailCfg := mailer.Config{
+		Host: cfg.SMTPHost, Port: cfg.SMTPPort,
+		Username: cfg.SMTPUsername, Password: cfg.SMTPPassword, From: cfg.SMTPFrom,
+	}
+	if !mailCfg.Enabled() {
+		return mailer.NewLogMailer(logger)
+	}
+	return mailer.NewSMTP(mailCfg, logger)
 }
 
 // openQueue returns the asynq-backed job queue, or nil in single-process

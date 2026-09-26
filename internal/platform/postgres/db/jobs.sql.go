@@ -10,48 +10,177 @@ import (
 	"time"
 )
 
+const deleteDemoJobs = `-- name: DeleteDemoJobs :execrows
+DELETE FROM jobs WHERE id LIKE 'demo-%'
+`
+
+func (q *Queries) DeleteDemoJobs(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDemoJobs)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getJob = `-- name: GetJob :one
-SELECT id, type, status, payload, error, created_at, updated_at
+SELECT id, type, status, payload, error, org_id, created_by, created_at, updated_at
 FROM jobs
 WHERE id = $1
 `
 
-func (q *Queries) GetJob(ctx context.Context, id string) (Job, error) {
+type GetJobRow struct {
+	ID        string
+	Type      string
+	Status    string
+	Payload   string
+	Error     string
+	OrgID     string
+	CreatedBy string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) GetJob(ctx context.Context, id string) (GetJobRow, error) {
 	row := q.db.QueryRow(ctx, getJob, id)
-	var i Job
+	var i GetJobRow
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
 		&i.Status,
 		&i.Payload,
 		&i.Error,
+		&i.OrgID,
+		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const listJobs = `-- name: ListJobs :many
-SELECT id, type, status, payload, error, created_at, updated_at
+const listJobsKeyset = `-- name: ListJobsKeyset :many
+SELECT id, type, status, payload, error, org_id, created_by, created_at, updated_at
 FROM jobs
-ORDER BY created_at DESC
+WHERE ($1::text = '' OR (type || ' ' || error) ILIKE '%' || $1::text || '%')
+  AND ($2::text = '' OR status = $2::text)
+  AND ($3::text = '' OR type = $3::text)
+  AND (
+    created_at < (SELECT c.created_at FROM jobs c WHERE c.id = $4)
+    OR (created_at = (SELECT c.created_at FROM jobs c WHERE c.id = $4) AND id > $4)
+  )
+ORDER BY created_at DESC, id ASC
+LIMIT $5
 `
 
-func (q *Queries) ListJobs(ctx context.Context) ([]Job, error) {
-	rows, err := q.db.Query(ctx, listJobs)
+type ListJobsKeysetParams struct {
+	Query  string
+	Status string
+	Typ    string
+	After  string
+	Lim    int32
+}
+
+type ListJobsKeysetRow struct {
+	ID        string
+	Type      string
+	Status    string
+	Payload   string
+	Error     string
+	OrgID     string
+	CreatedBy string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) ListJobsKeyset(ctx context.Context, arg ListJobsKeysetParams) ([]ListJobsKeysetRow, error) {
+	rows, err := q.db.Query(ctx, listJobsKeyset,
+		arg.Query,
+		arg.Status,
+		arg.Typ,
+		arg.After,
+		arg.Lim,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Job
+	var items []ListJobsKeysetRow
 	for rows.Next() {
-		var i Job
+		var i ListJobsKeysetRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Type,
 			&i.Status,
 			&i.Payload,
 			&i.Error,
+			&i.OrgID,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listJobsOffset = `-- name: ListJobsOffset :many
+SELECT id, type, status, payload, error, org_id, created_by, created_at, updated_at
+FROM jobs
+WHERE ($1::text = '' OR (type || ' ' || error) ILIKE '%' || $1::text || '%')
+  AND ($2::text = '' OR status = $2::text)
+  AND ($3::text = '' OR type = $3::text)
+ORDER BY created_at DESC, id ASC
+LIMIT $5
+OFFSET $4
+`
+
+type ListJobsOffsetParams struct {
+	Query  string
+	Status string
+	Typ    string
+	Off    int32
+	Lim    int32
+}
+
+type ListJobsOffsetRow struct {
+	ID        string
+	Type      string
+	Status    string
+	Payload   string
+	Error     string
+	OrgID     string
+	CreatedBy string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+func (q *Queries) ListJobsOffset(ctx context.Context, arg ListJobsOffsetParams) ([]ListJobsOffsetRow, error) {
+	rows, err := q.db.Query(ctx, listJobsOffset,
+		arg.Query,
+		arg.Status,
+		arg.Typ,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListJobsOffsetRow
+	for rows.Next() {
+		var i ListJobsOffsetRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.Status,
+			&i.Payload,
+			&i.Error,
+			&i.OrgID,
+			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -66,13 +195,15 @@ func (q *Queries) ListJobs(ctx context.Context) ([]Job, error) {
 }
 
 const upsertJob = `-- name: UpsertJob :exec
-INSERT INTO jobs (id, type, status, payload, error, created_at, updated_at)
-VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
+INSERT INTO jobs (id, type, status, payload, error, org_id, created_by, created_at, updated_at)
+VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8, $9)
 ON CONFLICT (id) DO UPDATE
 SET type = EXCLUDED.type,
     status = EXCLUDED.status,
     payload = EXCLUDED.payload,
     error = EXCLUDED.error,
+    org_id = EXCLUDED.org_id,
+    created_by = EXCLUDED.created_by,
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at
 `
@@ -83,6 +214,8 @@ type UpsertJobParams struct {
 	Status    string
 	Column4   string
 	Error     string
+	OrgID     string
+	CreatedBy string
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -94,6 +227,8 @@ func (q *Queries) UpsertJob(ctx context.Context, arg UpsertJobParams) error {
 		arg.Status,
 		arg.Column4,
 		arg.Error,
+		arg.OrgID,
+		arg.CreatedBy,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)

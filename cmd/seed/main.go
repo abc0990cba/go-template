@@ -6,6 +6,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -15,6 +17,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/crypto/argon2"
 
 	"github.com/your-org/go-template/internal/config"
 )
@@ -50,7 +53,12 @@ func main() {
 		logger.Error("seed users", "err", err)
 		os.Exit(1)
 	}
-	logger.Info("seed complete", "users", inserted, "duration", time.Since(started).Round(time.Millisecond))
+	credentials, err := seedUserCredentials(ctx, pool, *users)
+	if err != nil {
+		logger.Error("seed credentials", "err", err)
+		os.Exit(1)
+	}
+	logger.Info("seed complete", "users", inserted, "password_credentials", credentials, "duration", time.Since(started).Round(time.Millisecond))
 }
 
 // seedUsers bulk-inserts users with pgx COPY. Timestamps spread over the
@@ -83,4 +91,46 @@ func seedUsers(ctx context.Context, pool *pgxpool.Pool, count int) (int64, error
 		return 0, fmt.Errorf("commit: %w", err)
 	}
 	return n, nil
+}
+
+// seedUserCredentials gives every perf user the password "password123" and
+// the matching "password" identity so the k6 login scenarios authenticate
+// against a freshly seeded database. The hash is computed once and shared:
+// Argon2id costs ~20 ms per hash, which would dominate a 100k seed.
+func seedUserCredentials(ctx context.Context, pool *pgxpool.Pool, count int) (int64, error) {
+	hash := hashPassword("password123")
+	const batch = 1000
+	var total int64
+	now := time.Now()
+	for start := 0; start < count; start += batch {
+		end := min(start+batch, count)
+		credentials := make([][]any, 0, end-start)
+		identities := make([][]any, 0, end-start)
+		for i := start; i < end; i++ {
+			email := "perf-" + strconv.Itoa(i) + "@example.com"
+			credentials = append(credentials, []any{"perf-" + strconv.Itoa(i), hash, now})
+			identities = append(identities, []any{"perf-" + strconv.Itoa(i), "password", email, "Perf User " + strconv.Itoa(i), email})
+		}
+		n1, err := pool.CopyFrom(ctx, pgx.Identifier{"password_credentials"}, []string{"user_id", "password_hash", "updated_at"},
+			pgx.CopyFromRows(credentials))
+		if err != nil {
+			return total, fmt.Errorf("copy credentials: %w", err)
+		}
+		n2, err := pool.CopyFrom(ctx, pgx.Identifier{"auth_identities"}, []string{"user_id", "provider", "provider_subject", "name", "email"},
+			pgx.CopyFromRows(identities))
+		if err != nil {
+			return total, fmt.Errorf("copy identities: %w", err)
+		}
+		total += n1 + n2
+	}
+	return total, nil
+}
+
+// hashPassword mirrors internal/service/auth.go so seeded credentials verify
+// against the real login path.
+func hashPassword(password string) string {
+	salt := make([]byte, 16)
+	_, _ = rand.Read(salt)
+	key := argon2.IDKey([]byte(password), salt, 1, 64*1024, 4, 32)
+	return base64.RawStdEncoding.EncodeToString(salt) + ":" + base64.RawStdEncoding.EncodeToString(key)
 }

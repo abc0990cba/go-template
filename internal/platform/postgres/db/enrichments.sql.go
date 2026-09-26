@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const addEnrichment = `-- name: AddEnrichment :exec
@@ -41,4 +43,117 @@ func (q *Queries) CountEnrichments(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const deleteDemoEnrichments = `-- name: DeleteDemoEnrichments :execrows
+DELETE FROM user_enrichment_profiles WHERE user_id LIKE 'demo-%' OR user_id = ''
+`
+
+func (q *Queries) DeleteDemoEnrichments(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDemoEnrichments)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const listEnrichmentsKeyset = `-- name: ListEnrichmentsKeyset :many
+SELECT user_id, source, payload, created_at, seq
+FROM user_enrichment_profiles
+WHERE ($1::text = '' OR (source || ' ' || payload) ILIKE '%' || $1::text || '%')
+  AND ($2::text = '' OR user_id = $2::text)
+  AND (
+    created_at < $3::timestamptz
+    OR (created_at = $3::timestamptz AND seq > $4)
+  )
+ORDER BY created_at DESC, seq ASC
+LIMIT $5
+`
+
+type ListEnrichmentsKeysetParams struct {
+	Query    string
+	UserID   string
+	AfterAt  time.Time
+	AfterSeq pgtype.Int8
+	Lim      int32
+}
+
+func (q *Queries) ListEnrichmentsKeyset(ctx context.Context, arg ListEnrichmentsKeysetParams) ([]UserEnrichmentProfile, error) {
+	rows, err := q.db.Query(ctx, listEnrichmentsKeyset,
+		arg.Query,
+		arg.UserID,
+		arg.AfterAt,
+		arg.AfterSeq,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserEnrichmentProfile
+	for rows.Next() {
+		var i UserEnrichmentProfile
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Source,
+			&i.Payload,
+			&i.CreatedAt,
+			&i.Seq,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEnrichmentsOffset = `-- name: ListEnrichmentsOffset :many
+SELECT user_id, source, payload, created_at, seq
+FROM user_enrichment_profiles
+WHERE ($1::text = '' OR (source || ' ' || payload) ILIKE '%' || $1::text || '%')
+  AND ($2::text = '' OR user_id = $2::text)
+ORDER BY created_at DESC, seq ASC
+LIMIT $4
+OFFSET $3
+`
+
+type ListEnrichmentsOffsetParams struct {
+	Query  string
+	UserID string
+	Off    int32
+	Lim    int32
+}
+
+func (q *Queries) ListEnrichmentsOffset(ctx context.Context, arg ListEnrichmentsOffsetParams) ([]UserEnrichmentProfile, error) {
+	rows, err := q.db.Query(ctx, listEnrichmentsOffset,
+		arg.Query,
+		arg.UserID,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserEnrichmentProfile
+	for rows.Next() {
+		var i UserEnrichmentProfile
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Source,
+			&i.Payload,
+			&i.CreatedAt,
+			&i.Seq,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

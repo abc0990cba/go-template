@@ -6,7 +6,37 @@ package db
 
 import (
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+type ApiKey struct {
+	ID         string
+	UserID     string
+	Name       string
+	Prefix     string
+	KeyHash    string
+	Scopes     []string
+	OrgID      string
+	LastUsedAt pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+	CreatedAt  time.Time
+}
+
+type AuditLog struct {
+	ID           int64
+	ActorID      string
+	ActorEmail   string
+	Action       string
+	ResourceType string
+	ResourceID   string
+	Domain       string
+	Diff         string
+	Ip           string
+	RequestID    string
+	CreatedAt    time.Time
+}
 
 type AuthIdentity struct {
 	Provider        string
@@ -19,6 +49,27 @@ type AuthIdentity struct {
 	LastLoginAt     time.Time
 }
 
+type CasbinRule struct {
+	ID    int64
+	Ptype string
+	V0    string
+	V1    string
+	V2    string
+	V3    string
+	V4    string
+	V5    string
+}
+
+type EmailToken struct {
+	ID        string
+	UserID    string
+	Kind      string
+	TokenHash string
+	ExpiresAt time.Time
+	UsedAt    pgtype.Timestamptz
+	CreatedAt time.Time
+}
+
 type Job struct {
 	ID        string
 	Type      string
@@ -27,6 +78,19 @@ type Job struct {
 	Error     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	OrgID     string
+	CreatedBy string
+}
+
+type Notification struct {
+	ID        string
+	UserID    string
+	Type      string
+	Title     string
+	Body      string
+	Link      string
+	ReadAt    pgtype.Timestamptz
+	CreatedAt time.Time
 }
 
 type OauthState struct {
@@ -35,6 +99,20 @@ type OauthState struct {
 	UserID        string
 	RedirectAfter string
 	ExpiresAt     time.Time
+}
+
+type OrgMember struct {
+	OrgID    string
+	UserID   string
+	JoinedAt time.Time
+}
+
+type Organization struct {
+	ID        string
+	Name      string
+	Slug      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type PasswordCredential struct {
@@ -50,13 +128,31 @@ type Report struct {
 	Error     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	OrgID     string
+}
+
+type Role struct {
+	Key         string
+	Name        string
+	Description string
+	IsSystem    bool
+	CreatedAt   time.Time
 }
 
 type Session struct {
-	Token     string
-	UserID    string
-	ExpiresAt time.Time
-	CreatedAt time.Time
+	Token          string
+	UserID         string
+	ExpiresAt      time.Time
+	CreatedAt      time.Time
+	ImpersonatedBy string
+}
+
+type Setting struct {
+	Key         string
+	Value       string
+	Description string
+	UpdatedBy   string
+	UpdatedAt   time.Time
 }
 
 type User struct {
@@ -72,4 +168,31 @@ type UserEnrichmentProfile struct {
 	Source    string
 	Payload   string
 	CreatedAt time.Time
+	Seq       pgtype.Int8
+}
+
+type WebhookDelivery struct {
+	ID                 string
+	EndpointID         string
+	Event              string
+	Payload            string
+	Status             string
+	Attempts           int32
+	LastResponseStatus int32
+	LastError          string
+	DeliveredAt        pgtype.Timestamptz
+	CreatedAt          time.Time
+}
+
+type WebhookEndpoint struct {
+	ID          string
+	Url         string
+	Secret      string
+	Events      []string
+	Description string
+	Active      bool
+	OrgID       string
+	CreatedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
