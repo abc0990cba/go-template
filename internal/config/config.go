@@ -16,6 +16,7 @@ type Config struct {
 	HTTPAddr        string
 	BaseURL         string
 	LogLevel        slog.Level
+	DatabaseURL     string
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -33,6 +34,7 @@ func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:       env("APP_HTTP_ADDR", ":8080"),
 		BaseURL:        env("APP_BASE_URL", "http://localhost:8080"),
+		DatabaseURL:    os.Getenv("APP_DATABASE_URL"),
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),

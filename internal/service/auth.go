@@ -12,7 +12,6 @@ import (
 	"golang.org/x/crypto/argon2"
 
 	"github.com/your-org/go-template/internal/model"
-	"github.com/your-org/go-template/internal/repository"
 )
 
 // ErrInvalidCredentials is returned for any failed login, deliberately the
@@ -23,7 +22,7 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 // AuthService implements registration, login, and session resolution on top
 // of a store, with Argon2id password hashing.
 type AuthService struct {
-	store *repository.MemoryStore
+	store AuthRepo
 }
 
 // Register creates a user with a hashed password, opens a session, and

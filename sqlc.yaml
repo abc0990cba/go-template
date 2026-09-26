@@ -1,10 +1,17 @@
 version: "2"
 sql:
   - engine: postgresql
-    schema: migrations/postgres
+    schema:
+      - migrations/postgres/000001_init.up.sql
+      - migrations/postgres/000002_sessions.up.sql
     queries: queries
     gen:
       go:
         package: db
         out: internal/platform/postgres/db
         sql_package: pgx/v5
+        overrides:
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "jsonb"
+            go_type: "string"

@@ -1,5 +1,4 @@
 .PHONY: run worker test test-integration test-e2e test-performance lint vet coverage generate docker-up docker-down openspec-validate
-
 run:
 	go run ./cmd/api
 
@@ -29,7 +28,7 @@ coverage:
 	go tool cover -func=coverage.out | tail -1
 
 generate:
-	@echo "TODO: run sqlc, oapi-codegen, and templ generation once tools are installed"
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
 
 docker-up:
 	docker compose up --build

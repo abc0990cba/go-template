@@ -10,7 +10,6 @@ import (
 
 	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/repository"
 )
 
 const enrichBatchURL = "https://randomuser.me/api/?results=1"
@@ -18,7 +17,7 @@ const enrichBatchURL = "https://randomuser.me/api/?results=1"
 // JobService implements enqueueing and local processing of background
 // jobs; the queue OpenSpec change moves execution onto asynq.
 type JobService struct {
-	store          *repository.MemoryStore
+	store          JobsRepo
 	logger         *slog.Logger
 	client         *http.Client
 	maxConcurrency int

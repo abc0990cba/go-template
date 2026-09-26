@@ -11,7 +11,7 @@ import (
 
 // UserService implements user management on top of a store.
 type UserService struct {
-	store *repository.MemoryStore
+	store UsersRepo
 }
 
 // Create adds a user without a password credential.

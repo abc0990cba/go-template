@@ -61,6 +61,9 @@ func NewMemoryStore() *MemoryStore {
 	}
 }
 
+// Ping always succeeds; the fake has no external dependencies.
+func (s *MemoryStore) Ping(ctx context.Context) error { return nil }
+
 // CreateUser stores a user and, when passwordHash is non-empty, the password
 // credential plus the "password" identity. Emails are unique
 // case-insensitively.
@@ -151,6 +154,9 @@ func (s *MemoryStore) ListUsers(ctx context.Context, opts ListUsersOptions) ([]m
 		opts.Limit = 25
 	}
 	start := opts.Offset
+	if start < 0 {
+		start = 0
+	}
 	if opts.Mode == "cursor" || opts.Mode == "keyset" {
 		start = 0
 		if opts.After != "" {

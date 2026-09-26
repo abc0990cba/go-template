@@ -10,5 +10,6 @@ FROM alpine:3.20
 WORKDIR /app
 COPY --from=build /out/api /app/api
 COPY --from=build /out/worker /app/worker
+COPY migrations /app/migrations
 EXPOSE 8080
 CMD ["/app/api"]

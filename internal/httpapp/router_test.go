@@ -21,8 +21,9 @@ func newTestServer(t *testing.T) *httptest.Server {
 		t.Fatalf("load config: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	services := service.NewContainer(repository.NewMemoryStore(), logger, cfg)
-	server := httptest.NewServer(NewRouter(cfg, services, logger))
+	store := repository.NewMemoryStore()
+	services := service.NewContainer(store, store, store, store, store, logger, cfg)
+	server := httptest.NewServer(NewRouter(cfg, services, logger, store))
 	t.Cleanup(server.Close)
 	return server
 }

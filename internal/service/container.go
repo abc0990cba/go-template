@@ -5,11 +5,10 @@ import (
 	"net/http"
 
 	"github.com/your-org/go-template/internal/config"
-	"github.com/your-org/go-template/internal/repository"
 )
 
-// Container wires every service against one store; handlers depend on this
-// aggregate rather than on individual services.
+// Container wires every service against the store ports; handlers depend on
+// this aggregate rather than on individual services.
 type Container struct {
 	Auth      *AuthService
 	Users     *UserService
@@ -18,19 +17,20 @@ type Container struct {
 	Analytics *AnalyticsService
 }
 
-// NewContainer builds the service graph on top of a store.
-func NewContainer(store *repository.MemoryStore, logger *slog.Logger, cfg config.Config) *Container {
-	jobs := &JobService{
-		store:          store,
-		logger:         logger,
-		client:         &http.Client{Timeout: cfg.ExternalTimeout},
-		maxConcurrency: cfg.MaxConcurrency,
-	}
+// NewContainer builds the service graph. One store usually satisfies every
+// port, so callers pass the same adapter five times; a memory fake and a
+// PostgreSQL adapter are interchangeable.
+func NewContainer(auth AuthRepo, users UsersRepo, jobs JobsRepo, reports ReportsRepo, analytics AnalyticsRepo, logger *slog.Logger, cfg config.Config) *Container {
 	return &Container{
-		Auth:      &AuthService{store: store},
-		Users:     &UserService{store: store},
-		Jobs:      jobs,
-		Reports:   &ReportService{store: store},
-		Analytics: &AnalyticsService{store: store},
+		Auth:  &AuthService{store: auth},
+		Users: &UserService{store: users},
+		Jobs: &JobService{
+			store:          jobs,
+			logger:         logger,
+			client:         &http.Client{Timeout: cfg.ExternalTimeout},
+			maxConcurrency: cfg.MaxConcurrency,
+		},
+		Reports:   &ReportService{store: reports},
+		Analytics: &AnalyticsService{store: analytics},
 	}
 }

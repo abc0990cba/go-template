@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/httpapp"
-	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -26,9 +26,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	store := repository.NewMemoryStore()
-	services := service.NewContainer(store, logger, cfg)
-	router := httpapp.NewRouter(cfg, services, logger)
+	repos, closeStore, err := bootstrap.Store(cfg, logger)
+	if err != nil {
+		logger.Error("open store", "err", err)
+		os.Exit(1)
+	}
+	defer closeStore()
+
+	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, logger, cfg)
+	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger)
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -44,7 +50,7 @@ func main() {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		logger.Info("api listening", "addr", cfg.HTTPAddr, "log_level", cfg.LogLevel.String())
+		logger.Info("api listening", "addr", cfg.HTTPAddr, "log_level", cfg.LogLevel.String(), "store", repos.Kind)
 		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			serveErr <- err
 		}

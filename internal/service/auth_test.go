@@ -17,7 +17,8 @@ func testContainer(t *testing.T) *Container {
 		t.Fatalf("load config: %v", err)
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	return NewContainer(repository.NewMemoryStore(), logger, cfg)
+	store := repository.NewMemoryStore()
+	return NewContainer(store, store, store, store, store, logger, cfg)
 }
 
 func TestRegisterLoginAndLinkProviders(t *testing.T) {

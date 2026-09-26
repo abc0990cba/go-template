@@ -4,12 +4,11 @@ import (
 	"context"
 
 	"github.com/your-org/go-template/internal/model"
-	"github.com/your-org/go-template/internal/repository"
 )
 
 // AnalyticsService reads the dashboard summary from the store.
 type AnalyticsService struct {
-	store *repository.MemoryStore
+	store AnalyticsRepo
 }
 
 // Summary computes aggregate counters for the dashboard and reports.

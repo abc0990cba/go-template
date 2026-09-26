@@ -6,12 +6,11 @@ import (
 	"time"
 
 	"github.com/your-org/go-template/internal/model"
-	"github.com/your-org/go-template/internal/repository"
 )
 
 // ReportService produces snapshot reports from the analytics summary.
 type ReportService struct {
-	store *repository.MemoryStore
+	store ReportsRepo
 }
 
 // Generate computes the summary and stores it as a finished report.

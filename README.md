@@ -41,7 +41,7 @@ make openspec-validate
 make docker-up
 ```
 
-The first implementation uses an in-memory repository so the app can be explored immediately. PostgreSQL, Redis, ClickHouse, sqlc, and asynq integration points are scaffolded for the next OpenSpec changes.
+The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` (see `.env.example`) — or run `make docker-up` — to run on PostgreSQL with pgx + sqlc and startup migrations; Redis, ClickHouse, asynq, and templ integration points land in upcoming OpenSpec changes.
 
 ## Project Rules
 

@@ -20,16 +20,17 @@ type App struct {
 	cfg      config.Config
 	services *service.Container
 	logger   *slog.Logger
+	pinger   service.Pinger
 }
 
 // NewRouter builds the complete Gin engine: middleware, health endpoints,
 // OpenAPI docs, HTML UI routes, and the /api group.
-func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger) http.Handler {
-	app := &App{cfg: cfg, services: services, logger: logger}
+func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger) http.Handler {
+	app := &App{cfg: cfg, services: services, logger: logger, pinger: pinger}
 	r := gin.New()
 	r.Use(gin.Recovery(), app.requestID(), app.bodyLimit())
 	r.GET("/health/live", app.ok)
-	r.GET("/health/ready", app.ok)
+	r.GET("/health/ready", app.ready)
 	r.GET("/health/startup", app.ok)
 	r.GET("/openapi.yaml", app.openapi)
 	r.GET("/docs", app.docs)
@@ -67,6 +68,16 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 }
 
 func (a *App) ok(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// ready reflects dependency health; a failing check yields 503.
+func (a *App) ready(c *gin.Context) {
+	if err := a.pinger.Ping(c.Request.Context()); err != nil {
+		a.logger.Error("readiness check failed", "err", err)
+		a.problem(c, http.StatusServiceUnavailable, "not ready", nil)
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
