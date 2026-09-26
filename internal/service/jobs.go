@@ -29,9 +29,17 @@ type JobService struct {
 	reports        ReportsRepo
 	queue          JobQueue
 	observer       JobObserver
+	events         EventSink
 	logger         *slog.Logger
 	client         *http.Client
 	maxConcurrency int
+}
+
+// emit records an analytics event when a sink is configured.
+func (s *JobService) emit(ctx context.Context, event string) {
+	if s.events != nil {
+		s.events.AddEvent(ctx, event)
+	}
 }
 
 // NewRecord persists a queued job without publishing anything; the queue
@@ -55,8 +63,8 @@ func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Jo
 	if s.observer != nil {
 		s.observer.JobQueued(ctx)
 	}
+	s.emit(ctx, "job_queued")
 	if s.queue == nil {
-		s.store.AddEvent(ctx, "job_queued")
 		return job, nil
 	}
 	if err := s.queue.Enqueue(ctx, job); err != nil {
@@ -66,7 +74,6 @@ func (s *JobService) Enqueue(ctx context.Context, typ, payload string) (model.Jo
 		_ = s.store.SaveJob(ctx, job)
 		return job, fmt.Errorf("enqueue: %w", err)
 	}
-	s.store.AddEvent(ctx, "job_queued")
 	return job, nil
 }
 
@@ -113,10 +120,10 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 	if err := run(ctx); err != nil {
 		job.Status = "failed"
 		job.Error = err.Error()
-		s.store.AddEvent(ctx, "job_failed")
+		s.emit(ctx, "job_failed")
 	} else {
 		job.Status = "done"
-		s.store.AddEvent(ctx, "job_done")
+		s.emit(ctx, "job_done")
 	}
 	job.UpdatedAt = time.Now()
 	if err := s.store.SaveJob(ctx, job); err != nil {

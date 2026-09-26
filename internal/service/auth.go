@@ -23,7 +23,15 @@ var ErrInvalidCredentials = errors.New("invalid credentials")
 // of a store, with Argon2id password hashing.
 type AuthService struct {
 	store      AuthRepo
+	events     EventSink
 	sessionTTL time.Duration
+}
+
+// emit records an analytics event when a sink is configured.
+func (s *AuthService) emit(ctx context.Context, event string) {
+	if s.events != nil {
+		s.events.AddEvent(ctx, event)
+	}
 }
 
 // Register creates a user with a hashed password, opens a session, and
@@ -41,7 +49,7 @@ func (s *AuthService) Register(ctx context.Context, email, name, password string
 	if err := s.store.CreateSession(ctx, token, user.ID, s.sessionTTL); err != nil {
 		return model.User{}, "", err
 	}
-	s.store.AddEvent(ctx, "user_registered")
+	s.emit(ctx, "user_registered")
 	return user, token, nil
 }
 
@@ -56,7 +64,7 @@ func (s *AuthService) Login(ctx context.Context, email, password string) (model.
 	if err := s.store.CreateSession(ctx, token, user.ID, s.sessionTTL); err != nil {
 		return model.User{}, "", err
 	}
-	s.store.AddEvent(ctx, "user_logged_in")
+	s.emit(ctx, "user_logged_in")
 	return user, token, nil
 }
 
@@ -107,7 +115,7 @@ func (s *AuthService) LinkIdentity(ctx context.Context, userID string, profile m
 		AvatarURL:       profile.AvatarURL,
 	})
 	if err == nil {
-		s.store.AddEvent(ctx, "oauth_linked")
+		s.emit(ctx, "oauth_linked")
 	}
 	return err
 }

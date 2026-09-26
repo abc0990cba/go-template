@@ -31,7 +31,7 @@ func newSecurityServer(t *testing.T, mutate func(*config.Config)) (*httptest.Ser
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := repository.NewMemoryStore()
-	services := service.NewContainer(store, store, store, store, store, nil, nil, logger, cfg)
+	services := service.NewContainer(store, store, store, store, store, nil, nil, nil, nil, logger, cfg)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}))
 	jar, _ := cookiejar.New(nil)
 	server.Client().Jar = jar

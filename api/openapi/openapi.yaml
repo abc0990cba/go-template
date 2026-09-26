@@ -408,6 +408,12 @@ components:
         jobs_queued: { type: integer }
         jobs_done: { type: integer }
         jobs_failed: { type: integer }
+        events_registered: { type: integer, description: Present when the event warehouse is configured }
+        events_logged_in: { type: integer }
+        events_oauth_linked: { type: integer }
+        events_jobs_queued: { type: integer }
+        events_jobs_done: { type: integer }
+        events_jobs_failed: { type: integer }
     Problem:
       type: object
       description: RFC 9457 problem details; internal error details are never leaked.

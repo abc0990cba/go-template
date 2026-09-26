@@ -419,5 +419,21 @@ func (s *MemoryStore) Analytics(ctx context.Context) model.AnalyticsSummary {
 		}
 	}
 	summary.EnrichmentSucceeded = len(s.enrichments)
+	for _, event := range s.events {
+		switch event {
+		case "user_registered":
+			summary.EventsRegistered++
+		case "user_logged_in":
+			summary.EventsLoggedIn++
+		case "oauth_linked":
+			summary.EventsOAuthLinked++
+		case "job_queued":
+			summary.EventsJobsQueued++
+		case "job_done":
+			summary.EventsJobsDone++
+		case "job_failed":
+			summary.EventsJobsFailed++
+		}
+	}
 	return summary
 }

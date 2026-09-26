@@ -33,6 +33,10 @@ type Config struct {
 	GitHubTokenURL  string
 	GitHubUserURL   string
 	GitHubEmailURL  string
+	ClickHouseAddr  string
+	ClickHouseDB    string
+	ClickHouseUser  string
+	ClickHousePass  string
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -63,6 +67,10 @@ func Load() (Config, error) {
 		GitHubTokenURL: os.Getenv("GITHUB_TOKEN_URL"),
 		GitHubUserURL:  os.Getenv("GITHUB_USER_URL"),
 		GitHubEmailURL: os.Getenv("GITHUB_EMAIL_URL"),
+		ClickHouseAddr: os.Getenv("APP_CLICKHOUSE_ADDR"),
+		ClickHouseDB:   env("APP_CLICKHOUSE_DB", "app"),
+		ClickHouseUser: env("APP_CLICKHOUSE_USER", "default"),
+		ClickHousePass: os.Getenv("APP_CLICKHOUSE_PASSWORD"),
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),

@@ -46,7 +46,7 @@ func main() {
 	}
 	defer closeStore()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, nil, observ.NewJobObserver(), logger, cfg)
+	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, repos.Events, repos.EventStats, nil, observ.NewJobObserver(), logger, cfg)
 
 	_ = stop
 	if cfg.RedisAddr == "" {

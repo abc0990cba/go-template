@@ -85,4 +85,10 @@ type AnalyticsSummary struct {
 	JobsQueued          int `json:"jobs_queued"`
 	JobsDone            int `json:"jobs_done"`
 	JobsFailed          int `json:"jobs_failed"`
+	EventsRegistered    int `json:"events_registered,omitempty"`
+	EventsLoggedIn      int `json:"events_logged_in,omitempty"`
+	EventsOAuthLinked   int `json:"events_oauth_linked,omitempty"`
+	EventsJobsQueued    int `json:"events_jobs_queued,omitempty"`
+	EventsJobsDone      int `json:"events_jobs_done,omitempty"`
+	EventsJobsFailed    int `json:"events_jobs_failed,omitempty"`
 }

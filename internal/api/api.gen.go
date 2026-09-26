@@ -95,15 +95,23 @@ func (e ListUsersParamsMode) Valid() bool {
 
 // AnalyticsSummary defines model for AnalyticsSummary.
 type AnalyticsSummary struct {
-	EnrichmentFailed    int `json:"enrichment_failed"`
-	EnrichmentSucceeded int `json:"enrichment_succeeded"`
-	GithubIdentities    int `json:"github_identities"`
-	GoogleIdentities    int `json:"google_identities"`
-	JobsDone            int `json:"jobs_done"`
-	JobsFailed          int `json:"jobs_failed"`
-	JobsQueued          int `json:"jobs_queued"`
-	PasswordIdentities  int `json:"password_identities"`
-	TotalUsers          int `json:"total_users"`
+	EnrichmentFailed    int  `json:"enrichment_failed"`
+	EnrichmentSucceeded int  `json:"enrichment_succeeded"`
+	EventsJobsDone      *int `json:"events_jobs_done,omitempty"`
+	EventsJobsFailed    *int `json:"events_jobs_failed,omitempty"`
+	EventsJobsQueued    *int `json:"events_jobs_queued,omitempty"`
+	EventsLoggedIn      *int `json:"events_logged_in,omitempty"`
+	EventsOauthLinked   *int `json:"events_oauth_linked,omitempty"`
+
+	// EventsRegistered Present when the event warehouse is configured
+	EventsRegistered   *int `json:"events_registered,omitempty"`
+	GithubIdentities   int  `json:"github_identities"`
+	GoogleIdentities   int  `json:"google_identities"`
+	JobsDone           int  `json:"jobs_done"`
+	JobsFailed         int  `json:"jobs_failed"`
+	JobsQueued         int  `json:"jobs_queued"`
+	PasswordIdentities int  `json:"password_identities"`
+	TotalUsers         int  `json:"total_users"`
 }
 
 // CreateUserRequest defines model for CreateUserRequest.

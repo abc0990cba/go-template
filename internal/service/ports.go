@@ -28,7 +28,6 @@ type AuthRepo interface {
 	ListIdentities(ctx context.Context, userID string) ([]model.AuthIdentity, error)
 	SaveOAuthState(ctx context.Context, state model.OAuthState) error
 	ConsumeOAuthState(ctx context.Context, state string, now time.Time) (model.OAuthState, error)
-	AddEvent(ctx context.Context, event string)
 }
 
 // UsersRepo persists user records for management flows.
@@ -47,7 +46,6 @@ type JobsRepo interface {
 	GetJob(ctx context.Context, id string) (model.Job, error)
 	ListJobs(ctx context.Context) ([]model.Job, error)
 	AddEnrichment(ctx context.Context, profile model.EnrichmentProfile) error
-	AddEvent(ctx context.Context, event string)
 }
 
 // ReportsRepo persists reports and exposes the analytics summary they
@@ -58,10 +56,20 @@ type ReportsRepo interface {
 	Analytics(ctx context.Context) model.AnalyticsSummary
 }
 
-// AnalyticsRepo reads the dashboard summary and records named events.
+// AnalyticsRepo reads the dashboard summary.
 type AnalyticsRepo interface {
 	Analytics(ctx context.Context) model.AnalyticsSummary
+}
+
+// EventSink receives named analytics events; implementations may buffer,
+// persist, or drop them.
+type EventSink interface {
 	AddEvent(ctx context.Context, event string)
+}
+
+// EventStats reads event aggregates from the analytics warehouse.
+type EventStats interface {
+	EventCounts(ctx context.Context) (map[string]int64, error)
 }
 
 // Pinger reports whether the backing dependencies are ready; health
@@ -86,4 +94,5 @@ var (
 	_ ReportsRepo   = (*repository.MemoryStore)(nil)
 	_ AnalyticsRepo = (*repository.MemoryStore)(nil)
 	_ Pinger        = (*repository.MemoryStore)(nil)
+	_ EventSink     = (*repository.MemoryStore)(nil)
 )

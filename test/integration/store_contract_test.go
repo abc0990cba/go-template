@@ -245,8 +245,6 @@ func runStoreContract(t *testing.T, store storeContract) {
 		if err := store.AddEnrichment(ctx, model.EnrichmentProfile{UserID: "u1", Source: "randomuser.me", Payload: "{}", CreatedAt: now}); err != nil {
 			t.Fatalf("add enrichment: %v", err)
 		}
-		store.AddEvent(ctx, "job_queued")
-
 		listed, err := store.ListJobs(ctx)
 		if err != nil || len(listed) != 3 {
 			t.Fatalf("list jobs: n=%d err=%v", len(listed), err)

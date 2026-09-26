@@ -58,7 +58,7 @@ func main() {
 	jobQueue, closeQueue := openQueue(cfg)
 	defer closeQueue()
 
-	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, jobQueue, observ.NewJobObserver(), logger, cfg)
+	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, repos.Events, repos.EventStats, jobQueue, observ.NewJobObserver(), logger, cfg)
 	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build)
 
 	server := &http.Server{

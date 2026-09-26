@@ -23,7 +23,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	store := repository.NewMemoryStore()
-	services := service.NewContainer(store, store, store, store, store, nil, nil, logger, cfg)
+	services := service.NewContainer(store, store, store, store, store, nil, nil, nil, nil, logger, cfg)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}))
 	t.Cleanup(server.Close)
 	return server

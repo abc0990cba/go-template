@@ -39,7 +39,7 @@ func TestQueueEndToEnd(t *testing.T) {
 	store := repository.NewMemoryStore()
 	jobQueue := queue.New(addr)
 	t.Cleanup(func() { _ = jobQueue.Close() })
-	services := service.NewContainer(store, store, store, store, store, jobQueue, nil, testLogger(), testConfig(t))
+	services := service.NewContainer(store, store, store, store, store, nil, nil, jobQueue, nil, testLogger(), testConfig(t))
 
 	// The worker side: the same mux the worker binary runs.
 	server := asynq.NewServer(asynq.RedisClientOpt{Addr: addr}, asynq.Config{Concurrency: 2})
