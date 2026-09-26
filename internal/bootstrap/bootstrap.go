@@ -4,6 +4,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"os"
 	"time"
@@ -80,6 +81,24 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
 		Pinger: store, Events: events, EventStats: stats, Kind: "postgres",
 	}, func() { closeAll(); store.Close() }, nil
+}
+
+// SeedDemoUser creates the convenience demo account when configured
+// (APP_DEMO_EMAIL / APP_DEMO_PASSWORD). It is idempotent: an existing
+// account is left untouched. Do not set these variables in production.
+func SeedDemoUser(auth *service.AuthService, email, password string, logger *slog.Logger) {
+	if email == "" || password == "" {
+		return
+	}
+	if _, _, err := auth.Register(context.Background(), email, "Demo User", password); err != nil {
+		if errors.Is(err, repository.ErrConflict) {
+			logger.Info("demo user already exists", "email", email)
+			return
+		}
+		logger.Warn("demo user seed failed", "err", err)
+		return
+	}
+	logger.Info("demo user seeded", "email", email)
 }
 
 // compoundSink fans events out to every sink (local trail + warehouse).

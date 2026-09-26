@@ -8,6 +8,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -95,8 +96,7 @@ func TestCSRFProtectionOnHTMLForms(t *testing.T) {
 	}
 
 	// The JSON API does not require the token.
-	status, _ := callJSONServer(t, server, http.MethodPost, "/api/auth/register",
-		`{"email":"ada@example.com","password":"password123"}`, "")
+	status, _ := callJSONServer(t, server, "/api/auth/register", `{"email":"ada@example.com","password":"password123"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("api register with csrf protection on: want 201, got %d", status)
 	}
@@ -150,8 +150,7 @@ func TestAuthRateLimitReturns429(t *testing.T) {
 	}
 
 	// The JSON API auth surface is throttled by the same rule.
-	status, _ := callJSONServer(t, server, http.MethodPost, "/api/auth/login",
-		`{"email":"a@b.c","password":"bad"}`, "")
+	status, _ := callJSONServer(t, server, "/api/auth/login", `{"email":"a@b.c","password":"bad"}`)
 	if status != http.StatusTooManyRequests {
 		t.Fatalf("api login: want 429, got %d", status)
 	}
@@ -203,8 +202,7 @@ func TestOAuthFlowWithMockProvider(t *testing.T) {
 	}
 
 	// 1. Register a user to obtain a session.
-	status, body := callJSONServer(t, server, http.MethodPost, "/api/auth/register",
-		`{"email":"ada@example.com","name":"Ada","password":"password123"}`, "")
+	status, body := callJSONServer(t, server, "/api/auth/register", `{"email":"ada@example.com","name":"Ada","password":"password123"}`)
 	if status != http.StatusCreated {
 		t.Fatalf("register: want 201, got %d", status)
 	}
@@ -273,30 +271,84 @@ func TestOAuthFlowWithMockProvider(t *testing.T) {
 	}
 }
 
-func callJSONServer(t *testing.T, server *httptest.Server, method, path, body, token string) (int, map[string]any) {
+func callJSONServer(t *testing.T, server *httptest.Server, path, body string) (int, map[string]any) {
 	t.Helper()
 	var reader io.Reader
 	if body != "" {
 		reader = strings.NewReader(body)
 	}
-	req, err := http.NewRequest(method, server.URL+path, reader)
+	req, err := http.NewRequest(http.MethodPost, server.URL+path, reader)
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
-	}
 	resp, err := server.Client().Do(req)
 	if err != nil {
-		t.Fatalf("%s %s: %v", method, path, err)
+		t.Fatalf("request %s: %v", path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	var parsed map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil && err.Error() != "EOF" {
-		t.Fatalf("%s %s: decode: %v", method, path, err)
+		t.Fatalf("%s: decode: %v", path, err)
 	}
 	return resp.StatusCode, parsed
+}
+
+// TestLoginFormTokenMatchesCookie is the regression test for the browser
+// flow: the rendered form must carry exactly the token the app_csrf cookie
+// holds, otherwise every real form post fails with 403.
+func TestLoginFormTokenMatchesCookie(t *testing.T) {
+	server, _, _ := newSecurityServer(t, nil)
+
+	// A user to log in as.
+	status, _ := callJSONServer(t, server, "/api/auth/register", `{"email":"ada@example.com","name":"Ada","password":"password123"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("register: want 201, got %d", status)
+	}
+	// Visit the login page: capture the cookie and the rendered token.
+	page, err := server.Client().Get(server.URL + "/login")
+	if err != nil {
+		t.Fatalf("login page: %v", err)
+	}
+	pageHTML, _ := io.ReadAll(page.Body)
+	_ = page.Body.Close()
+	if page.StatusCode != http.StatusOK {
+		t.Fatalf("login page: want 200, got %d", page.StatusCode)
+	}
+	jar := server.Client().Jar.(*cookiejar.Jar)
+	base, _ := url.Parse(server.URL)
+	var csrf string
+	for _, cookie := range jar.Cookies(base) {
+		if cookie.Name == "app_csrf" {
+			csrf = cookie.Value
+		}
+	}
+	if csrf == "" {
+		t.Fatal("app_csrf cookie missing")
+	}
+	m := regexp.MustCompile(`name="csrf_token" value="([^"]+)"`).FindSubmatch(pageHTML)
+	if m == nil {
+		t.Fatalf("rendered form has no csrf_token field (%.200s)", pageHTML)
+	}
+	if string(m[1]) != csrf {
+		t.Fatalf("rendered token %q does not match cookie %q", m[1], csrf)
+	}
+
+	// Posting the rendered credentials and token must log the user in (the
+	// client follows the redirect to the dashboard), not fail with 403.
+	form := url.Values{"email": {"ada@example.com"}, "password": {"password123"}, "csrf_token": {csrf}}
+	resp, err := server.Client().PostForm(server.URL+"/login", form)
+	if err != nil {
+		t.Fatalf("login post: %v", err)
+	}
+	pageHTML2, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode == http.StatusForbidden {
+		t.Fatal("valid login rejected with 403 csrf mismatch")
+	}
+	if !strings.Contains(string(pageHTML2), "<h1>Dashboard</h1>") {
+		t.Fatalf("login did not land on the dashboard: %d %.200s", resp.StatusCode, pageHTML2)
+	}
 }

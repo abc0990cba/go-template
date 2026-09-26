@@ -21,8 +21,18 @@ The project is intentionally small enough to understand, but it includes the pat
 ## Run Locally
 
 ```bash
-make run
+make docker-up          # full stack
+# or the hybrid dev mode - see docs/quickstart.md
+docker compose up -d postgres redis
+APP_DATABASE_URL="postgres://app:app@127.0.0.1:55432/app?sslmode=disable" \
+APP_REDIS_ADDR="127.0.0.1:6379" \
+APP_DEMO_EMAIL="demo@go-template.local" \
+APP_DEMO_PASSWORD="demo-password-123" \
+APP_COOKIE_SECURE=0 \
+go run ./cmd/api
 ```
+
+Demo account (seeded at startup when `APP_DEMO_EMAIL`/`APP_DEMO_PASSWORD` are set): `demo@go-template.local` / `demo-password-123`. Full runbook: [docs/quickstart.md](docs/quickstart.md).
 
 Open:
 

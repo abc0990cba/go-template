@@ -16,6 +16,8 @@ services:
       APP_CLICKHOUSE_ADDR: clickhouse:9000
       APP_CLICKHOUSE_USER: app
       APP_CLICKHOUSE_PASSWORD: app
+      APP_DEMO_EMAIL: demo@go-template.local
+      APP_DEMO_PASSWORD: demo-password-123
     ports:
       - "8080:8080"
     depends_on:

@@ -67,6 +67,7 @@ func main() {
 	defer closeQueue()
 
 	services := service.NewContainer(repos.Auth, repos.Users, repos.Jobs, repos.Reports, repos.Analytics, repos.Events, repos.EventStats, jobQueue, observ.NewJobObserver(), logger, cfg)
+	bootstrap.SeedDemoUser(services.Auth, cfg.DemoEmail, cfg.DemoPassword, logger)
 	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build)
 
 	server := &http.Server{

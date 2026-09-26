@@ -32,12 +32,19 @@ func newRandomToken() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
-// csrfIssue runs globally and gives every visitor a token cookie.
+// csrfIssue runs globally: it gives every visitor a token cookie and puts
+// the token into the request context so forms render the same value the
+// cookie carries. Without the context value the double-submit check could
+// never pass.
 func (a *App) csrfIssue() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if _, err := c.Cookie("app_csrf"); err != nil {
-			c.SetCookie("app_csrf", newRandomToken(), 3600*24, "/", "", a.cfg.CookieSecure, false)
+		token, err := c.Cookie("app_csrf")
+		if err != nil || token == "" {
+			token = newRandomToken()
+			c.SetSameSite(http.SameSiteLaxMode)
+			c.SetCookie("app_csrf", token, 3600*24, "/", "", a.cfg.CookieSecure, false)
 		}
+		c.Set("csrf_token", token)
 		c.Next()
 	}
 }

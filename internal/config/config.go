@@ -37,6 +37,8 @@ type Config struct {
 	ClickHouseDB    string
 	ClickHouseUser  string
 	ClickHousePass  string
+	DemoEmail       string
+	DemoPassword    string
 	ShutdownTimeout time.Duration
 	ExternalTimeout time.Duration
 	MaxConcurrency  int
@@ -71,6 +73,8 @@ func Load() (Config, error) {
 		ClickHouseDB:   env("APP_CLICKHOUSE_DB", "app"),
 		ClickHouseUser: env("APP_CLICKHOUSE_USER", "default"),
 		ClickHousePass: os.Getenv("APP_CLICKHOUSE_PASSWORD"),
+		DemoEmail:      os.Getenv("APP_DEMO_EMAIL"),
+		DemoPassword:   os.Getenv("APP_DEMO_PASSWORD"),
 		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
