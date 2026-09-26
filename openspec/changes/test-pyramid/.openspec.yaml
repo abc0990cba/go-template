@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-26
+goal: Close the test pyramid — live-stack e2e coverage of the API happy path, a CI coverage floor, and matrices that describe reality.

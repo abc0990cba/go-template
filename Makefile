@@ -12,7 +12,7 @@ test-integration:
 	go test -tags=integration ./test/integration/...
 
 test-e2e:
-	go test ./test/e2e/...
+	go test -tags=e2e ./test/e2e/... -count=1
 
 test-performance:
 	@command -v k6 >/dev/null 2>&1 && k6 run test/performance/smoke.js || echo "k6 is not installed; install k6 to run performance tests"
@@ -24,7 +24,7 @@ vet:
 	go vet ./...
 
 coverage:
-	go test -race -covermode=atomic -coverprofile=coverage.out ./...
+	go test -race -covermode=atomic -coverprofile=coverage.out ./internal/...
 	go tool cover -func=coverage.out | tail -1
 
 generate:
