@@ -16,4 +16,4 @@ OFFSET sqlc.arg('off');
 DELETE FROM audit_log WHERE created_at < sqlc.arg('cutoff');
 
 -- name: DeleteDemoAudit :execrows
-DELETE FROM audit_log WHERE id LIKE 'demo-%' OR actor_id LIKE 'demo-%';
+DELETE FROM audit_log WHERE actor_id LIKE 'demo-%';

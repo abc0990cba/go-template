@@ -23,7 +23,7 @@ func (q *Queries) DeleteAuditOlderThan(ctx context.Context, cutoff time.Time) (i
 }
 
 const deleteDemoAudit = `-- name: DeleteDemoAudit :execrows
-DELETE FROM audit_log WHERE id LIKE 'demo-%' OR actor_id LIKE 'demo-%'
+DELETE FROM audit_log WHERE actor_id LIKE 'demo-%'
 `
 
 func (q *Queries) DeleteDemoAudit(ctx context.Context) (int64, error) {

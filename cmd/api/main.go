@@ -166,8 +166,11 @@ func main() {
 	defer cancel()
 	logger.Info("shutting down api")
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		logger.Error("graceful shutdown failed", "err", err)
-		os.Exit(1)
+		// Long-lived Server-Sent Events streams keep a connection active
+		// until the client hangs up, so Shutdown's grace period can expire
+		// while one is open. Close what remains instead of failing.
+		logger.Warn("graceful shutdown timed out; closing remaining connections (open SSE streams)", "err", err)
+		_ = server.Close()
 	}
 }
 

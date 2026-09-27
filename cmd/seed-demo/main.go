@@ -7,6 +7,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/platform/rbac"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -40,11 +42,24 @@ func main() {
 	}
 	defer closeStore()
 
+	// The demo dataset assigns roles and organizations, so the policy
+	// engine is required here too, and system roles must exist before the
+	// seed references them.
+	enforcer, err := rbac.NewEnforcer(repos.Rules)
+	if err != nil {
+		logger.Error("open rbac enforcer", "err", err)
+		os.Exit(1)
+	}
+
 	services := service.NewContainer(service.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks,
-		Events: repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
+		Events: repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(), RBACEnforcer: enforcer,
 	}, logger, cfg)
+	if err := services.RBAC.EnsureSystemRoles(context.Background()); err != nil {
+		logger.Error("seed system roles", "err", err)
+		os.Exit(1)
+	}
 
 	started := time.Now()
 	if *reset {

@@ -211,8 +211,8 @@ func (a testAdapter) LoadPolicy(m casbinmodel.Model) error {
 			return err
 		}
 		for _, rule := range rules {
-			values := []string{rule.Subject, rule.Domain, rule.Object, rule.Action}
-			for len(values) > 0 && values[len(values)-1] == "" {
+			values := append([]string{ptype}, rule.Subject, rule.Domain, rule.Object, rule.Action)
+			for len(values) > 1 && values[len(values)-1] == "" {
 				values = values[:len(values)-1]
 			}
 			if err := persist.LoadPolicyArray(values, m); err != nil {
@@ -239,4 +239,22 @@ func policyRuleOf(ptype string, rule []string) model.PolicyRule {
 	padded := make([]string, 4)
 	copy(padded, rule)
 	return model.PolicyRule{PType: ptype, Subject: padded[0], Domain: padded[1], Object: padded[2], Action: padded[3]}
+}
+
+// TestPoliciesSurviveEnforcerRestart reproduces the restart path: a second
+// enforcer over the same store must load the persisted rules and enforce
+// them (this failed when LoadPolicy omitted the ptype prefix).
+func TestPoliciesSurviveEnforcerRestart(t *testing.T) {
+	svc, store := newRBACService(t)
+	if err := svc.AssignRole("u1", "admin", PlatformDomain); err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+
+	restarted := &RBACService{enforcer: newEnforcerForTest(t, store), roles: store, orgs: store}
+	if !restarted.Enforce("u1", PlatformDomain, "users", "delete") {
+		t.Fatal("persisted policies must be enforced after a restart")
+	}
+	if restarted.Enforce("u1", PlatformDomain, "policies", "create") {
+		t.Fatal("admin must not gain policies:create after restart")
+	}
 }

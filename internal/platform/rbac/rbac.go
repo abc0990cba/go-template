@@ -62,10 +62,11 @@ func (a *Adapter) LoadPolicy(m casbinmodel.Model) error {
 			return fmt.Errorf("rbac load %s rules: %w", ptype, err)
 		}
 		for _, rule := range rules {
-			values := ruleValues(rule)
-			// Grouping rules carry no action; trim trailing empties so the
-			// model accepts the row.
-			for len(values) > 0 && values[len(values)-1] == "" {
+			// Policy lines carry the ptype first, exactly like file lines
+			// ("p, sub, dom, obj, act"); trailing empties are trimmed so
+			// three-value grouping rules are accepted.
+			values := append([]string{ptype}, ruleValues(rule)...)
+			for len(values) > 1 && values[len(values)-1] == "" {
 				values = values[:len(values)-1]
 			}
 			if err := persist.LoadPolicyArray(values, m); err != nil {

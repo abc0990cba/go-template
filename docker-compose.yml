@@ -34,6 +34,10 @@ services:
       context: .
       dockerfile: Dockerfile
     command: ["/app/worker"]
+    # The shared image healthcheck probes the api binary; the worker has no
+    # HTTP listener, so the check is disabled rather than lying unhealthy.
+    healthcheck:
+      disable: true
     environment:
       APP_DATABASE_URL: postgres://app:app@postgres:5432/app?sslmode=disable
       APP_REDIS_ADDR: redis:6379
