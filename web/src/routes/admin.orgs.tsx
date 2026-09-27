@@ -31,7 +31,7 @@ import { api } from "@/lib/api";
 import { ensurePermission } from "@/lib/auth";
 import type { Organization } from "@/lib/types";
 
-export const Route = createFileRoute("/_auth/orgs")({
+export const Route = createFileRoute("/admin/orgs")({
   staticData: { title: "Organizations" },
   beforeLoad: ({ location }) => ensurePermission("orgs", "read", location),
   component: OrgsPage,

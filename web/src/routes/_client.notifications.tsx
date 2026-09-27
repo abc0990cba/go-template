@@ -5,7 +5,7 @@ import { CheckCheck, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 
-export const Route = createFileRoute("/_auth/notifications")({
+export const Route = createFileRoute("/_client/notifications")({
   staticData: { title: "Notifications" },
   component: NotificationsPage,
 });

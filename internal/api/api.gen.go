@@ -4,8 +4,10 @@
 package api
 
 import (
+	"encoding/json"
 	"time"
 
+	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
@@ -132,6 +134,84 @@ func (e SettingDefinitionType) Valid() bool {
 	}
 }
 
+// Defines values for TicketPriority.
+const (
+	TicketPriorityHigh   TicketPriority = "high"
+	TicketPriorityLow    TicketPriority = "low"
+	TicketPriorityMedium TicketPriority = "medium"
+	TicketPriorityUrgent TicketPriority = "urgent"
+)
+
+// Valid indicates whether the value is a known member of the TicketPriority enum.
+func (e TicketPriority) Valid() bool {
+	switch e {
+	case TicketPriorityHigh:
+		return true
+	case TicketPriorityLow:
+		return true
+	case TicketPriorityMedium:
+		return true
+	case TicketPriorityUrgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TicketStatus.
+const (
+	TicketStatusApproved  TicketStatus = "approved"
+	TicketStatusCompleted TicketStatus = "completed"
+	TicketStatusDraft     TicketStatus = "draft"
+	TicketStatusInReview  TicketStatus = "in_review"
+	TicketStatusRejected  TicketStatus = "rejected"
+	TicketStatusWithdrawn TicketStatus = "withdrawn"
+)
+
+// Valid indicates whether the value is a known member of the TicketStatus enum.
+func (e TicketStatus) Valid() bool {
+	switch e {
+	case TicketStatusApproved:
+		return true
+	case TicketStatusCompleted:
+		return true
+	case TicketStatusDraft:
+		return true
+	case TicketStatusInReview:
+		return true
+	case TicketStatusRejected:
+		return true
+	case TicketStatusWithdrawn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TicketApprovalStatus.
+const (
+	TicketApprovalStatusApproved TicketApprovalStatus = "approved"
+	TicketApprovalStatusPending  TicketApprovalStatus = "pending"
+	TicketApprovalStatusRejected TicketApprovalStatus = "rejected"
+	TicketApprovalStatusSkipped  TicketApprovalStatus = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the TicketApprovalStatus enum.
+func (e TicketApprovalStatus) Valid() bool {
+	switch e {
+	case TicketApprovalStatusApproved:
+		return true
+	case TicketApprovalStatusPending:
+		return true
+	case TicketApprovalStatusRejected:
+		return true
+	case TicketApprovalStatusSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WebhookDeliveryStatus.
 const (
 	WebhookDeliveryStatusFailed  WebhookDeliveryStatus = "failed"
@@ -189,6 +269,45 @@ func (e GetAnalyticsBreakdownParamsBy) Valid() bool {
 	case Feature:
 		return true
 	case Source:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListApprovalsParamsMode.
+const (
+	ListApprovalsParamsModeCursor ListApprovalsParamsMode = "cursor"
+	ListApprovalsParamsModeKeyset ListApprovalsParamsMode = "keyset"
+	ListApprovalsParamsModeOffset ListApprovalsParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListApprovalsParamsMode enum.
+func (e ListApprovalsParamsMode) Valid() bool {
+	switch e {
+	case ListApprovalsParamsModeCursor:
+		return true
+	case ListApprovalsParamsModeKeyset:
+		return true
+	case ListApprovalsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListApprovalsParamsState.
+const (
+	ListApprovalsParamsStateDecided ListApprovalsParamsState = "decided"
+	ListApprovalsParamsStatePending ListApprovalsParamsState = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ListApprovalsParamsState enum.
+func (e ListApprovalsParamsState) Valid() bool {
+	switch e {
+	case ListApprovalsParamsStateDecided:
+		return true
+	case ListApprovalsParamsStatePending:
 		return true
 	default:
 		return false
@@ -333,6 +452,195 @@ func (e ListReportsParamsMode) Valid() bool {
 	case ListReportsParamsModeKeyset:
 		return true
 	case ListReportsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTicketsParamsMode.
+const (
+	ListTicketsParamsModeCursor ListTicketsParamsMode = "cursor"
+	ListTicketsParamsModeKeyset ListTicketsParamsMode = "keyset"
+	ListTicketsParamsModeOffset ListTicketsParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListTicketsParamsMode enum.
+func (e ListTicketsParamsMode) Valid() bool {
+	switch e {
+	case ListTicketsParamsModeCursor:
+		return true
+	case ListTicketsParamsModeKeyset:
+		return true
+	case ListTicketsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTicketsParamsScope.
+const (
+	ListTicketsParamsScopeAll ListTicketsParamsScope = "all"
+	ListTicketsParamsScopeMy  ListTicketsParamsScope = "my"
+)
+
+// Valid indicates whether the value is a known member of the ListTicketsParamsScope enum.
+func (e ListTicketsParamsScope) Valid() bool {
+	switch e {
+	case ListTicketsParamsScopeAll:
+		return true
+	case ListTicketsParamsScopeMy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTicketsParamsStatus.
+const (
+	ListTicketsParamsStatusApproved  ListTicketsParamsStatus = "approved"
+	ListTicketsParamsStatusCompleted ListTicketsParamsStatus = "completed"
+	ListTicketsParamsStatusDraft     ListTicketsParamsStatus = "draft"
+	ListTicketsParamsStatusInReview  ListTicketsParamsStatus = "in_review"
+	ListTicketsParamsStatusRejected  ListTicketsParamsStatus = "rejected"
+	ListTicketsParamsStatusWithdrawn ListTicketsParamsStatus = "withdrawn"
+)
+
+// Valid indicates whether the value is a known member of the ListTicketsParamsStatus enum.
+func (e ListTicketsParamsStatus) Valid() bool {
+	switch e {
+	case ListTicketsParamsStatusApproved:
+		return true
+	case ListTicketsParamsStatusCompleted:
+		return true
+	case ListTicketsParamsStatusDraft:
+		return true
+	case ListTicketsParamsStatusInReview:
+		return true
+	case ListTicketsParamsStatusRejected:
+		return true
+	case ListTicketsParamsStatusWithdrawn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListTicketsParamsPriority.
+const (
+	ListTicketsParamsPriorityHigh   ListTicketsParamsPriority = "high"
+	ListTicketsParamsPriorityLow    ListTicketsParamsPriority = "low"
+	ListTicketsParamsPriorityMedium ListTicketsParamsPriority = "medium"
+	ListTicketsParamsPriorityUrgent ListTicketsParamsPriority = "urgent"
+)
+
+// Valid indicates whether the value is a known member of the ListTicketsParamsPriority enum.
+func (e ListTicketsParamsPriority) Valid() bool {
+	switch e {
+	case ListTicketsParamsPriorityHigh:
+		return true
+	case ListTicketsParamsPriorityLow:
+		return true
+	case ListTicketsParamsPriorityMedium:
+		return true
+	case ListTicketsParamsPriorityUrgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreateTicketJSONBodyPriority.
+const (
+	CreateTicketJSONBodyPriorityHigh   CreateTicketJSONBodyPriority = "high"
+	CreateTicketJSONBodyPriorityLow    CreateTicketJSONBodyPriority = "low"
+	CreateTicketJSONBodyPriorityMedium CreateTicketJSONBodyPriority = "medium"
+	CreateTicketJSONBodyPriorityUrgent CreateTicketJSONBodyPriority = "urgent"
+)
+
+// Valid indicates whether the value is a known member of the CreateTicketJSONBodyPriority enum.
+func (e CreateTicketJSONBodyPriority) Valid() bool {
+	switch e {
+	case CreateTicketJSONBodyPriorityHigh:
+		return true
+	case CreateTicketJSONBodyPriorityLow:
+		return true
+	case CreateTicketJSONBodyPriorityMedium:
+		return true
+	case CreateTicketJSONBodyPriorityUrgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TicketCountsParamsScope.
+const (
+	TicketCountsParamsScopeAll TicketCountsParamsScope = "all"
+	TicketCountsParamsScopeMy  TicketCountsParamsScope = "my"
+)
+
+// Valid indicates whether the value is a known member of the TicketCountsParamsScope enum.
+func (e TicketCountsParamsScope) Valid() bool {
+	switch e {
+	case TicketCountsParamsScopeAll:
+		return true
+	case TicketCountsParamsScopeMy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpdateTicketJSONBodyPriority.
+const (
+	UpdateTicketJSONBodyPriorityHigh   UpdateTicketJSONBodyPriority = "high"
+	UpdateTicketJSONBodyPriorityLow    UpdateTicketJSONBodyPriority = "low"
+	UpdateTicketJSONBodyPriorityMedium UpdateTicketJSONBodyPriority = "medium"
+	UpdateTicketJSONBodyPriorityUrgent UpdateTicketJSONBodyPriority = "urgent"
+)
+
+// Valid indicates whether the value is a known member of the UpdateTicketJSONBodyPriority enum.
+func (e UpdateTicketJSONBodyPriority) Valid() bool {
+	switch e {
+	case UpdateTicketJSONBodyPriorityHigh:
+		return true
+	case UpdateTicketJSONBodyPriorityLow:
+		return true
+	case UpdateTicketJSONBodyPriorityMedium:
+		return true
+	case UpdateTicketJSONBodyPriorityUrgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TicketActionJSONBodyAction.
+const (
+	Approve  TicketActionJSONBodyAction = "approve"
+	Complete TicketActionJSONBodyAction = "complete"
+	Reject   TicketActionJSONBodyAction = "reject"
+	Reopen   TicketActionJSONBodyAction = "reopen"
+	Submit   TicketActionJSONBodyAction = "submit"
+	Withdraw TicketActionJSONBodyAction = "withdraw"
+)
+
+// Valid indicates whether the value is a known member of the TicketActionJSONBodyAction enum.
+func (e TicketActionJSONBodyAction) Valid() bool {
+	switch e {
+	case Approve:
+		return true
+	case Complete:
+		return true
+	case Reject:
+		return true
+	case Reopen:
+		return true
+	case Submit:
+		return true
+	case Withdraw:
 		return true
 	default:
 		return false
@@ -645,6 +953,147 @@ type SettingDefinition struct {
 // SettingDefinitionType defines model for SettingDefinition.Type.
 type SettingDefinitionType string
 
+// Ticket A request moved through the approval state machine. rejected was
+// refused by an approver; withdrawn was closed by the requester
+// themselves — the two terminal outcomes are distinct.
+type Ticket struct {
+	CreatedAt time.Time `json:"created_at"`
+	CreatedBy string    `json:"created_by"`
+
+	// CurrentStep Zero-based index of the step awaiting a decision
+	CurrentStep int        `json:"current_step"`
+	DecidedAt   *time.Time `json:"decided_at,omitempty"`
+
+	// DecidedBy Who produced the terminal outcome
+	DecidedBy   *string `json:"decided_by,omitempty"`
+	Description string  `json:"description"`
+	Id          string  `json:"id"`
+
+	// Number Per-organization sequence
+	Number    int            `json:"number"`
+	OrgId     *string        `json:"org_id,omitempty"`
+	Priority  TicketPriority `json:"priority"`
+	Status    TicketStatus   `json:"status"`
+	Title     string         `json:"title"`
+	TypeId    string         `json:"type_id"`
+	TypeKey   string         `json:"type_key"`
+	UpdatedAt time.Time      `json:"updated_at"`
+}
+
+// TicketPriority defines model for Ticket.Priority.
+type TicketPriority string
+
+// TicketStatus defines model for Ticket.Status.
+type TicketStatus string
+
+// TicketApproval defines model for TicketApproval.
+type TicketApproval struct {
+	ApproverRole string `json:"approver_role"`
+
+	// Comment Mandatory on rejection
+	Comment   *string              `json:"comment,omitempty"`
+	CreatedAt time.Time            `json:"created_at"`
+	DecidedAt *time.Time           `json:"decided_at,omitempty"`
+	DecidedBy *string              `json:"decided_by,omitempty"`
+	Id        string               `json:"id"`
+	Name      string               `json:"name"`
+	Status    TicketApprovalStatus `json:"status"`
+	StepIndex int                  `json:"step_index"`
+	TicketId  string               `json:"ticket_id"`
+}
+
+// TicketApprovalStatus defines model for TicketApproval.Status.
+type TicketApprovalStatus string
+
+// TicketComment defines model for TicketComment.
+type TicketComment struct {
+	AuthorId  string    `json:"author_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+	Id        string    `json:"id"`
+	TicketId  string    `json:"ticket_id"`
+}
+
+// TicketCommentList defines model for TicketCommentList.
+type TicketCommentList struct {
+	Data []TicketComment `json:"data"`
+}
+
+// TicketDecision defines model for TicketDecision.
+type TicketDecision struct {
+	Approval TicketApproval `json:"approval"`
+
+	// Ticket A request moved through the approval state machine. rejected was
+	// refused by an approver; withdrawn was closed by the requester
+	// themselves — the two terminal outcomes are distinct.
+	Ticket Ticket `json:"ticket"`
+}
+
+// TicketDecisionList defines model for TicketDecisionList.
+type TicketDecisionList struct {
+	Data []TicketDecision `json:"data"`
+}
+
+// TicketDetail defines model for TicketDetail.
+type TicketDetail struct {
+	Approvals []TicketApproval `json:"approvals"`
+
+	// Ticket A request moved through the approval state machine. rejected was
+	// refused by an approver; withdrawn was closed by the requester
+	// themselves — the two terminal outcomes are distinct.
+	Ticket Ticket `json:"ticket"`
+}
+
+// TicketEvent One timeline entry of who did what, when
+type TicketEvent struct {
+	Action    string    `json:"action"`
+	ActorId   string    `json:"actor_id"`
+	CreatedAt time.Time `json:"created_at"`
+	Detail    *string   `json:"detail,omitempty"`
+	Id        string    `json:"id"`
+	TicketId  string    `json:"ticket_id"`
+}
+
+// TicketEventList defines model for TicketEventList.
+type TicketEventList struct {
+	Data []TicketEvent `json:"data"`
+}
+
+// TicketList defines model for TicketList.
+type TicketList struct {
+	Data []Ticket `json:"data"`
+
+	// NextCursor Empty on the last page.
+	NextCursor *string `json:"next_cursor,omitempty"`
+}
+
+// TicketStep One approval step; the named role decides it in order.
+type TicketStep struct {
+	ApproverRole string `json:"approver_role"`
+	Name         string `json:"name"`
+}
+
+// TicketType defines model for TicketType.
+type TicketType struct {
+	Active      bool      `json:"active"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedBy   *string   `json:"created_by,omitempty"`
+	Description *string   `json:"description,omitempty"`
+	Id          string    `json:"id"`
+	Key         string    `json:"key"`
+	Name        string    `json:"name"`
+
+	// OrgId Empty for platform-wide types
+	OrgId     *string      `json:"org_id,omitempty"`
+	Steps     []TicketStep `json:"steps"`
+	UpdatedAt time.Time    `json:"updated_at"`
+}
+
+// TicketTypeList defines model for TicketTypeList.
+type TicketTypeList struct {
+	Data []TicketType `json:"data"`
+}
+
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
 	Email openapi_types.Email `json:"email"`
@@ -814,6 +1263,27 @@ type CreateApiKeyJSONBody struct {
 	Ttl *string `json:"ttl,omitempty"`
 }
 
+// ListApprovalsParams defines parameters for ListApprovals.
+type ListApprovalsParams struct {
+	Mode   *ListApprovalsParamsMode  `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit                    `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset                   `form:"offset,omitempty" json:"offset,omitempty"`
+	After  *string                   `form:"after,omitempty" json:"after,omitempty"`
+	Q      *string                   `form:"q,omitempty" json:"q,omitempty"`
+	State  *ListApprovalsParamsState `form:"state,omitempty" json:"state,omitempty"`
+}
+
+// ListApprovalsParamsMode defines parameters for ListApprovals.
+type ListApprovalsParamsMode string
+
+// ListApprovalsParamsState defines parameters for ListApprovals.
+type ListApprovalsParamsState string
+
+// ListApprovals200JSONResponseBody defines parameters for ListApprovals.
+type ListApprovals200JSONResponseBody struct {
+	union json.RawMessage
+}
+
 // ListAuditParams defines parameters for ListAudit.
 type ListAuditParams struct {
 	Limit    *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
@@ -978,6 +1448,115 @@ type UpdateSettingJSONBody struct {
 	Value string `json:"value"`
 }
 
+// CreateTicketTypeJSONBody defines parameters for CreateTicketType.
+type CreateTicketTypeJSONBody struct {
+	Active      *bool        `json:"active,omitempty"`
+	Description *string      `json:"description,omitempty"`
+	Key         string       `json:"key"`
+	Name        string       `json:"name"`
+	Steps       []TicketStep `json:"steps"`
+}
+
+// UpdateTicketTypeJSONBody defines parameters for UpdateTicketType.
+type UpdateTicketTypeJSONBody struct {
+	Active      *bool         `json:"active,omitempty"`
+	Description *string       `json:"description,omitempty"`
+	Name        *string       `json:"name,omitempty"`
+	Steps       *[]TicketStep `json:"steps,omitempty"`
+}
+
+// ListTicketsParams defines parameters for ListTickets.
+type ListTicketsParams struct {
+	Mode   *ListTicketsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit                 `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset                `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Last ticket id of the previous page (cursor and keyset modes)
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Q Substring filter over title and description
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Scope my = tickets created by the caller; all requires tickets:read_all
+	Scope *ListTicketsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+
+	// Status Filter by lifecycle status
+	Status *ListTicketsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+
+	// Type Filter by ticket type key
+	Type     *string                    `form:"type,omitempty" json:"type,omitempty"`
+	Priority *ListTicketsParamsPriority `form:"priority,omitempty" json:"priority,omitempty"`
+}
+
+// ListTicketsParamsMode defines parameters for ListTickets.
+type ListTicketsParamsMode string
+
+// ListTicketsParamsScope defines parameters for ListTickets.
+type ListTicketsParamsScope string
+
+// ListTicketsParamsStatus defines parameters for ListTickets.
+type ListTicketsParamsStatus string
+
+// ListTicketsParamsPriority defines parameters for ListTickets.
+type ListTicketsParamsPriority string
+
+// CreateTicketJSONBody defines parameters for CreateTicket.
+type CreateTicketJSONBody struct {
+	Description *string                       `json:"description,omitempty"`
+	Priority    *CreateTicketJSONBodyPriority `json:"priority,omitempty"`
+	Title       string                        `json:"title"`
+	TypeId      string                        `json:"type_id"`
+}
+
+// CreateTicketJSONBodyPriority defines parameters for CreateTicket.
+type CreateTicketJSONBodyPriority string
+
+// TicketCountsParams defines parameters for TicketCounts.
+type TicketCountsParams struct {
+	Scope *TicketCountsParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+}
+
+// TicketCountsParamsScope defines parameters for TicketCounts.
+type TicketCountsParamsScope string
+
+// UpdateTicketJSONBody defines parameters for UpdateTicket.
+type UpdateTicketJSONBody struct {
+	Description *string                       `json:"description,omitempty"`
+	Priority    *UpdateTicketJSONBodyPriority `json:"priority,omitempty"`
+	Title       *string                       `json:"title,omitempty"`
+}
+
+// UpdateTicketJSONBodyPriority defines parameters for UpdateTicket.
+type UpdateTicketJSONBodyPriority string
+
+// TicketActionJSONBody defines parameters for TicketAction.
+type TicketActionJSONBody struct {
+	Action TicketActionJSONBodyAction `json:"action"`
+
+	// Comment Optional decision comment; mandatory for reject
+	Comment *string `json:"comment,omitempty"`
+}
+
+// TicketActionJSONBodyAction defines parameters for TicketAction.
+type TicketActionJSONBodyAction string
+
+// ListTicketCommentsParams defines parameters for ListTicketComments.
+type ListTicketCommentsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// AddTicketCommentJSONBody defines parameters for AddTicketComment.
+type AddTicketCommentJSONBody struct {
+	Body string `json:"body"`
+}
+
+// ListTicketEventsParams defines parameters for ListTicketEvents.
+type ListTicketEventsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // ListUsersParams defines parameters for ListUsers.
 type ListUsersParams struct {
 	Mode   *ListUsersParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
@@ -1078,6 +1657,24 @@ type SetRolePermissionsJSONRequestBody SetRolePermissionsJSONBody
 // UpdateSettingJSONRequestBody defines body for UpdateSetting for application/json ContentType.
 type UpdateSettingJSONRequestBody UpdateSettingJSONBody
 
+// CreateTicketTypeJSONRequestBody defines body for CreateTicketType for application/json ContentType.
+type CreateTicketTypeJSONRequestBody CreateTicketTypeJSONBody
+
+// UpdateTicketTypeJSONRequestBody defines body for UpdateTicketType for application/json ContentType.
+type UpdateTicketTypeJSONRequestBody UpdateTicketTypeJSONBody
+
+// CreateTicketJSONRequestBody defines body for CreateTicket for application/json ContentType.
+type CreateTicketJSONRequestBody CreateTicketJSONBody
+
+// UpdateTicketJSONRequestBody defines body for UpdateTicket for application/json ContentType.
+type UpdateTicketJSONRequestBody UpdateTicketJSONBody
+
+// TicketActionJSONRequestBody defines body for TicketAction for application/json ContentType.
+type TicketActionJSONRequestBody TicketActionJSONBody
+
+// AddTicketCommentJSONRequestBody defines body for AddTicketComment for application/json ContentType.
+type AddTicketCommentJSONRequestBody AddTicketCommentJSONBody
+
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody = CreateUserRequest
 
@@ -1095,3 +1692,65 @@ type CreateWebhookJSONRequestBody CreateWebhookJSONBody
 
 // UpdateWebhookJSONRequestBody defines body for UpdateWebhook for application/json ContentType.
 type UpdateWebhookJSONRequestBody UpdateWebhookJSONBody
+
+// AsTicketList returns the union data inside the ListApprovals200JSONResponseBody as a TicketList
+func (t ListApprovals200JSONResponseBody) AsTicketList() (TicketList, error) {
+	var body TicketList
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTicketList overwrites any union data inside the ListApprovals200JSONResponseBody as the provided TicketList
+func (t *ListApprovals200JSONResponseBody) FromTicketList(v TicketList) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTicketList performs a merge with any union data inside the ListApprovals200JSONResponseBody, using the provided TicketList
+func (t *ListApprovals200JSONResponseBody) MergeTicketList(v TicketList) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTicketDecisionList returns the union data inside the ListApprovals200JSONResponseBody as a TicketDecisionList
+func (t ListApprovals200JSONResponseBody) AsTicketDecisionList() (TicketDecisionList, error) {
+	var body TicketDecisionList
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTicketDecisionList overwrites any union data inside the ListApprovals200JSONResponseBody as the provided TicketDecisionList
+func (t *ListApprovals200JSONResponseBody) FromTicketDecisionList(v TicketDecisionList) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTicketDecisionList performs a merge with any union data inside the ListApprovals200JSONResponseBody, using the provided TicketDecisionList
+func (t *ListApprovals200JSONResponseBody) MergeTicketDecisionList(v TicketDecisionList) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ListApprovals200JSONResponseBody) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ListApprovals200JSONResponseBody) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}

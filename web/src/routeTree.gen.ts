@@ -9,31 +9,42 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as ClientRouteImport } from './routes/_client'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
-import { Route as AuthIndexRouteImport } from './routes/_auth.index'
-import { Route as AuthAnalyticsRouteImport } from './routes/_auth.analytics'
-import { Route as AuthAuditRouteImport } from './routes/_auth.audit'
-import { Route as AuthEnrichmentRouteImport } from './routes/_auth.enrichment'
-import { Route as AuthGettingStartedRouteImport } from './routes/_auth.getting-started'
-import { Route as AuthJobsRouteImport } from './routes/_auth.jobs'
-import { Route as AuthNotificationsRouteImport } from './routes/_auth.notifications'
-import { Route as AuthOrgsRouteImport } from './routes/_auth.orgs'
-import { Route as AuthPoliciesRouteImport } from './routes/_auth.policies'
-import { Route as AuthProfileRouteImport } from './routes/_auth.profile'
-import { Route as AuthReportsRouteImport } from './routes/_auth.reports'
-import { Route as AuthRolesRouteImport } from './routes/_auth.roles'
-import { Route as AuthSettingsRouteImport } from './routes/_auth.settings'
-import { Route as AuthUsersRouteImport } from './routes/_auth.users'
-import { Route as AuthWebhooksRouteImport } from './routes/_auth.webhooks'
-import { Route as AuthUsersUserIdRouteImport } from './routes/_auth.users.$userId'
+import { Route as ClientIndexRouteImport } from './routes/_client.index'
+import { Route as ClientApprovalsRouteImport } from './routes/_client.approvals'
+import { Route as ClientNotificationsRouteImport } from './routes/_client.notifications'
+import { Route as ClientProfileRouteImport } from './routes/_client.profile'
+import { Route as ClientTicketsRouteImport } from './routes/_client.tickets'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
+import { Route as AdminAuditRouteImport } from './routes/admin.audit'
+import { Route as AdminEnrichmentRouteImport } from './routes/admin.enrichment'
+import { Route as AdminGettingStartedRouteImport } from './routes/admin.getting-started'
+import { Route as AdminJobsRouteImport } from './routes/admin.jobs'
+import { Route as AdminOrgsRouteImport } from './routes/admin.orgs'
+import { Route as AdminPoliciesRouteImport } from './routes/admin.policies'
+import { Route as AdminReportsRouteImport } from './routes/admin.reports'
+import { Route as AdminRolesRouteImport } from './routes/admin.roles'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminTicketTypesRouteImport } from './routes/admin.ticket-types'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminWebhooksRouteImport } from './routes/admin.webhooks'
+import { Route as ClientTicketsTicketIdRouteImport } from './routes/_client.tickets.$ticketId'
+import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
 
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
+const ClientRoute = ClientRouteImport.update({
+  id: '/_client',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
@@ -61,109 +72,140 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
   path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthIndexRoute = AuthIndexRouteImport.update({
+const ClientIndexRoute = ClientIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => ClientRoute,
 } as any)
-const AuthAnalyticsRoute = AuthAnalyticsRouteImport.update({
-  id: '/analytics',
-  path: '/analytics',
-  getParentRoute: () => AuthRoute,
+const ClientApprovalsRoute = ClientApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => ClientRoute,
 } as any)
-const AuthAuditRoute = AuthAuditRouteImport.update({
-  id: '/audit',
-  path: '/audit',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthEnrichmentRoute = AuthEnrichmentRouteImport.update({
-  id: '/enrichment',
-  path: '/enrichment',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthGettingStartedRoute = AuthGettingStartedRouteImport.update({
-  id: '/getting-started',
-  path: '/getting-started',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthJobsRoute = AuthJobsRouteImport.update({
-  id: '/jobs',
-  path: '/jobs',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthNotificationsRoute = AuthNotificationsRouteImport.update({
+const ClientNotificationsRoute = ClientNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => ClientRoute,
 } as any)
-const AuthOrgsRoute = AuthOrgsRouteImport.update({
-  id: '/orgs',
-  path: '/orgs',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthPoliciesRoute = AuthPoliciesRouteImport.update({
-  id: '/policies',
-  path: '/policies',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthProfileRoute = AuthProfileRouteImport.update({
+const ClientProfileRoute = ClientProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => ClientRoute,
 } as any)
-const AuthReportsRoute = AuthReportsRouteImport.update({
+const ClientTicketsRoute = ClientTicketsRouteImport.update({
+  id: '/tickets',
+  path: '/tickets',
+  getParentRoute: () => ClientRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminEnrichmentRoute = AdminEnrichmentRouteImport.update({
+  id: '/enrichment',
+  path: '/enrichment',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminGettingStartedRoute = AdminGettingStartedRouteImport.update({
+  id: '/getting-started',
+  path: '/getting-started',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminJobsRoute = AdminJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminOrgsRoute = AdminOrgsRouteImport.update({
+  id: '/orgs',
+  path: '/orgs',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPoliciesRoute = AdminPoliciesRouteImport.update({
+  id: '/policies',
+  path: '/policies',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminReportsRoute = AdminReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AdminRoute,
 } as any)
-const AuthRolesRoute = AuthRolesRouteImport.update({
+const AdminRolesRoute = AdminRolesRouteImport.update({
   id: '/roles',
   path: '/roles',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AdminRoute,
 } as any)
-const AuthSettingsRoute = AuthSettingsRouteImport.update({
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AdminRoute,
 } as any)
-const AuthUsersRoute = AuthUsersRouteImport.update({
+const AdminTicketTypesRoute = AdminTicketTypesRouteImport.update({
+  id: '/ticket-types',
+  path: '/ticket-types',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AdminRoute,
 } as any)
-const AuthWebhooksRoute = AuthWebhooksRouteImport.update({
+const AdminWebhooksRoute = AdminWebhooksRouteImport.update({
   id: '/webhooks',
   path: '/webhooks',
-  getParentRoute: () => AuthRoute,
+  getParentRoute: () => AdminRoute,
 } as any)
-const AuthUsersUserIdRoute = AuthUsersUserIdRouteImport.update({
+const ClientTicketsTicketIdRoute = ClientTicketsTicketIdRouteImport.update({
+  id: '/$ticketId',
+  path: '/$ticketId',
+  getParentRoute: () => ClientTicketsRoute,
+} as any)
+const AdminUsersUserIdRoute = AdminUsersUserIdRouteImport.update({
   id: '/$userId',
   path: '/$userId',
-  getParentRoute: () => AuthUsersRoute,
+  getParentRoute: () => AdminUsersRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AuthIndexRoute
+  '/': typeof ClientIndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/analytics': typeof AuthAnalyticsRoute
-  '/audit': typeof AuthAuditRoute
-  '/enrichment': typeof AuthEnrichmentRoute
-  '/getting-started': typeof AuthGettingStartedRoute
-  '/jobs': typeof AuthJobsRoute
-  '/notifications': typeof AuthNotificationsRoute
-  '/orgs': typeof AuthOrgsRoute
-  '/policies': typeof AuthPoliciesRoute
-  '/profile': typeof AuthProfileRoute
-  '/reports': typeof AuthReportsRoute
-  '/roles': typeof AuthRolesRoute
-  '/settings': typeof AuthSettingsRoute
-  '/users': typeof AuthUsersRouteWithChildren
-  '/webhooks': typeof AuthWebhooksRoute
-  '/users/$userId': typeof AuthUsersUserIdRoute
+  '/approvals': typeof ClientApprovalsRoute
+  '/notifications': typeof ClientNotificationsRoute
+  '/profile': typeof ClientProfileRoute
+  '/tickets': typeof ClientTicketsRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/enrichment': typeof AdminEnrichmentRoute
+  '/admin/getting-started': typeof AdminGettingStartedRoute
+  '/admin/jobs': typeof AdminJobsRoute
+  '/admin/orgs': typeof AdminOrgsRoute
+  '/admin/policies': typeof AdminPoliciesRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/roles': typeof AdminRolesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/ticket-types': typeof AdminTicketTypesRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/webhooks': typeof AdminWebhooksRoute
+  '/admin/': typeof AdminIndexRoute
+  '/tickets/$ticketId': typeof ClientTicketsTicketIdRoute
+  '/admin/users/$userId': typeof AdminUsersUserIdRoute
 }
 export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
@@ -171,72 +213,89 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/analytics': typeof AuthAnalyticsRoute
-  '/audit': typeof AuthAuditRoute
-  '/enrichment': typeof AuthEnrichmentRoute
-  '/getting-started': typeof AuthGettingStartedRoute
-  '/jobs': typeof AuthJobsRoute
-  '/notifications': typeof AuthNotificationsRoute
-  '/orgs': typeof AuthOrgsRoute
-  '/policies': typeof AuthPoliciesRoute
-  '/profile': typeof AuthProfileRoute
-  '/reports': typeof AuthReportsRoute
-  '/roles': typeof AuthRolesRoute
-  '/settings': typeof AuthSettingsRoute
-  '/users': typeof AuthUsersRouteWithChildren
-  '/webhooks': typeof AuthWebhooksRoute
-  '/': typeof AuthIndexRoute
-  '/users/$userId': typeof AuthUsersUserIdRoute
+  '/approvals': typeof ClientApprovalsRoute
+  '/notifications': typeof ClientNotificationsRoute
+  '/profile': typeof ClientProfileRoute
+  '/tickets': typeof ClientTicketsRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/enrichment': typeof AdminEnrichmentRoute
+  '/admin/getting-started': typeof AdminGettingStartedRoute
+  '/admin/jobs': typeof AdminJobsRoute
+  '/admin/orgs': typeof AdminOrgsRoute
+  '/admin/policies': typeof AdminPoliciesRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/roles': typeof AdminRolesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/ticket-types': typeof AdminTicketTypesRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/webhooks': typeof AdminWebhooksRoute
+  '/': typeof ClientIndexRoute
+  '/admin': typeof AdminIndexRoute
+  '/tickets/$ticketId': typeof ClientTicketsTicketIdRoute
+  '/admin/users/$userId': typeof AdminUsersUserIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_auth': typeof AuthRouteWithChildren
+  '/_client': typeof ClientRouteWithChildren
+  '/admin': typeof AdminRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
-  '/_auth/analytics': typeof AuthAnalyticsRoute
-  '/_auth/audit': typeof AuthAuditRoute
-  '/_auth/enrichment': typeof AuthEnrichmentRoute
-  '/_auth/getting-started': typeof AuthGettingStartedRoute
-  '/_auth/jobs': typeof AuthJobsRoute
-  '/_auth/notifications': typeof AuthNotificationsRoute
-  '/_auth/orgs': typeof AuthOrgsRoute
-  '/_auth/policies': typeof AuthPoliciesRoute
-  '/_auth/profile': typeof AuthProfileRoute
-  '/_auth/reports': typeof AuthReportsRoute
-  '/_auth/roles': typeof AuthRolesRoute
-  '/_auth/settings': typeof AuthSettingsRoute
-  '/_auth/users': typeof AuthUsersRouteWithChildren
-  '/_auth/webhooks': typeof AuthWebhooksRoute
-  '/_auth/': typeof AuthIndexRoute
-  '/_auth/users/$userId': typeof AuthUsersUserIdRoute
+  '/_client/approvals': typeof ClientApprovalsRoute
+  '/_client/notifications': typeof ClientNotificationsRoute
+  '/_client/profile': typeof ClientProfileRoute
+  '/_client/tickets': typeof ClientTicketsRouteWithChildren
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/enrichment': typeof AdminEnrichmentRoute
+  '/admin/getting-started': typeof AdminGettingStartedRoute
+  '/admin/jobs': typeof AdminJobsRoute
+  '/admin/orgs': typeof AdminOrgsRoute
+  '/admin/policies': typeof AdminPoliciesRoute
+  '/admin/reports': typeof AdminReportsRoute
+  '/admin/roles': typeof AdminRolesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/ticket-types': typeof AdminTicketTypesRoute
+  '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/webhooks': typeof AdminWebhooksRoute
+  '/_client/': typeof ClientIndexRoute
+  '/admin/': typeof AdminIndexRoute
+  '/_client/tickets/$ticketId': typeof ClientTicketsTicketIdRoute
+  '/admin/users/$userId': typeof AdminUsersUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/forgot-password'
     | '/login'
     | '/register'
     | '/reset-password'
     | '/verify-email'
-    | '/analytics'
-    | '/audit'
-    | '/enrichment'
-    | '/getting-started'
-    | '/jobs'
+    | '/approvals'
     | '/notifications'
-    | '/orgs'
-    | '/policies'
     | '/profile'
-    | '/reports'
-    | '/roles'
-    | '/settings'
-    | '/users'
-    | '/webhooks'
-    | '/users/$userId'
+    | '/tickets'
+    | '/admin/analytics'
+    | '/admin/audit'
+    | '/admin/enrichment'
+    | '/admin/getting-started'
+    | '/admin/jobs'
+    | '/admin/orgs'
+    | '/admin/policies'
+    | '/admin/reports'
+    | '/admin/roles'
+    | '/admin/settings'
+    | '/admin/ticket-types'
+    | '/admin/users'
+    | '/admin/webhooks'
+    | '/admin/'
+    | '/tickets/$ticketId'
+    | '/admin/users/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/forgot-password'
@@ -244,50 +303,62 @@ export interface FileRouteTypes {
     | '/register'
     | '/reset-password'
     | '/verify-email'
-    | '/analytics'
-    | '/audit'
-    | '/enrichment'
-    | '/getting-started'
-    | '/jobs'
+    | '/approvals'
     | '/notifications'
-    | '/orgs'
-    | '/policies'
     | '/profile'
-    | '/reports'
-    | '/roles'
-    | '/settings'
-    | '/users'
-    | '/webhooks'
+    | '/tickets'
+    | '/admin/analytics'
+    | '/admin/audit'
+    | '/admin/enrichment'
+    | '/admin/getting-started'
+    | '/admin/jobs'
+    | '/admin/orgs'
+    | '/admin/policies'
+    | '/admin/reports'
+    | '/admin/roles'
+    | '/admin/settings'
+    | '/admin/ticket-types'
+    | '/admin/users'
+    | '/admin/webhooks'
     | '/'
-    | '/users/$userId'
+    | '/admin'
+    | '/tickets/$ticketId'
+    | '/admin/users/$userId'
   id:
     | '__root__'
-    | '/_auth'
+    | '/_client'
+    | '/admin'
     | '/forgot-password'
     | '/login'
     | '/register'
     | '/reset-password'
     | '/verify-email'
-    | '/_auth/analytics'
-    | '/_auth/audit'
-    | '/_auth/enrichment'
-    | '/_auth/getting-started'
-    | '/_auth/jobs'
-    | '/_auth/notifications'
-    | '/_auth/orgs'
-    | '/_auth/policies'
-    | '/_auth/profile'
-    | '/_auth/reports'
-    | '/_auth/roles'
-    | '/_auth/settings'
-    | '/_auth/users'
-    | '/_auth/webhooks'
-    | '/_auth/'
-    | '/_auth/users/$userId'
+    | '/_client/approvals'
+    | '/_client/notifications'
+    | '/_client/profile'
+    | '/_client/tickets'
+    | '/admin/analytics'
+    | '/admin/audit'
+    | '/admin/enrichment'
+    | '/admin/getting-started'
+    | '/admin/jobs'
+    | '/admin/orgs'
+    | '/admin/policies'
+    | '/admin/reports'
+    | '/admin/roles'
+    | '/admin/settings'
+    | '/admin/ticket-types'
+    | '/admin/users'
+    | '/admin/webhooks'
+    | '/_client/'
+    | '/admin/'
+    | '/_client/tickets/$ticketId'
+    | '/admin/users/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  AuthRoute: typeof AuthRouteWithChildren
+  ClientRoute: typeof ClientRouteWithChildren
+  AdminRoute: typeof AdminRouteWithChildren
   ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -297,11 +368,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_auth': {
-      id: '/_auth'
+    '/_client': {
+      id: '/_client'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof AuthRouteImport
+      preLoaderRoute: typeof ClientRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/forgot-password': {
@@ -339,173 +417,238 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth/': {
-      id: '/_auth/'
+    '/_client/': {
+      id: '/_client/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AuthIndexRouteImport
-      parentRoute: typeof AuthRoute
+      preLoaderRoute: typeof ClientIndexRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/_auth/analytics': {
-      id: '/_auth/analytics'
-      path: '/analytics'
-      fullPath: '/analytics'
-      preLoaderRoute: typeof AuthAnalyticsRouteImport
-      parentRoute: typeof AuthRoute
+    '/_client/approvals': {
+      id: '/_client/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof ClientApprovalsRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/_auth/audit': {
-      id: '/_auth/audit'
-      path: '/audit'
-      fullPath: '/audit'
-      preLoaderRoute: typeof AuthAuditRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/enrichment': {
-      id: '/_auth/enrichment'
-      path: '/enrichment'
-      fullPath: '/enrichment'
-      preLoaderRoute: typeof AuthEnrichmentRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/getting-started': {
-      id: '/_auth/getting-started'
-      path: '/getting-started'
-      fullPath: '/getting-started'
-      preLoaderRoute: typeof AuthGettingStartedRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/jobs': {
-      id: '/_auth/jobs'
-      path: '/jobs'
-      fullPath: '/jobs'
-      preLoaderRoute: typeof AuthJobsRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/notifications': {
-      id: '/_auth/notifications'
+    '/_client/notifications': {
+      id: '/_client/notifications'
       path: '/notifications'
       fullPath: '/notifications'
-      preLoaderRoute: typeof AuthNotificationsRouteImport
-      parentRoute: typeof AuthRoute
+      preLoaderRoute: typeof ClientNotificationsRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/_auth/orgs': {
-      id: '/_auth/orgs'
-      path: '/orgs'
-      fullPath: '/orgs'
-      preLoaderRoute: typeof AuthOrgsRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/policies': {
-      id: '/_auth/policies'
-      path: '/policies'
-      fullPath: '/policies'
-      preLoaderRoute: typeof AuthPoliciesRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_auth/profile': {
-      id: '/_auth/profile'
+    '/_client/profile': {
+      id: '/_client/profile'
       path: '/profile'
       fullPath: '/profile'
-      preLoaderRoute: typeof AuthProfileRouteImport
-      parentRoute: typeof AuthRoute
+      preLoaderRoute: typeof ClientProfileRouteImport
+      parentRoute: typeof ClientRoute
     }
-    '/_auth/reports': {
-      id: '/_auth/reports'
+    '/_client/tickets': {
+      id: '/_client/tickets'
+      path: '/tickets'
+      fullPath: '/tickets'
+      preLoaderRoute: typeof ClientTicketsRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/enrichment': {
+      id: '/admin/enrichment'
+      path: '/enrichment'
+      fullPath: '/admin/enrichment'
+      preLoaderRoute: typeof AdminEnrichmentRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/getting-started': {
+      id: '/admin/getting-started'
+      path: '/getting-started'
+      fullPath: '/admin/getting-started'
+      preLoaderRoute: typeof AdminGettingStartedRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/jobs': {
+      id: '/admin/jobs'
+      path: '/jobs'
+      fullPath: '/admin/jobs'
+      preLoaderRoute: typeof AdminJobsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/orgs': {
+      id: '/admin/orgs'
+      path: '/orgs'
+      fullPath: '/admin/orgs'
+      preLoaderRoute: typeof AdminOrgsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/policies': {
+      id: '/admin/policies'
+      path: '/policies'
+      fullPath: '/admin/policies'
+      preLoaderRoute: typeof AdminPoliciesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/reports': {
+      id: '/admin/reports'
       path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof AuthReportsRouteImport
-      parentRoute: typeof AuthRoute
+      fullPath: '/admin/reports'
+      preLoaderRoute: typeof AdminReportsRouteImport
+      parentRoute: typeof AdminRoute
     }
-    '/_auth/roles': {
-      id: '/_auth/roles'
+    '/admin/roles': {
+      id: '/admin/roles'
       path: '/roles'
-      fullPath: '/roles'
-      preLoaderRoute: typeof AuthRolesRouteImport
-      parentRoute: typeof AuthRoute
+      fullPath: '/admin/roles'
+      preLoaderRoute: typeof AdminRolesRouteImport
+      parentRoute: typeof AdminRoute
     }
-    '/_auth/settings': {
-      id: '/_auth/settings'
+    '/admin/settings': {
+      id: '/admin/settings'
       path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthSettingsRouteImport
-      parentRoute: typeof AuthRoute
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
     }
-    '/_auth/users': {
-      id: '/_auth/users'
+    '/admin/ticket-types': {
+      id: '/admin/ticket-types'
+      path: '/ticket-types'
+      fullPath: '/admin/ticket-types'
+      preLoaderRoute: typeof AdminTicketTypesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/users': {
+      id: '/admin/users'
       path: '/users'
-      fullPath: '/users'
-      preLoaderRoute: typeof AuthUsersRouteImport
-      parentRoute: typeof AuthRoute
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
     }
-    '/_auth/webhooks': {
-      id: '/_auth/webhooks'
+    '/admin/webhooks': {
+      id: '/admin/webhooks'
       path: '/webhooks'
-      fullPath: '/webhooks'
-      preLoaderRoute: typeof AuthWebhooksRouteImport
-      parentRoute: typeof AuthRoute
+      fullPath: '/admin/webhooks'
+      preLoaderRoute: typeof AdminWebhooksRouteImport
+      parentRoute: typeof AdminRoute
     }
-    '/_auth/users/$userId': {
-      id: '/_auth/users/$userId'
+    '/_client/tickets/$ticketId': {
+      id: '/_client/tickets/$ticketId'
+      path: '/$ticketId'
+      fullPath: '/tickets/$ticketId'
+      preLoaderRoute: typeof ClientTicketsTicketIdRouteImport
+      parentRoute: typeof ClientTicketsRoute
+    }
+    '/admin/users/$userId': {
+      id: '/admin/users/$userId'
       path: '/$userId'
-      fullPath: '/users/$userId'
-      preLoaderRoute: typeof AuthUsersUserIdRouteImport
-      parentRoute: typeof AuthUsersRoute
+      fullPath: '/admin/users/$userId'
+      preLoaderRoute: typeof AdminUsersUserIdRouteImport
+      parentRoute: typeof AdminUsersRoute
     }
   }
 }
 
-interface AuthUsersRouteChildren {
-  AuthUsersUserIdRoute: typeof AuthUsersUserIdRoute
+interface ClientTicketsRouteChildren {
+  ClientTicketsTicketIdRoute: typeof ClientTicketsTicketIdRoute
 }
 
-const AuthUsersRouteChildren: AuthUsersRouteChildren = {
-  AuthUsersUserIdRoute: AuthUsersUserIdRoute,
+const ClientTicketsRouteChildren: ClientTicketsRouteChildren = {
+  ClientTicketsTicketIdRoute: ClientTicketsTicketIdRoute,
 }
 
-const AuthUsersRouteWithChildren = AuthUsersRoute._addFileChildren(
-  AuthUsersRouteChildren,
+const ClientTicketsRouteWithChildren = ClientTicketsRoute._addFileChildren(
+  ClientTicketsRouteChildren,
 )
 
-interface AuthRouteChildren {
-  AuthAnalyticsRoute: typeof AuthAnalyticsRoute
-  AuthAuditRoute: typeof AuthAuditRoute
-  AuthEnrichmentRoute: typeof AuthEnrichmentRoute
-  AuthGettingStartedRoute: typeof AuthGettingStartedRoute
-  AuthJobsRoute: typeof AuthJobsRoute
-  AuthNotificationsRoute: typeof AuthNotificationsRoute
-  AuthOrgsRoute: typeof AuthOrgsRoute
-  AuthPoliciesRoute: typeof AuthPoliciesRoute
-  AuthProfileRoute: typeof AuthProfileRoute
-  AuthReportsRoute: typeof AuthReportsRoute
-  AuthRolesRoute: typeof AuthRolesRoute
-  AuthSettingsRoute: typeof AuthSettingsRoute
-  AuthUsersRoute: typeof AuthUsersRouteWithChildren
-  AuthWebhooksRoute: typeof AuthWebhooksRoute
-  AuthIndexRoute: typeof AuthIndexRoute
+interface ClientRouteChildren {
+  ClientApprovalsRoute: typeof ClientApprovalsRoute
+  ClientNotificationsRoute: typeof ClientNotificationsRoute
+  ClientProfileRoute: typeof ClientProfileRoute
+  ClientTicketsRoute: typeof ClientTicketsRouteWithChildren
+  ClientIndexRoute: typeof ClientIndexRoute
 }
 
-const AuthRouteChildren: AuthRouteChildren = {
-  AuthAnalyticsRoute: AuthAnalyticsRoute,
-  AuthAuditRoute: AuthAuditRoute,
-  AuthEnrichmentRoute: AuthEnrichmentRoute,
-  AuthGettingStartedRoute: AuthGettingStartedRoute,
-  AuthJobsRoute: AuthJobsRoute,
-  AuthNotificationsRoute: AuthNotificationsRoute,
-  AuthOrgsRoute: AuthOrgsRoute,
-  AuthPoliciesRoute: AuthPoliciesRoute,
-  AuthProfileRoute: AuthProfileRoute,
-  AuthReportsRoute: AuthReportsRoute,
-  AuthRolesRoute: AuthRolesRoute,
-  AuthSettingsRoute: AuthSettingsRoute,
-  AuthUsersRoute: AuthUsersRouteWithChildren,
-  AuthWebhooksRoute: AuthWebhooksRoute,
-  AuthIndexRoute: AuthIndexRoute,
+const ClientRouteChildren: ClientRouteChildren = {
+  ClientApprovalsRoute: ClientApprovalsRoute,
+  ClientNotificationsRoute: ClientNotificationsRoute,
+  ClientProfileRoute: ClientProfileRoute,
+  ClientTicketsRoute: ClientTicketsRouteWithChildren,
+  ClientIndexRoute: ClientIndexRoute,
 }
 
-const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+const ClientRouteWithChildren =
+  ClientRoute._addFileChildren(ClientRouteChildren)
+
+interface AdminUsersRouteChildren {
+  AdminUsersUserIdRoute: typeof AdminUsersUserIdRoute
+}
+
+const AdminUsersRouteChildren: AdminUsersRouteChildren = {
+  AdminUsersUserIdRoute: AdminUsersUserIdRoute,
+}
+
+const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
+  AdminUsersRouteChildren,
+)
+
+interface AdminRouteChildren {
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminAuditRoute: typeof AdminAuditRoute
+  AdminEnrichmentRoute: typeof AdminEnrichmentRoute
+  AdminGettingStartedRoute: typeof AdminGettingStartedRoute
+  AdminJobsRoute: typeof AdminJobsRoute
+  AdminOrgsRoute: typeof AdminOrgsRoute
+  AdminPoliciesRoute: typeof AdminPoliciesRoute
+  AdminReportsRoute: typeof AdminReportsRoute
+  AdminRolesRoute: typeof AdminRolesRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminTicketTypesRoute: typeof AdminTicketTypesRoute
+  AdminUsersRoute: typeof AdminUsersRouteWithChildren
+  AdminWebhooksRoute: typeof AdminWebhooksRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminAuditRoute: AdminAuditRoute,
+  AdminEnrichmentRoute: AdminEnrichmentRoute,
+  AdminGettingStartedRoute: AdminGettingStartedRoute,
+  AdminJobsRoute: AdminJobsRoute,
+  AdminOrgsRoute: AdminOrgsRoute,
+  AdminPoliciesRoute: AdminPoliciesRoute,
+  AdminReportsRoute: AdminReportsRoute,
+  AdminRolesRoute: AdminRolesRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminTicketTypesRoute: AdminTicketTypesRoute,
+  AdminUsersRoute: AdminUsersRouteWithChildren,
+  AdminWebhooksRoute: AdminWebhooksRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  AuthRoute: AuthRouteWithChildren,
+  ClientRoute: ClientRouteWithChildren,
+  AdminRoute: AdminRouteWithChildren,
   ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,

@@ -17,6 +17,8 @@ func httpError(err error) (int, string) {
 		return http.StatusNotFound, "not found"
 	case errors.Is(err, repository.ErrConflict):
 		return http.StatusConflict, "conflict"
+	case errors.Is(err, service.ErrInvalidTransition):
+		return http.StatusConflict, "invalid transition"
 	case errors.Is(err, service.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid credentials"
 	case errors.Is(err, service.ErrForbidden):

@@ -70,7 +70,6 @@ func (q *Queue) Enqueue(ctx context.Context, job model.Job) error {
 // Close releases the client connection.
 func (q *Queue) Close() error { return q.client.Close() }
 
-
 // WebhookEnqueuer pushes webhook deliveries onto the asynq queue; it
 // implements the service.WebhookDispatcher port for multi-process mode.
 type WebhookEnqueuer struct {

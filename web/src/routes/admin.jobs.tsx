@@ -21,7 +21,7 @@ import type { Job } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/status-badge";
 
-export const Route = createFileRoute("/_auth/jobs")({
+export const Route = createFileRoute("/admin/jobs")({
   validateSearch: listSearchSchema,
   staticData: { title: "Jobs" },
   component: JobsPage,
@@ -45,7 +45,7 @@ function JobsPage() {
   const jobs = usePagedList<Job>("jobs", params);
 
   const setSearch = (patch: Partial<ListSearch>) => {
-    void navigate({ to: "/jobs", search: { ...search, ...patch } });
+    void navigate({ to: "/admin/jobs", search: { ...search, ...patch } });
   };
 
   const process = useMutation({

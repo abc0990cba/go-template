@@ -54,9 +54,9 @@ func TestClickHouseEventPipeline(t *testing.T) {
 
 	// Buffer with a small size so AddEvent flushes synchronously.
 	buffer := client.NewEventBuffer(testLogger(), 2, time.Hour)
-	buffer.AddEvent(context.Background(), "user_registered")
-	buffer.AddEvent(context.Background(), "user_registered") // fills the batch → flush
-	buffer.AddEvent(context.Background(), "user_logged_in")  // stays buffered
+	buffer.AddEvent(context.Background(), "user_registered", "")
+	buffer.AddEvent(context.Background(), "user_registered", "") // fills the batch → flush
+	buffer.AddEvent(context.Background(), "user_logged_in", "")  // stays buffered
 	if err := buffer.Close(); err != nil {                   // flushes the remainder
 		t.Fatalf("close buffer: %v", err)
 	}

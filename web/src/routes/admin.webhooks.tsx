@@ -21,7 +21,7 @@ import { api } from "@/lib/api";
 import { ensurePermission } from "@/lib/auth";
 import type { WebhookDelivery, WebhookEndpoint } from "@/lib/types";
 
-export const Route = createFileRoute("/_auth/webhooks")({
+export const Route = createFileRoute("/admin/webhooks")({
   staticData: { title: "Webhooks" },
   beforeLoad: ({ location }) => ensurePermission("webhooks", "read", location),
   component: WebhooksPage,

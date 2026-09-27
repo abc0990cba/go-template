@@ -15,7 +15,7 @@ import type { EnrichmentProfile } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 
-export const Route = createFileRoute("/_auth/enrichment")({
+export const Route = createFileRoute("/admin/enrichment")({
   validateSearch: listSearchSchema,
   staticData: { title: "Enrichment" },
   component: EnrichmentPage,
@@ -38,7 +38,7 @@ function EnrichmentPage() {
   const profiles = usePagedList<EnrichmentProfile>("enrichment-profiles", params);
 
   const setSearch = (patch: Partial<typeof search>) => {
-    void navigate({ to: "/enrichment", search: { ...search, ...patch } });
+    void navigate({ to: "/admin/enrichment", search: { ...search, ...patch } });
   };
 
   const enqueue = useMutation({

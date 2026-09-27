@@ -21,7 +21,7 @@ import type { Report } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
 
-export const Route = createFileRoute("/_auth/reports")({
+export const Route = createFileRoute("/admin/reports")({
   validateSearch: listSearchSchema,
   staticData: { title: "Reports" },
   component: ReportsPage,
@@ -44,7 +44,7 @@ function ReportsPage() {
   const reports = usePagedList<Report>("reports", params);
 
   const setSearch = (patch: Partial<typeof search>) => {
-    void navigate({ to: "/reports", search: { ...search, ...patch } });
+    void navigate({ to: "/admin/reports", search: { ...search, ...patch } });
   };
 
   const generate = useMutation({

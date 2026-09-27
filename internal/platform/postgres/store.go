@@ -35,6 +35,7 @@ var (
 	_ service.JobsRepo      = (*Store)(nil)
 	_ service.ReportsRepo   = (*Store)(nil)
 	_ service.AnalyticsRepo = (*Store)(nil)
+	_ service.TicketsRepo   = (*Store)(nil)
 )
 
 // Store is a PostgreSQL-backed implementation of every service port.
@@ -630,6 +631,15 @@ func (s *Store) ResetDemoData(ctx context.Context) error {
 			return mapErr(err)
 		}
 		if _, err := q.DeleteDemoWebhookEndpoints(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoTickets(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteTicketsReferencingDemoTypes(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoTicketTypes(ctx); err != nil {
 			return mapErr(err)
 		}
 		if _, err := q.DeleteDemoAudit(ctx); err != nil {

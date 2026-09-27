@@ -9,3 +9,9 @@
 | JOB-001 | `background-jobs` | `internal/service/jobs.go` | `/enrichment`, `/jobs` | Planned | Planned |
 | ANALYTICS-001 | `analytics-events` | `internal/service/analytics.go` | `/analytics` | Planned | Planned |
 | REL-001 | `reliability` | `internal/reliability` | health endpoints | `retry_test.go` | smoke.js |
+| TICKET-001 | `ticket-approvals` | `internal/service/tickets.go` | `/tickets`, `/api/tickets` | `tickets_test.go`, store contract | Planned |
+| TICKET-002 | `ticket-approvals` | `internal/service/tickets.go` | `/api/tickets/{id}/actions` | `tickets_test.go` (409 on invalid transition) | Planned |
+| TICKET-003 | `ticket-approvals` | `internal/service/tickets.go` | terminal banners, `ticket.status.*` i18n | `tickets_test.go` (withdrawn vs rejected) | Planned |
+| TICKET-004 | `ticket-approvals` | `internal/service/tickets.go` (step guards) | `/api/tickets/{id}/actions` | `tickets_test.go` (role guard) | Planned |
+| TICKET-005 | `ticket-approvals` | `internal/service/tickets.go` (scope) | `/api/tickets?scope=`, `/api/approvals` | `tickets_test.go` (scope separation) | Planned |
+| TICKET-006 | `ticket-approvals` | `internal/bootstrap/demodata.go` | seeded types, roles, 120 tickets | demo seed smoke | Planned |

@@ -7,6 +7,7 @@ import { Link } from "@tanstack/react-router";
 import { z } from "zod";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,6 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { meQuery } from "@/lib/auth";
+import { DemoAccountPicker } from "@/components/demo-account-picker";
+import { I18nProvider } from "@/lib/i18n";
 
 const searchSchema = z.object({
   redirect: z.string().optional(),
@@ -52,16 +55,13 @@ function LoginPage() {
 
   const login = useMutation({
     mutationFn: (values: LoginForm) => api.login(values.email, values.password),
-    onSuccess: ({ user }) => {
-      // The session probe now carries the RBAC context; refetch it fresh.
-      queryClient.setQueryData(meQuery().queryKey, {
-        ...user,
-        orgs: [],
-        active_org: "*",
-        roles: [],
-        permissions: [],
-        impersonated: false,
-      });
+    onSuccess: async () => {
+      // The login response carries no RBAC context; drop everything cached
+      // under the previous identity and resolve the real session probe
+      // (roles, permissions, orgs) before the redirect, so the route guards
+      // judge the new account by its actual permissions.
+      queryClient.clear();
+      await queryClient.fetchQuery(meQuery());
       const fallback: FileRouteTypes["to"] = "/";
       const target = (search.redirect ?? fallback) as FileRouteTypes["to"];
       void navigate({ to: target.startsWith("/_") || target.includes("?") ? fallback : target });
@@ -71,9 +71,21 @@ function LoginPage() {
     },
   });
 
+  // The demo_mode flag (a public setting) turns the login page into a
+  // role-switching console: every seeded account signs in with one click.
+  const demo = useQuery({
+    queryKey: ["settings", "public"],
+    queryFn: api.publicSettings,
+    staleTime: 5 * 60_000,
+  });
+  const demoMode = demo.data?.demo_mode === "true";
+  const containerClass = demoMode
+    ? "grid w-full max-w-5xl items-start gap-6 lg:grid-cols-[360px_1fr]"
+    : "w-full max-w-sm space-y-4";
+
   return (
     <div className="flex min-h-svh items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-4">
+      <div className={containerClass}>
         <Card>
           <CardHeader>
             <CardTitle className="text-xl">Go Template Admin</CardTitle>
@@ -157,16 +169,31 @@ function LoginPage() {
           </CardContent>
         </Card>
 
-        <Alert>
-          <AlertTitle>Demo credentials</AlertTitle>
-          <AlertDescription>
-            The pre-filled <code>demo@go-template.local</code> / <code>demo-password-123</code>{" "}
-            account comes from the demo seed (APP_DEMO_EMAIL / APP_DEMO_PASSWORD). Ten more demo
-            users (<code>demo-u-0001@demo.example</code> …<code>demo-u-0010@demo.example</code>,
-            password <code>password123</code>) work once the demo dataset is seeded.
-          </AlertDescription>
-        </Alert>
+        {!demoMode && (
+          <Alert>
+            <AlertTitle>Demo credentials</AlertTitle>
+            <AlertDescription>
+              The pre-filled <code>demo@go-template.local</code> / <code>demo-password-123</code>{" "}
+              account comes from the demo seed (APP_DEMO_EMAIL / APP_DEMO_PASSWORD).
+            </AlertDescription>
+          </Alert>
+        )}
+        </div>
+
+        {demoMode && (
+          <I18nProvider>
+            <div className="space-y-3">
+              <div>
+                <h2 className="text-lg font-semibold tracking-tight">Demo accounts</h2>
+                <p className="text-sm text-muted-foreground">
+                  One click signs you in as that role — walk the whole ticket flow from the
+                  requester to the approver without typing passwords.
+                </p>
+              </div>
+              <DemoAccountPicker />
+            </div>
+          </I18nProvider>
+        )}
       </div>
-    </div>
   );
 }

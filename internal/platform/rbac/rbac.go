@@ -88,8 +88,8 @@ func (a *Adapter) SavePolicy(m casbinmodel.Model) error {
 		return err
 	}
 	sets := []struct {
-		ptype   string
-		policy  [][]string
+		ptype  string
+		policy [][]string
 	}{
 		{"p", m["p"]["p"].Policy},
 		{"g", m["g"]["g"].Policy},

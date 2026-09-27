@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { ensurePermission } from "@/lib/auth";
 import type { AuditEntry } from "@/lib/types";
 
-export const Route = createFileRoute("/_auth/audit")({
+export const Route = createFileRoute("/admin/audit")({
   staticData: { title: "Audit Log" },
   beforeLoad: ({ location }) => ensurePermission("audit", "read", location),
   component: AuditPage,

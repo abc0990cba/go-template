@@ -21,6 +21,7 @@ import {
   Moon,
   Search,
   Sun,
+  Ticket,
   UserCog,
   Users,
   Workflow,
@@ -70,6 +71,7 @@ import { api, setActiveOrg } from "@/lib/api";
 import { meQuery } from "@/lib/auth";
 import { useCan } from "@/hooks/use-permissions";
 import { LiveBadge } from "@/components/live-badge";
+import { IdentityChip } from "@/components/identity-chip";
 import { NotificationBell } from "@/components/notification-bell";
 import { I18nProvider, useI18n, type Locale } from "@/lib/i18n";
 
@@ -86,41 +88,49 @@ interface NavItem {
 
 const NAV_MAIN: NavItem[] = [
   {
-    to: "/",
+    to: "/admin",
     key: "nav.dashboard",
     title: "Dashboard",
     icon: LayoutDashboard,
-    description: "Counters, charts, live activity",
+    description: "System counters, charts, live activity",
   },
   {
-    to: "/users",
+    to: "/admin/users",
     title: "Users",
     key: "nav.users",
     icon: Users,
     description: "Accounts, search, CRUD",
   },
   {
-    to: "/jobs",
+    to: "/admin/jobs",
     title: "Jobs",
     key: "nav.jobs",
     icon: ListTodo,
     description: "Background queue, live status",
   },
   {
-    to: "/enrichment",
+    to: "/admin/enrichment",
     title: "Enrichment",
     icon: Workflow,
     description: "External profile fetching",
   },
   {
-    to: "/reports",
+    to: "/admin/reports",
     title: "Reports",
     key: "nav.reports",
     icon: FileText,
     description: "Analytics snapshots",
   },
   {
-    to: "/analytics",
+    to: "/admin/ticket-types",
+    title: "Ticket Types",
+    key: "nav.ticketTypes",
+    icon: Ticket,
+    description: "Approval chains behind tickets",
+    permission: ["ticket_types", "read"],
+  },
+  {
+    to: "/admin/analytics",
     title: "Analytics",
     icon: ChartColumn,
     description: "Event warehouse, live trail",
@@ -129,42 +139,42 @@ const NAV_MAIN: NavItem[] = [
 
 const NAV_ADMIN: NavItem[] = [
   {
-    to: "/roles",
+    to: "/admin/roles",
     title: "Roles",
     icon: KeySquare,
     description: "Roles and the permission matrix",
     permission: ["roles", "read"],
   },
   {
-    to: "/policies",
+    to: "/admin/policies",
     title: "Policies",
     icon: FileText,
     description: "Raw policy rules (advanced)",
     permission: ["policies", "read"],
   },
   {
-    to: "/orgs",
+    to: "/admin/orgs",
     title: "Organizations",
     icon: Building2,
     description: "Tenants and their members",
     permission: ["orgs", "read"],
   },
   {
-    to: "/audit",
+    to: "/admin/audit",
     title: "Audit Log",
     icon: ScrollText,
     description: "Who changed what, when",
     permission: ["audit", "read"],
   },
   {
-    to: "/settings",
+    to: "/admin/settings",
     title: "Settings",
     icon: Settings,
     description: "Flags and runtime configuration",
     permission: ["settings", "read"],
   },
   {
-    to: "/webhooks",
+    to: "/admin/webhooks",
     title: "Webhooks",
     icon: Webhook,
     description: "Outgoing event subscriptions",
@@ -188,10 +198,17 @@ const NAV_SECONDARY: NavItem[] = [
     description: "Identities, sessions, logout",
   },
   {
-    to: "/getting-started",
+    to: "/admin/getting-started",
     title: "Getting Started",
     icon: BookOpen,
     description: "How this app works",
+  },
+  {
+    to: "/",
+    key: "nav.clientApp",
+    title: "Client App",
+    icon: Globe,
+    description: "The user-facing side of the service",
   },
 ];
 
@@ -199,7 +216,7 @@ const NAV_SECONDARY: NavItem[] = [
  * OrgSwitcher selects the active Casbin domain: a tenant or the platform.
  * The choice rides every API call as X-Org-Id and survives reloads.
  */
-function OrgSwitcher() {
+export function OrgSwitcher() {
   const { data: me } = useSuspenseQuery(meQuery());
   const orgT = useI18n().t;
   const queryClient = useQueryClient();
@@ -387,6 +404,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Separator orientation="vertical" className="!h-5" />
             <PageTitle />
             <div className="ml-auto flex items-center gap-2">
+              <IdentityChip />
               <OrgSwitcher />
               <NotificationBell />
               <LiveBadge />
@@ -424,7 +442,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => goTo("/profile")}>Profile</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => goTo("/getting-started")}>
+                  <DropdownMenuItem onClick={() => goTo("/")}>Client App</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => goTo("/admin/getting-started")}>
                     Getting Started
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
@@ -466,7 +485,7 @@ function PageTitle() {
 }
 
 /** LanguageToggle flips the UI between English and Russian. */
-function LanguageToggle({ locale, setLocale }: { locale: Locale; setLocale: (l: Locale) => void }) {
+export function LanguageToggle({ locale, setLocale }: { locale: Locale; setLocale: (l: Locale) => void }) {
   return (
     <Button
       variant="ghost"
@@ -480,7 +499,7 @@ function LanguageToggle({ locale, setLocale }: { locale: Locale; setLocale: (l: 
   );
 }
 
-function ThemeToggle() {
+export function ThemeToggle() {
   const { resolvedTheme, setTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   return (
@@ -556,7 +575,7 @@ function initials(nameOrEmail: string) {
  * ImpersonationBanner sits above everything when an admin is viewing the
  * app as someone else; stopping returns them to their own session.
  */
-function ImpersonationBanner() {
+export function ImpersonationBanner() {
   const { data: me } = useSuspenseQuery(meQuery());
   const { t } = useI18n();
   const queryClient = useQueryClient();

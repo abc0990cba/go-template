@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-27
+goal: Add a ticket (request) domain with a state machine, data-driven multi-step approval workflows per ticket type, and separated requester/approver interfaces.

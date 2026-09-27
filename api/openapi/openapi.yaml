@@ -26,6 +26,7 @@ tags:
   - name: apikeys
   - name: impersonation
   - name: webhooks
+  - name: tickets
 paths:
   /health/live:
     get:
@@ -1224,6 +1225,348 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/DayCount" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/tickets:
+    get:
+      tags: [tickets]
+      summary: List tickets — own by default, org-wide with tickets:read_all
+      operationId: listTickets
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: after
+          in: query
+          description: Last ticket id of the previous page (cursor and keyset modes)
+          schema: { type: string }
+        - name: q
+          in: query
+          description: Substring filter over title and description
+          schema: { type: string }
+        - name: scope
+          in: query
+          description: my = tickets created by the caller; all requires tickets:read_all
+          schema: { type: string, enum: [my, all], default: my }
+        - name: status
+          in: query
+          description: Filter by lifecycle status
+          schema: { type: string, enum: [draft, in_review, approved, completed, rejected, withdrawn] }
+        - name: type
+          in: query
+          description: Filter by ticket type key
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [low, medium, high, urgent] }
+      responses:
+        "200":
+          description: One page of tickets plus the next-page cursor
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [tickets]
+      summary: File a new draft ticket
+      operationId: createTicket
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type_id, title]
+              properties:
+                type_id: { type: string }
+                title: { type: string }
+                description: { type: string }
+                priority: { type: string, enum: [low, medium, high, urgent], default: medium }
+      responses:
+        "201":
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ticket" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/tickets/counts:
+    get:
+      tags: [tickets]
+      summary: Ticket counts per status for the page chips
+      description: Scoped like the list — own tickets by default, org-wide with scope=all and tickets:read_all.
+      operationId: ticketCounts
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: scope
+          in: query
+          schema: { type: string, enum: [my, all], default: my }
+      responses:
+        "200":
+          description: Count per status
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Status name to ticket count
+                additionalProperties: { type: integer }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/tickets/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [tickets]
+      summary: Get one ticket with its approval steps
+      operationId: getTicket
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The ticket and its approval chain
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketDetail" }
+        default: { $ref: "#/components/responses/Problem" }
+    patch:
+      tags: [tickets]
+      summary: Edit the draft (author only, drafts only)
+      operationId: updateTicket
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+                description: { type: string }
+                priority: { type: string, enum: [low, medium, high, urgent] }
+      responses:
+        "200":
+          description: Updated ticket
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ticket" }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [tickets]
+      summary: Delete the draft (author only, drafts only)
+      operationId: deleteTicket
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/tickets/{id}/actions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [tickets]
+      summary: Apply a state-machine transition
+      description: |
+        submit/withdraw/complete/reopen are requester actions and require
+        authorship; approve/reject are approver actions and require the
+        current step's approver role plus tickets:approve. Rejections carry
+        a mandatory comment. Illegal transitions answer 409.
+      operationId: ticketAction
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action: { type: string, enum: [submit, approve, reject, withdraw, complete, reopen] }
+                comment: { type: string, description: Optional decision comment; mandatory for reject }
+      responses:
+        "200":
+          description: The ticket after the transition
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Ticket" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/tickets/{id}/comments:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [tickets]
+      summary: List the ticket's comments
+      operationId: listTicketComments
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      responses:
+        "200":
+          description: Comments newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketCommentList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [tickets]
+      summary: Comment on the ticket
+      operationId: addTicketComment
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+      responses:
+        "201":
+          description: Comment created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketComment" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/tickets/{id}/events:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [tickets]
+      summary: List the ticket's timeline events
+      operationId: listTicketEvents
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+      responses:
+        "200":
+          description: Events newest first
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketEventList" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/approvals:
+    get:
+      tags: [tickets]
+      summary: The approver's queue and decision history
+      description: |
+        state=pending returns tickets waiting on one of the caller's roles at
+        their current step (the inbox); state=decided returns the caller's
+        past decisions with the ticket snapshots.
+      operationId: listApprovals
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/offset"
+        - name: after
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: state
+          in: query
+          schema: { type: string, enum: [pending, decided], default: pending }
+      responses:
+        "200":
+          description: The inbox page or the decision history
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TicketList"
+                  - $ref: "#/components/schemas/TicketDecisionList"
+        default: { $ref: "#/components/responses/Problem" }
+  /api/ticket-types:
+    get:
+      tags: [tickets]
+      summary: List the ticket types available in the domain
+      operationId: listTicketTypes
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Platform-wide plus organization types
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketTypeList" }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [tickets]
+      summary: Create a ticket type with its approval chain
+      operationId: createTicketType
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, name, steps]
+              properties:
+                key: { type: string }
+                name: { type: string }
+                description: { type: string }
+                steps:
+                  type: array
+                  minItems: 1
+                  items: { $ref: "#/components/schemas/TicketStep" }
+                active: { type: boolean, default: true }
+      responses:
+        "201":
+          description: Type created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketType" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/ticket-types/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [tickets]
+      summary: Update the type (retire with active=false)
+      operationId: updateTicketType
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                steps:
+                  type: array
+                  items: { $ref: "#/components/schemas/TicketStep" }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: Updated type
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TicketType" }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [tickets]
+      summary: Delete the type
+      operationId: deleteTicketType
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
 components:
   securitySchemes:
     bearerAuth:
@@ -1708,3 +2051,142 @@ components:
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
+    TicketStep:
+      type: object
+      description: One approval step; the named role decides it in order.
+      required: [name, approver_role]
+      properties:
+        name: { type: string }
+        approver_role: { type: string, example: approver }
+    TicketType:
+      type: object
+      required: [id, key, name, steps, active, created_at, updated_at]
+      properties:
+        id: { type: string }
+        org_id: { type: string, description: Empty for platform-wide types }
+        key: { type: string, example: expense }
+        name: { type: string }
+        description: { type: string }
+        steps:
+          type: array
+          items: { $ref: "#/components/schemas/TicketStep" }
+        active: { type: boolean }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TicketTypeList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/TicketType" }
+    Ticket:
+      type: object
+      description: |
+        A request moved through the approval state machine. rejected was
+        refused by an approver; withdrawn was closed by the requester
+        themselves — the two terminal outcomes are distinct.
+      required: [id, number, type_id, type_key, title, description, priority, status, current_step, created_by, created_at, updated_at]
+      properties:
+        id: { type: string }
+        number: { type: integer, description: Per-organization sequence, displayed as TCK-0001 }
+        org_id: { type: string }
+        type_id: { type: string }
+        type_key: { type: string }
+        title: { type: string }
+        description: { type: string }
+        priority: { type: string, enum: [low, medium, high, urgent] }
+        status: { type: string, enum: [draft, in_review, approved, completed, rejected, withdrawn] }
+        current_step: { type: integer, description: Zero-based index of the step awaiting a decision }
+        created_by: { type: string }
+        decided_by: { type: string, description: Who produced the terminal outcome }
+        decided_at: { type: [string, "null"], format: date-time }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    TicketList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Ticket" }
+        next_cursor:
+          type: string
+          description: Empty on the last page.
+    TicketApproval:
+      type: object
+      required: [id, ticket_id, step_index, name, approver_role, status, created_at]
+      properties:
+        id: { type: string }
+        ticket_id: { type: string }
+        step_index: { type: integer }
+        name: { type: string }
+        approver_role: { type: string }
+        status: { type: string, enum: [pending, approved, rejected, skipped] }
+        decided_by: { type: string }
+        decided_at: { type: [string, "null"], format: date-time }
+        comment: { type: string, description: Mandatory on rejection }
+        created_at: { type: string, format: date-time }
+    TicketApprovalList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/TicketApproval" }
+    TicketDetail:
+      type: object
+      required: [ticket, approvals]
+      properties:
+        ticket: { $ref: "#/components/schemas/Ticket" }
+        approvals:
+          type: array
+          items: { $ref: "#/components/schemas/TicketApproval" }
+    TicketComment:
+      type: object
+      required: [id, ticket_id, author_id, body, created_at]
+      properties:
+        id: { type: string }
+        ticket_id: { type: string }
+        author_id: { type: string }
+        body: { type: string }
+        created_at: { type: string, format: date-time }
+    TicketCommentList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/TicketComment" }
+    TicketEvent:
+      type: object
+      description: One timeline entry of who did what, when
+      required: [id, ticket_id, actor_id, action, created_at]
+      properties:
+        id: { type: string }
+        ticket_id: { type: string }
+        actor_id: { type: string }
+        action: { type: string, example: rejected }
+        detail: { type: string }
+        created_at: { type: string, format: date-time }
+    TicketEventList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/TicketEvent" }
+    TicketDecision:
+      type: object
+      required: [approval, ticket]
+      properties:
+        approval: { $ref: "#/components/schemas/TicketApproval" }
+        ticket: { $ref: "#/components/schemas/Ticket" }
+    TicketDecisionList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/TicketDecision" }

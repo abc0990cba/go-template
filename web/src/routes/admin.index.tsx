@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/chart";
 import { api } from "@/lib/api";
 
-export const Route = createFileRoute("/_auth/")({
+export const Route = createFileRoute("/admin/")({
   staticData: { title: "Dashboard" },
   component: DashboardPage,
 });
@@ -98,7 +98,8 @@ function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ChartContainer config={chartConfig} className="h-64 w-full">
-              <LineChart data={series} margin={{ left: -20, right: 12 }}>
+              {/* recharts crashes on null data; the API degrades to [] but stay defensive */}
+              <LineChart data={series ?? []} margin={{ left: -20, right: 12 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey="day"
@@ -146,7 +147,7 @@ function DashboardPage() {
               Newest background jobs; statuses update live while you watch.
             </CardDescription>
           </div>
-          <Link to="/jobs" className="text-sm font-medium underline underline-offset-4">
+          <Link to="/admin/jobs" className="text-sm font-medium underline underline-offset-4">
             All jobs
           </Link>
         </CardHeader>

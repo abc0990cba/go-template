@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 
-export const Route = createFileRoute("/_auth/users/$userId")({
+export const Route = createFileRoute("/admin/users/$userId")({
   staticData: { title: "User" },
   component: UserDetailPage,
 });
@@ -34,7 +34,7 @@ function UserDetailPage() {
         <AlertTitle>User not found</AlertTitle>
         <AlertDescription>
           The account does not exist (or was deleted).{" "}
-          <Link to="/users" className="underline">
+          <Link to="/admin/users" className="underline">
             Back to users.
           </Link>
         </AlertDescription>
@@ -46,7 +46,7 @@ function UserDetailPage() {
   return (
     <div className="space-y-4">
       <Button variant="ghost" size="sm" className="-ml-2" asChild>
-        <Link to="/users">
+        <Link to="/admin/users">
           <ArrowLeft /> All users
         </Link>
       </Button>

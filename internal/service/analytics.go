@@ -37,16 +37,19 @@ func (s *AnalyticsService) Summary(ctx context.Context) model.AnalyticsSummary {
 }
 
 // Timeseries returns daily event counts for the last days days. It degrades
-// to an empty series when no warehouse is configured or reachable; the UI
-// explains the gap instead of failing.
+// to an empty series when no warehouse is configured or reachable — always a
+// non-nil slice, so JSON clients see [] and chart libraries never choke.
 func (s *AnalyticsService) Timeseries(ctx context.Context, days int) []model.EventDayPoint {
 	if s.events == nil {
-		return nil
+		return []model.EventDayPoint{}
 	}
 	points, err := s.events.EventTimeseries(ctx, days)
 	if err != nil {
 		s.logger.Warn("event timeseries unavailable", "err", err)
-		return nil
+		return []model.EventDayPoint{}
+	}
+	if points == nil {
+		points = []model.EventDayPoint{}
 	}
 	return points
 }
@@ -54,12 +57,15 @@ func (s *AnalyticsService) Timeseries(ctx context.Context, days int) []model.Eve
 // RecentEvents returns the newest events of the trail, newest first.
 func (s *AnalyticsService) RecentEvents(ctx context.Context, limit int) []model.EventRecord {
 	if s.events == nil {
-		return nil
+		return []model.EventRecord{}
 	}
 	events, err := s.events.RecentEvents(ctx, limit)
 	if err != nil {
 		s.logger.Warn("recent events unavailable", "err", err)
-		return nil
+		return []model.EventRecord{}
+	}
+	if events == nil {
+		events = []model.EventRecord{}
 	}
 	return events
 }
@@ -76,7 +82,7 @@ func (s *AnalyticsService) Breakdown(ctx context.Context, dimension string, days
 	}
 	days = max(min(days, 90), 1)
 	if s.events == nil {
-		return nil, nil
+		return []model.NameCount{}, nil
 	}
 	return s.events.EventBreakdown(ctx, dimension, days)
 }
@@ -85,7 +91,7 @@ func (s *AnalyticsService) Breakdown(ctx context.Context, dimension string, days
 func (s *AnalyticsService) DAU(ctx context.Context, days int) ([]model.DayCount, error) {
 	days = max(min(days, 90), 1)
 	if s.events == nil {
-		return nil, nil
+		return []model.DayCount{}, nil
 	}
 	return s.events.DailyActiveUsers(ctx, days)
 }

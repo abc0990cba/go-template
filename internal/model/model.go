@@ -285,3 +285,108 @@ type WebhookDelivery struct {
 	DeliveredAt        *time.Time `json:"delivered_at"`
 	CreatedAt          time.Time  `json:"created_at"`
 }
+
+// Ticket lifecycle statuses. rejected and withdrawn are distinct terminal
+// outcomes: rejected was refused by an approver, withdrawn was closed by
+// the requester themselves.
+const (
+	TicketDraft     = "draft"
+	TicketInReview  = "in_review"
+	TicketApproved  = "approved"
+	TicketCompleted = "completed"
+	TicketRejected  = "rejected"
+	TicketWithdrawn = "withdrawn"
+)
+
+// Ticket approval step and decision statuses.
+const (
+	ApprovalPending  = "pending"
+	ApprovalApproved = "approved"
+	ApprovalRejected = "rejected"
+	ApprovalSkipped  = "skipped"
+)
+
+// TicketStep is one approval step of a ticket type: the displayed stage
+// name and the Casbin role whose holders may decide it.
+type TicketStep struct {
+	Name         string `json:"name"`
+	ApproverRole string `json:"approver_role"`
+}
+
+// TicketType is a configurable kind of ticket carrying its ordered approval
+// chain. OrgID "" means the type is available platform-wide.
+type TicketType struct {
+	ID          string       `json:"id"`
+	OrgID       string       `json:"org_id,omitempty"`
+	Key         string       `json:"key"`
+	Name        string       `json:"name"`
+	Description string       `json:"description"`
+	Steps       []TicketStep `json:"steps"`
+	Active      bool         `json:"active"`
+	CreatedBy   string       `json:"created_by,omitempty"`
+	CreatedAt   time.Time    `json:"created_at"`
+	UpdatedAt   time.Time    `json:"updated_at"`
+}
+
+// Ticket is a request filed by a user and moved through the approval state
+// machine. Number is a per-organization human-readable sequence; DecidedBy
+// names whoever produced the terminal outcome (an approver for rejected,
+// the requester for withdrawn).
+type Ticket struct {
+	ID          string     `json:"id"`
+	Number      int        `json:"number"`
+	OrgID       string     `json:"org_id,omitempty"`
+	TypeID      string     `json:"type_id"`
+	TypeKey     string     `json:"type_key"`
+	Title       string     `json:"title"`
+	Description string     `json:"description"`
+	Priority    string     `json:"priority"`
+	Status      string     `json:"status"`
+	CurrentStep int        `json:"current_step"`
+	CreatedBy   string     `json:"created_by"`
+	DecidedBy   string     `json:"decided_by,omitempty"`
+	DecidedAt   *time.Time `json:"decided_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// TicketApproval is one step of a ticket's approval chain with its decision.
+// Steps materialize as pending rows at submit time and are decided in order.
+type TicketApproval struct {
+	ID           string     `json:"id"`
+	TicketID     string     `json:"ticket_id"`
+	StepIndex    int        `json:"step_index"`
+	Name         string     `json:"name"`
+	ApproverRole string     `json:"approver_role"`
+	Status       string     `json:"status"`
+	DecidedBy    string     `json:"decided_by,omitempty"`
+	DecidedAt    *time.Time `json:"decided_at"`
+	Comment      string     `json:"comment,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+}
+
+// TicketComment is one discussion entry attached to a ticket.
+type TicketComment struct {
+	ID        string    `json:"id"`
+	TicketID  string    `json:"ticket_id"`
+	AuthorID  string    `json:"author_id"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// TicketEvent is one timeline entry of a ticket: who did what, when.
+type TicketEvent struct {
+	ID        string    `json:"id"`
+	TicketID  string    `json:"ticket_id"`
+	ActorID   string    `json:"actor_id"`
+	Action    string    `json:"action"`
+	Detail    string    `json:"detail,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// TicketDecision pairs an approval decision with the ticket it belongs to,
+// for the approver's decided-history view.
+type TicketDecision struct {
+	Approval TicketApproval `json:"approval"`
+	Ticket   Ticket         `json:"ticket"`
+}

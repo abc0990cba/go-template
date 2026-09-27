@@ -67,6 +67,16 @@ type AuditOptions struct {
 	Resource string
 }
 
+// TicketOptions narrows ticket listings: ListOptions carries pagination and
+// the shared query/status/type filters, the extra fields scope by creator
+// (the requester's "my" view), organization, and priority.
+type TicketOptions struct {
+	ListOptions
+	OrgID     string
+	CreatedBy string
+	Priority  string
+}
+
 // SplitEnrichmentCursor splits an enrichment "after" cursor back into its
 // (created_at, sequence) components; the enrichment table has no id column,
 // so its keyset cursor carries both.
@@ -104,29 +114,35 @@ type eventRecord struct {
 // MemoryStore is an in-process, mutex-guarded store. Data does not survive
 // restarts, and separate processes never see each other's state.
 type MemoryStore struct {
-	mu          sync.RWMutex
-	users       map[string]model.User
-	passwords   map[string]string
-	identities  []model.AuthIdentity
-	sessions    map[string]sessionEntry
-	oauthStates map[string]model.OAuthState
-	jobs        map[string]model.Job
-	reports     map[string]model.Report
-	enrichments []enrichmentRow
-	enrichSeq   int64
-	events      []eventRecord
-	orgs        map[string]model.Organization
-	orgMembers  []model.OrgMember
-	roles       map[string]model.Role
-	rules       []model.PolicyRule
-	ruleSeq     int64
-	auditLog    []model.AuditEntry
-	settings    map[string]model.Setting
-	notifs      []model.Notification
-	emailTokens []emailTokenRow
-	apiKeys     []apiKeyRow
-	webhooks    []model.WebhookEndpoint
-	deliveries  []model.WebhookDelivery
+	mu           sync.RWMutex
+	users        map[string]model.User
+	passwords    map[string]string
+	identities   []model.AuthIdentity
+	sessions     map[string]sessionEntry
+	oauthStates  map[string]model.OAuthState
+	jobs         map[string]model.Job
+	reports      map[string]model.Report
+	enrichments  []enrichmentRow
+	enrichSeq    int64
+	events       []eventRecord
+	orgs         map[string]model.Organization
+	orgMembers   []model.OrgMember
+	roles        map[string]model.Role
+	rules        []model.PolicyRule
+	ruleSeq      int64
+	auditLog     []model.AuditEntry
+	settings     map[string]model.Setting
+	notifs       []model.Notification
+	emailTokens  []emailTokenRow
+	apiKeys      []apiKeyRow
+	webhooks     []model.WebhookEndpoint
+	deliveries   []model.WebhookDelivery
+	ticketTypes  map[string]model.TicketType
+	tickets      map[string]model.Ticket
+	ticketSeq    map[string]int
+	approvals    map[string][]model.TicketApproval
+	comments     []model.TicketComment
+	ticketEvents []model.TicketEvent
 }
 
 // apiKeyRow pairs the stored key with its hash.
@@ -153,6 +169,10 @@ func NewMemoryStore() *MemoryStore {
 		orgs:        map[string]model.Organization{},
 		roles:       map[string]model.Role{},
 		settings:    map[string]model.Setting{},
+		ticketTypes: map[string]model.TicketType{},
+		tickets:     map[string]model.Ticket{},
+		ticketSeq:   map[string]int{},
+		approvals:   map[string][]model.TicketApproval{},
 	}
 }
 
@@ -644,6 +664,438 @@ func (s *MemoryStore) ListWebhookDeliveries(ctx context.Context, endpointID stri
 	for i, j := 0, len(rows)-1; i < j; i, j = i+1, j-1 {
 		rows[i], rows[j] = rows[j], rows[i]
 	}
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := max(offset, 0)
+	if start >= len(rows) {
+		return nil, nil
+	}
+	end := min(start+limit, len(rows))
+	return rows[start:end], nil
+}
+
+// --- Ticket types -------------------------------------------------------
+
+// CreateTicketType stores a ticket type; (org_id, key) is unique.
+func (s *MemoryStore) CreateTicketType(ctx context.Context, typ model.TicketType) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, existing := range s.ticketTypes {
+		if existing.OrgID == typ.OrgID && existing.Key == typ.Key {
+			return ErrConflict
+		}
+	}
+	s.ticketTypes[typ.ID] = typ
+	return nil
+}
+
+// GetTicketType returns the type by id.
+func (s *MemoryStore) GetTicketType(ctx context.Context, id string) (model.TicketType, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	typ, ok := s.ticketTypes[id]
+	if !ok {
+		return model.TicketType{}, ErrNotFound
+	}
+	return typ, nil
+}
+
+// GetTicketTypeByKey resolves a type in one organization's namespace.
+func (s *MemoryStore) GetTicketTypeByKey(ctx context.Context, orgID, key string) (model.TicketType, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, typ := range s.ticketTypes {
+		if typ.OrgID == orgID && typ.Key == key {
+			return typ, nil
+		}
+	}
+	return model.TicketType{}, ErrNotFound
+}
+
+// UpdateTicketType overwrites the type.
+func (s *MemoryStore) UpdateTicketType(ctx context.Context, typ model.TicketType) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ticketTypes[typ.ID]; !ok {
+		return ErrNotFound
+	}
+	s.ticketTypes[typ.ID] = typ
+	return nil
+}
+
+// DeleteTicketType removes the type by id.
+func (s *MemoryStore) DeleteTicketType(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ticketTypes[id]; !ok {
+		return ErrNotFound
+	}
+	delete(s.ticketTypes, id)
+	return nil
+}
+
+// ListTicketTypes returns the platform-wide types plus the organization's
+// own, ordered by key.
+func (s *MemoryStore) ListTicketTypes(ctx context.Context, orgID string) ([]model.TicketType, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]model.TicketType, 0, len(s.ticketTypes))
+	for _, typ := range s.ticketTypes {
+		if typ.OrgID == "" || typ.OrgID == orgID {
+			out = append(out, typ)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
+	return out, nil
+}
+
+// --- Tickets ------------------------------------------------------------
+
+// CreateTicket stores the ticket and assigns its per-organization sequence
+// number, mirroring the SQL insert's number subselect.
+func (s *MemoryStore) CreateTicket(ctx context.Context, ticket model.Ticket) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.ticketTypes[ticket.TypeID]; !ok {
+		return 0, ErrNotFound
+	}
+	if ticket.CreatedAt.IsZero() {
+		ticket.CreatedAt = time.Now()
+	}
+	if ticket.UpdatedAt.IsZero() {
+		ticket.UpdatedAt = ticket.CreatedAt
+	}
+	s.ticketSeq[ticket.OrgID]++
+	ticket.Number = s.ticketSeq[ticket.OrgID]
+	s.tickets[ticket.ID] = ticket
+	return ticket.Number, nil
+}
+
+// GetTicket returns the ticket by id.
+func (s *MemoryStore) GetTicket(ctx context.Context, id string) (model.Ticket, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	ticket, ok := s.tickets[id]
+	if !ok {
+		return model.Ticket{}, ErrNotFound
+	}
+	return ticket, nil
+}
+
+// UpdateTicket overwrites the ticket record. The per-organization number is
+// store-assigned and immutable, matching the SQL UPDATE that never touches
+// the column.
+func (s *MemoryStore) UpdateTicket(ctx context.Context, ticket model.Ticket) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	existing, ok := s.tickets[ticket.ID]
+	if !ok {
+		return ErrNotFound
+	}
+	// The copy is by-value, so keeping the stored number is invisible to
+	// the caller's struct.
+	ticket.Number = existing.Number
+	s.tickets[ticket.ID] = ticket
+	return nil
+}
+
+// DeleteTicket removes the ticket and cascades its approvals, comments, and
+// events, like the foreign keys do on PostgreSQL.
+func (s *MemoryStore) DeleteTicket(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tickets[id]; !ok {
+		return ErrNotFound
+	}
+	delete(s.tickets, id)
+	delete(s.approvals, id)
+	comments := s.comments[:0]
+	for _, comment := range s.comments {
+		if comment.TicketID != id {
+			comments = append(comments, comment)
+		}
+	}
+	s.comments = comments
+	events := s.ticketEvents[:0]
+	for _, event := range s.ticketEvents {
+		if event.TicketID != id {
+			events = append(events, event)
+		}
+	}
+	s.ticketEvents = events
+	return nil
+}
+
+// ticketInScope applies the ticket listing filters. Caller holds the lock.
+func ticketInScope(ticket model.Ticket, opts TicketOptions) bool {
+	query := strings.ToLower(opts.Query)
+	if opts.OrgID != "" && ticket.OrgID != opts.OrgID {
+		return false
+	}
+	if opts.CreatedBy != "" && ticket.CreatedBy != opts.CreatedBy {
+		return false
+	}
+	if opts.Status != "" && ticket.Status != opts.Status {
+		return false
+	}
+	if opts.Type != "" && ticket.TypeKey != opts.Type {
+		return false
+	}
+	if opts.Priority != "" && ticket.Priority != opts.Priority {
+		return false
+	}
+	if query != "" && !strings.Contains(strings.ToLower(ticket.Title+" "+ticket.Description), query) {
+		return false
+	}
+	return true
+}
+
+// ListTickets returns one page of tickets newest first plus the next-page
+// cursor.
+func (s *MemoryStore) ListTickets(ctx context.Context, opts TicketOptions) ([]model.Ticket, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows := make([]model.Ticket, 0, len(s.tickets))
+	for _, ticket := range s.tickets {
+		if ticketInScope(ticket, opts) {
+			rows = append(rows, ticket)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].ID < rows[j].ID
+		}
+		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	})
+	page, next := pageSlice(rows, func(ticket model.Ticket) string { return ticket.ID }, opts.ListOptions)
+	return page, next, nil
+}
+
+// CountTicketsByStatus counts the scoped tickets per status.
+func (s *MemoryStore) CountTicketsByStatus(ctx context.Context, orgID, createdBy string) (map[string]int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	counts := map[string]int64{}
+	for _, ticket := range s.tickets {
+		if orgID != "" && ticket.OrgID != orgID {
+			continue
+		}
+		if createdBy != "" && ticket.CreatedBy != createdBy {
+			continue
+		}
+		counts[ticket.Status]++
+	}
+	return counts, nil
+}
+
+// --- Approval steps -----------------------------------------------------
+
+// ReplaceApprovals rewrites the ticket's approval steps; an empty slice
+// clears them (reopen).
+func (s *MemoryStore) ReplaceApprovals(ctx context.Context, ticketID string, steps []model.TicketApproval) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tickets[ticketID]; !ok {
+		return ErrNotFound
+	}
+	if steps == nil {
+		steps = []model.TicketApproval{}
+	}
+	s.approvals[ticketID] = steps
+	return nil
+}
+
+// ListApprovals returns the ticket's steps in order.
+func (s *MemoryStore) ListApprovals(ctx context.Context, ticketID string) ([]model.TicketApproval, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	steps := s.approvals[ticketID]
+	out := make([]model.TicketApproval, len(steps))
+	copy(out, steps)
+	return out, nil
+}
+
+// UpdateApproval rewrites one step's decision data.
+func (s *MemoryStore) UpdateApproval(ctx context.Context, approval model.TicketApproval) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, step := range s.approvals[approval.TicketID] {
+		if step.ID == approval.ID {
+			s.approvals[approval.TicketID][i] = approval
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+// ListTicketsForApprover pages in-review tickets whose current pending step
+// matches one of the given roles.
+func (s *MemoryStore) ListTicketsForApprover(ctx context.Context, orgID string, roles []string, opts ListOptions) ([]model.Ticket, string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	roleSet := make(map[string]bool, len(roles))
+	for _, role := range roles {
+		roleSet[role] = true
+	}
+	query := strings.ToLower(opts.Query)
+	rows := make([]model.Ticket, 0, len(s.tickets))
+	for _, ticket := range s.tickets {
+		if ticket.Status != model.TicketInReview {
+			continue
+		}
+		if orgID != "" && ticket.OrgID != orgID {
+			continue
+		}
+		steps := s.approvals[ticket.ID]
+		if ticket.CurrentStep >= len(steps) {
+			continue
+		}
+		current := steps[ticket.CurrentStep]
+		if current.Status != model.ApprovalPending || !roleSet[current.ApproverRole] {
+			continue
+		}
+		if query != "" && !strings.Contains(strings.ToLower(ticket.Title+" "+ticket.Description), query) {
+			continue
+		}
+		rows = append(rows, ticket)
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].ID < rows[j].ID
+		}
+		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	})
+	page, next := pageSlice(rows, func(ticket model.Ticket) string { return ticket.ID }, opts)
+	return page, next, nil
+}
+
+// CountTicketsForApprover counts the tickets waiting on the given roles.
+func (s *MemoryStore) CountTicketsForApprover(ctx context.Context, orgID string, roles []string) (int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	roleSet := make(map[string]bool, len(roles))
+	for _, role := range roles {
+		roleSet[role] = true
+	}
+	var n int64
+	for _, ticket := range s.tickets {
+		if ticket.Status != model.TicketInReview {
+			continue
+		}
+		if orgID != "" && ticket.OrgID != orgID {
+			continue
+		}
+		steps := s.approvals[ticket.ID]
+		if ticket.CurrentStep < len(steps) && steps[ticket.CurrentStep].Status == model.ApprovalPending && roleSet[steps[ticket.CurrentStep].ApproverRole] {
+			n++
+		}
+	}
+	return n, nil
+}
+
+// ListDecidedApprovals returns the user's past decisions paired with their
+// tickets, newest decision first.
+func (s *MemoryStore) ListDecidedApprovals(ctx context.Context, userID string, limit, offset int) ([]model.TicketDecision, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var rows []model.TicketDecision
+	for ticketID, steps := range s.approvals {
+		ticket, ok := s.tickets[ticketID]
+		if !ok {
+			continue
+		}
+		for _, step := range steps {
+			if step.DecidedBy == userID && !step.DecidedAt.IsZero() {
+				rows = append(rows, model.TicketDecision{Approval: step, Ticket: ticket})
+			}
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		a, b := rows[i].Approval.DecidedAt, rows[j].Approval.DecidedAt
+		if a.Equal(*b) {
+			return rows[i].Approval.ID < rows[j].Approval.ID
+		}
+		return a.After(*b)
+	})
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := max(offset, 0)
+	if start >= len(rows) {
+		return nil, nil
+	}
+	end := min(start+limit, len(rows))
+	return rows[start:end], nil
+}
+
+// --- Comments and timeline ----------------------------------------------
+
+// AddTicketComment appends one comment.
+func (s *MemoryStore) AddTicketComment(ctx context.Context, comment model.TicketComment) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if comment.CreatedAt.IsZero() {
+		comment.CreatedAt = time.Now()
+	}
+	s.comments = append(s.comments, comment)
+	return nil
+}
+
+// ListTicketComments pages the ticket's comments newest first.
+func (s *MemoryStore) ListTicketComments(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketComment, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var rows []model.TicketComment
+	for _, comment := range s.comments {
+		if comment.TicketID == ticketID {
+			rows = append(rows, comment)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].ID > rows[j].ID
+		}
+		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	})
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	start := max(offset, 0)
+	if start >= len(rows) {
+		return nil, nil
+	}
+	end := min(start+limit, len(rows))
+	return rows[start:end], nil
+}
+
+// AddTicketEvent appends one timeline entry.
+func (s *MemoryStore) AddTicketEvent(ctx context.Context, event model.TicketEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now()
+	}
+	s.ticketEvents = append(s.ticketEvents, event)
+	return nil
+}
+
+// ListTicketEvents pages the ticket's timeline newest first.
+func (s *MemoryStore) ListTicketEvents(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketEvent, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var rows []model.TicketEvent
+	for _, event := range s.ticketEvents {
+		if event.TicketID == ticketID {
+			rows = append(rows, event)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
+			return rows[i].ID > rows[j].ID
+		}
+		return rows[i].CreatedAt.After(rows[j].CreatedAt)
+	})
 	if limit <= 0 || limit > 100 {
 		limit = 25
 	}
@@ -1640,6 +2092,35 @@ func (s *MemoryStore) ResetDemoData(ctx context.Context) error {
 		pending = append(pending, delivery)
 	}
 	s.deliveries = pending
+	// Demo tickets plus anything referencing the seeded ticket types — the
+	// foreign keys enforce this on PostgreSQL, the fake mirrors it here.
+	for id, ticket := range s.tickets {
+		if strings.HasPrefix(id, "demo-") || strings.HasPrefix(ticket.TypeID, "demo-") {
+			delete(s.tickets, id)
+			delete(s.approvals, id)
+		}
+	}
+	for id := range s.ticketTypes {
+		if strings.HasPrefix(id, "demo-") {
+			delete(s.ticketTypes, id)
+		}
+	}
+	comments := s.comments[:0]
+	for _, comment := range s.comments {
+		if strings.HasPrefix(comment.TicketID, "demo-") || strings.HasPrefix(comment.AuthorID, "demo-") {
+			continue
+		}
+		comments = append(comments, comment)
+	}
+	s.comments = comments
+	events := s.ticketEvents[:0]
+	for _, event := range s.ticketEvents {
+		if strings.HasPrefix(event.TicketID, "demo-") || strings.HasPrefix(event.ActorID, "demo-") {
+			continue
+		}
+		events = append(events, event)
+	}
+	s.ticketEvents = events
 	return nil
 }
 

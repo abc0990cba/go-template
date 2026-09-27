@@ -23,6 +23,13 @@ import type {
   NameCount,
   SessionInfo,
   SettingView,
+  Ticket,
+  TicketAction,
+  TicketComment,
+  TicketDecision,
+  TicketDetail,
+  TicketEvent,
+  TicketType,
   WebhookDelivery,
   WebhookEndpoint,
   User,
@@ -123,6 +130,10 @@ function post<T>(path: string, body?: unknown): Promise<T> {
 
 function put<T>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: "PUT", body: JSON.stringify(body) });
+}
+
+function patch<T>(path: string, body: unknown): Promise<T> {
+  return request<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 }
 
 function del<T>(path: string, body?: unknown): Promise<T> {
@@ -298,4 +309,52 @@ export const api = {
     post<void>(`/api/orgs/${encodeURIComponent(id)}/members`, { user_id: userId }),
   removeOrgMember: (id: string, userId: string) =>
     del<void>(`/api/orgs/${encodeURIComponent(id)}/members/${encodeURIComponent(userId)}`),
+
+  // Tickets: requesters work their own list, approvers work the inbox.
+  listTickets: (params: Partial<ListParams> & { scope?: "my" | "all"; priority?: string }) => {
+    const extra = new URLSearchParams();
+    if (params.scope) extra.set("scope", params.scope);
+    if (params.priority) extra.set("priority", params.priority);
+    const suffix = extra.toString();
+    const base = buildListQuery(params);
+    return get<Paged<Ticket>>(`/api/tickets?${suffix ? base + "&" + suffix : base}`);
+  },
+  ticketCounts: (scope: "my" | "all" = "my") =>
+    get<Record<string, number>>(`/api/tickets/counts?scope=${scope}`),
+  createTicket: (typeId: string, title: string, description: string, priority: string) =>
+    post<Ticket>("/api/tickets", { type_id: typeId, title, description, priority }),
+  getTicket: (id: string) => get<TicketDetail>(`/api/tickets/${encodeURIComponent(id)}`),
+  updateTicket: (id: string, title: string, description: string, priority: string) =>
+    patch<Ticket>(`/api/tickets/${encodeURIComponent(id)}`, { title, description, priority }),
+  deleteTicket: (id: string) => del<void>(`/api/tickets/${encodeURIComponent(id)}`),
+  ticketAction: (id: string, action: TicketAction, comment = "") =>
+    post<Ticket>(`/api/tickets/${encodeURIComponent(id)}/actions`, { action, comment }),
+  ticketComments: (id: string, limit = 25) =>
+    get<Paged<TicketComment>>(`/api/tickets/${encodeURIComponent(id)}/comments?limit=${limit}`).then(
+      (p) => p.data,
+    ),
+  addTicketComment: (id: string, body: string) =>
+    post<TicketComment>(`/api/tickets/${encodeURIComponent(id)}/comments`, { body }),
+  ticketEvents: (id: string, limit = 50) =>
+    get<Paged<TicketEvent>>(`/api/tickets/${encodeURIComponent(id)}/events?limit=${limit}`).then(
+      (p) => p.data,
+    ),
+
+  approvals: (params: Partial<ListParams>) =>
+    get<Paged<Ticket>>(`/api/approvals?${buildListQuery(params)}`),
+  decidedApprovals: (limit = 25, offset = 0) =>
+    get<Paged<TicketDecision>>(`/api/approvals?state=decided&limit=${limit}&offset=${offset}`),
+  ticketTypes: () => get<Paged<TicketType>>("/api/ticket-types").then((p) => p.data),
+  createTicketType: (key: string, name: string, description: string, steps: { name: string; approver_role: string }[]) =>
+    post<TicketType>("/api/ticket-types", { key, name, description, steps }),
+  updateTicketType: (
+    id: string,
+    patchBody: {
+      name?: string;
+      description?: string;
+      steps?: { name: string; approver_role: string }[];
+      active?: boolean;
+    },
+  ) => patch<TicketType>(`/api/ticket-types/${encodeURIComponent(id)}`, patchBody),
+  deleteTicketType: (id: string) => del<void>(`/api/ticket-types/${encodeURIComponent(id)}`),
 };

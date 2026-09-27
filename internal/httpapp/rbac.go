@@ -153,7 +153,7 @@ func (a *App) apiRolePermissions(c *gin.Context) {
 
 func (a *App) apiSetRolePermissions(c *gin.Context) {
 	var req struct {
-		Domain      string                `json:"domain"`
+		Domain      string               `json:"domain"`
 		Permissions []service.Permission `json:"permissions"`
 	}
 	if err := c.BindJSON(&req); err != nil {
@@ -353,7 +353,6 @@ func (a *App) apiRemoveOrgMember(c *gin.Context) {
 	a.audit(c, "org.member_removed", "org", c.Param("id"), nil, gin.H{"user_id": c.Param("userId")})
 	c.Status(http.StatusNoContent)
 }
-
 
 // apiImpersonate starts an impersonation session for the target user.
 func (a *App) apiImpersonate(c *gin.Context) {

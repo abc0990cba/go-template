@@ -20,7 +20,7 @@ import { useMe } from "@/hooks/use-permissions";
 import { ensurePermission } from "@/lib/auth";
 import type { PolicyRule } from "@/lib/types";
 
-export const Route = createFileRoute("/_auth/policies")({
+export const Route = createFileRoute("/admin/policies")({
   staticData: { title: "Policies" },
   beforeLoad: ({ location }) => ensurePermission("policies", "read", location),
   component: PoliciesPage,

@@ -30,7 +30,7 @@ import { useMe } from "@/hooks/use-permissions";
 import { ensurePermission } from "@/lib/auth";
 import type { Role, RbacResource } from "@/lib/types";
 
-export const Route = createFileRoute("/_auth/roles")({
+export const Route = createFileRoute("/admin/roles")({
   staticData: { title: "Roles" },
   beforeLoad: ({ location }) => ensurePermission("roles", "read", location),
   component: RolesPage,

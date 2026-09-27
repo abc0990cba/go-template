@@ -105,7 +105,7 @@ func main() {
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
 		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
-		Webhooks: repos.Webhooks, WebhookDispatcher: webhookDispatcher, Mailer: sender,
+		Webhooks: repos.Webhooks, Tickets: repos.Tickets, WebhookDispatcher: webhookDispatcher, Mailer: sender,
 		Realtime: func(n model.Notification) {
 			hub.Publish(realtime.NewEvent(realtime.TypeNotification, n))
 			if bridge != nil {
@@ -123,6 +123,12 @@ func main() {
 		hub.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
 		if bridge != nil {
 			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+		}
+	})
+	services.Tickets.WithNotifier(func(ticket model.Ticket) {
+		hub.Publish(realtime.NewEvent(realtime.TypeTicketUpdated, ticket))
+		if bridge != nil {
+			bridge.Publish(realtime.NewEvent(realtime.TypeTicketUpdated, ticket))
 		}
 	})
 

@@ -26,7 +26,7 @@ import { meQuery, oauthProvidersQuery } from "@/lib/auth";
 import type { AuthIdentity } from "@/lib/types";
 import { z } from "zod";
 
-export const Route = createFileRoute("/_auth/profile")({
+export const Route = createFileRoute("/_client/profile")({
   staticData: { title: "Profile" },
   validateSearch: z.object({ oauth_error: z.string().optional() }),
   component: ProfilePage,

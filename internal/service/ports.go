@@ -147,6 +147,45 @@ type EmailTokensRepo interface {
 	MarkEmailTokenUsed(ctx context.Context, id string) error
 }
 
+// TicketsRepo persists ticket types, tickets, approval steps, comments, and
+// timeline events. Listings are scope-aware: the caller narrows by creator
+// (requester's own tickets), organization, or the approver's roles.
+type TicketsRepo interface {
+	CreateTicketType(ctx context.Context, typ model.TicketType) error
+	GetTicketType(ctx context.Context, id string) (model.TicketType, error)
+	GetTicketTypeByKey(ctx context.Context, orgID, key string) (model.TicketType, error)
+	UpdateTicketType(ctx context.Context, typ model.TicketType) error
+	DeleteTicketType(ctx context.Context, id string) error
+	ListTicketTypes(ctx context.Context, orgID string) ([]model.TicketType, error)
+
+	// CreateTicket stores the ticket and assigns its per-organization
+	// sequence number, which is returned.
+	CreateTicket(ctx context.Context, ticket model.Ticket) (int, error)
+	GetTicket(ctx context.Context, id string) (model.Ticket, error)
+	UpdateTicket(ctx context.Context, ticket model.Ticket) error
+	DeleteTicket(ctx context.Context, id string) error
+	ListTickets(ctx context.Context, opts repository.TicketOptions) ([]model.Ticket, string, error)
+	CountTicketsByStatus(ctx context.Context, orgID, createdBy string) (map[string]int64, error)
+
+	// ReplaceApprovals rewrites the ticket's approval steps (submit, reopen).
+	ReplaceApprovals(ctx context.Context, ticketID string, steps []model.TicketApproval) error
+	ListApprovals(ctx context.Context, ticketID string) ([]model.TicketApproval, error)
+	UpdateApproval(ctx context.Context, approval model.TicketApproval) error
+	// ListTicketsForApprover pages tickets whose current pending step
+	// matches one of the given roles.
+	ListTicketsForApprover(ctx context.Context, orgID string, roles []string, opts repository.ListOptions) ([]model.Ticket, string, error)
+	CountTicketsForApprover(ctx context.Context, orgID string, roles []string) (int64, error)
+	// ListDecidedApprovals returns the user's past decisions with their
+	// tickets, newest first.
+	ListDecidedApprovals(ctx context.Context, userID string, limit, offset int) ([]model.TicketDecision, error)
+
+	AddTicketComment(ctx context.Context, comment model.TicketComment) error
+	ListTicketComments(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketComment, error)
+
+	AddTicketEvent(ctx context.Context, event model.TicketEvent) error
+	ListTicketEvents(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketEvent, error)
+}
+
 
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
@@ -164,4 +203,5 @@ var (
 	_ NotificationsRepo = (*repository.MemoryStore)(nil)
 	_ EmailTokensRepo = (*repository.MemoryStore)(nil)
 	_ APIKeysRepo = (*repository.MemoryStore)(nil)
+	_ TicketsRepo = (*repository.MemoryStore)(nil)
 )

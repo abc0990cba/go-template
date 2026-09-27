@@ -131,6 +131,101 @@ func TestAPIHappyPath(t *testing.T) {
 	}
 }
 
+// TestTicketApprovalFlow exercises the tickets vertical against the live
+// stack: the superadmin demo account files a ticket, submits, and approves
+// it through the admin bypass.
+func TestTicketApprovalFlow(t *testing.T) {
+	client := requireStack(t)
+
+	email := os.Getenv("APP_DEMO_EMAIL")
+	password := os.Getenv("APP_DEMO_PASSWORD")
+	if email == "" || password == "" {
+		t.Skip("demo credentials not configured (APP_DEMO_EMAIL / APP_DEMO_PASSWORD)")
+	}
+	if status, body := call(t, client, http.MethodPost, "/api/auth/login",
+		fmt.Sprintf(`{"email":%q,"password":%q}`, email, password), ""); status != http.StatusOK {
+		t.Skipf("demo login failed: %d (%v)", status, body)
+	} else if token, _ := body["token"].(string); token == "" {
+		t.Fatal("login: want token")
+	} else {
+		// Rebind token for the rest of the test.
+		client = tokenClient(token)
+	}
+
+	// A ticket type with one step decided by whoever holds the approver
+	// role; the admin acts on the step through the org-admin bypass.
+	status, typ := call(t, client, http.MethodPost, "/api/ticket-types",
+		`{"key":"e2e-flow","name":"E2E flow","steps":[{"name":"Review","approver_role":"approver"}]}`, "")
+	if status == http.StatusConflict {
+		// Rerun: resolve the existing type through the catalog.
+		if status, types := call(t, client, http.MethodGet, "/api/ticket-types", "", ""); status != http.StatusOK {
+			t.Fatalf("list ticket types: want 200, got %d", status)
+		} else {
+			typ = findMap(types, "key", "e2e-flow")
+		}
+	} else if status != http.StatusCreated {
+		t.Fatalf("create ticket type: want 201, got %d (%v)", status, typ)
+	}
+	typeID, _ := typ["id"].(string)
+
+	status, ticket := call(t, client, http.MethodPost, "/api/tickets",
+		fmt.Sprintf(`{"type_id":%q,"title":"E2E approval flow","priority":"medium"}`, typeID), "")
+	if status != http.StatusCreated {
+		t.Fatalf("create ticket: want 201, got %d (%v)", status, ticket)
+	}
+	ticketID, _ := ticket["id"].(string)
+
+	if status, _ = call(t, client, http.MethodPost, "/api/tickets/"+ticketID+"/actions",
+		`{"action":"submit"}`, ""); status != http.StatusOK {
+		t.Fatalf("submit: want 200")
+	}
+	if status, inbox := call(t, client, http.MethodGet, "/api/approvals", "", ""); status != http.StatusOK {
+		t.Errorf("approvals: want 200, got %d", status)
+	} else if findMap(inbox, "id", ticketID) == nil {
+		t.Errorf("approvals inbox: ticket %s not queued", ticketID)
+	}
+	if status, after := call(t, client, http.MethodPost, "/api/tickets/"+ticketID+"/actions",
+		`{"action":"approve","comment":"verified"}`, ""); status != http.StatusOK || after["status"] != "approved" {
+		t.Fatalf("approve: want 200 approved, got %d (%v)", status, after["status"])
+	}
+
+	if status, _ = call(t, client, http.MethodPost, "/api/tickets/"+ticketID+"/comments",
+		`{"body":"Flow verified"}`, ""); status != http.StatusCreated {
+		t.Errorf("comment: want 201, got %d", status)
+	}
+	if status, _ = call(t, client, http.MethodGet, "/api/tickets/"+ticketID+"/events", "", ""); status != http.StatusOK {
+		t.Errorf("events: want 200")
+	}
+}
+
+// tokenClient wraps an http.Client adding the bearer token to every request.
+func tokenClient(token string) *http.Client {
+	return &http.Client{Transport: bearerTransport{token: token}}
+}
+
+type bearerTransport struct{ token string }
+
+func (b bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req = req.Clone(req.Context())
+	req.Header.Set("Authorization", "Bearer "+b.token)
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+// findMap finds the element of the "data" array whose key matches want.
+func findMap(parsed map[string]any, key, want string) map[string]any {
+	data, _ := parsed["data"].([]any)
+	for _, item := range data {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if value, _ := m[key].(string); value == want {
+			return m
+		}
+	}
+	return nil
+}
+
 func TestHealthAndVersion(t *testing.T) {
 	client := requireStack(t)
 	resp, err := client.Get(baseURL + "/version")

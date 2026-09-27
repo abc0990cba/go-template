@@ -113,6 +113,25 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized.GET("/webhooks/:id/deliveries", app.requirePermission("webhooks", "read"), app.apiWebhookDeliveries)
 	authorized.POST("/webhooks/:id/test", app.requirePermission("webhooks", "execute"), app.apiTestWebhook)
 
+	// Tickets: requesters file and track their own, approvers decide on
+	// their queue. Fine-grained ownership and step-role checks live in the
+	// service; these guards keep the catalog permissions.
+	authorized.GET("/tickets", app.requirePermission("tickets", "read"), app.apiListTickets)
+	authorized.GET("/tickets/counts", app.requirePermission("tickets", "read"), app.apiTicketCounts)
+	authorized.POST("/tickets", app.requirePermission("tickets", "create"), app.apiCreateTicket)
+	authorized.GET("/tickets/:id", app.requirePermission("tickets", "read"), app.apiGetTicket)
+	authorized.PATCH("/tickets/:id", app.requirePermission("tickets", "update"), app.apiUpdateTicket)
+	authorized.DELETE("/tickets/:id", app.requirePermission("tickets", "delete"), app.apiDeleteTicket)
+	authorized.POST("/tickets/:id/actions", app.requirePermission("tickets", "read"), app.apiTicketAction)
+	authorized.GET("/tickets/:id/comments", app.requirePermission("tickets", "read"), app.apiTicketComments)
+	authorized.POST("/tickets/:id/comments", app.requirePermission("tickets", "read"), app.apiAddTicketComment)
+	authorized.GET("/tickets/:id/events", app.requirePermission("tickets", "read"), app.apiTicketEvents)
+	authorized.GET("/approvals", app.requirePermission("tickets", "approve"), app.apiApprovals)
+	authorized.GET("/ticket-types", app.requirePermission("tickets", "read"), app.apiTicketTypes)
+	authorized.POST("/ticket-types", app.requirePermission("ticket_types", "create"), app.apiCreateTicketType)
+	authorized.PATCH("/ticket-types/:id", app.requirePermission("ticket_types", "update"), app.apiUpdateTicketType)
+	authorized.DELETE("/ticket-types/:id", app.requirePermission("ticket_types", "delete"), app.apiDeleteTicketType)
+
 	// RBAC administration.
 	authorized.GET("/rbac/catalog", app.apiRbacCatalog)
 	authorized.GET("/roles", app.requirePermission("roles", "read"), app.apiRoles)

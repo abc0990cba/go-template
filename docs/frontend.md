@@ -6,7 +6,7 @@ The UI is a React single-page admin console in `web/`, embedded into the Go bina
 
 - **Vite 7 + React 19 + TypeScript** (strict: `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, …)
 - **Tailwind CSS v4** with **shadcn/ui** (new-york style, neutral base, lucide icons). Ready-made admin pieces come straight from the official shadcn set: collapsible Sidebar, login blocks, Chart (Recharts), Data Table, Command palette, Alert Dialog, Sheet, Sonner toasts.
-- **TanStack Router** — file-based routes in `src/routes`, type-safe search params. Table state (pagination mode, page/cursor, filters) lives in the URL, so any table view is linkable and back-button friendly. Auth guards run in `beforeLoad` of the `_auth` layout.
+- **TanStack Router** — file-based routes in `src/routes`, type-safe search params. Table state (pagination mode, page/cursor, filters) lives in the URL, so any table view is linkable and back-button friendly. Auth guards run in `beforeLoad`: `_client.tsx` guards the user-facing workspace, `admin.tsx` additionally requires the `admin_console:access` permission.
 - **TanStack Query** — all server state. Request deduplication, caching, and invalidation happen here; the SSE stream invalidates queries as push events arrive.
 - **TanStack Table** — data tables (sorting client-side; pagination is delegated to the server).
 - **react-hook-form + zod** for forms; **next-themes** for dark mode.
@@ -16,7 +16,7 @@ The UI is a React single-page admin console in `web/`, embedded into the Go bina
 
 ```
 web/
-  src/routes/          file-based routes; _auth.tsx is the authenticated layout
+  src/routes/          file-based routes; _client.tsx (workspace at /) and admin.tsx (/admin console) are the two authenticated layouts
   src/components/ui/   shadcn components (generated; do not hand-edit)
   src/components/      app shell, explainer banner, KPI card, data-table kit
   src/hooks/           use-event-stream (SSE), use-paged-list, use-mobile
@@ -44,3 +44,23 @@ make web-lint   # oxlint + oxfmt --check
 make web-build  # tsc --noEmit + vite build
 make web-test   # vitest
 ```
+
+## Client workspace vs admin console
+
+The SPA is one codebase with two explicit areas, following the common
+`/admin`-prefix + layout-guard pattern:
+
+- `_client.tsx` — the pathless authenticated layout for the user-facing
+  workspace at the root paths (`/`, `/tickets`, `/approvals`,
+  `/notifications`, `/profile`). It renders `ClientShell` (top navbar,
+  personal home). Any authenticated account lands here.
+- `admin.tsx` — the `/admin` layout for the back office (`/admin/users`,
+  `/admin/roles`, …). It renders the sidebar `AppShell` and its `beforeLoad`
+  runs `ensurePermission("admin_console", "access")`; accounts without the
+  permission are redirected to `/`. The server re-checks every admin API.
+- Granting `admin_console:access` to a role (Roles page matrix) makes the
+  console visible to it; the default grants cover admin, manager, and viewer.
+
+To add a page: put `admin.foo.tsx` (route `/admin/foo`) or
+`_client.foo.tsx` (route `/foo`) in `src/routes`, then register the nav item
+in `app-shell.tsx` (`NAV_*`) or `client-shell.tsx` (`NAV_LINKS`).

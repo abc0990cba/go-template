@@ -13,8 +13,10 @@ The project is intentionally small enough to understand, but it includes the pat
 - **API keys** — personal `gtpl_…` Bearer tokens with scope narrowing (`obj:act`), shown once, revocable
 - **Impersonation** — admin "sign in as" with a visible banner, audited start/stop, and user notification
 - **Webhooks** — event subscriptions with HMAC-SHA256 signatures, queue-backed delivery and retries, delivery log with a test-send button
+- **Tickets & approvals** — a request workflow in the spirit of Jira: a state machine with distinct "withdrawn by requester" vs "rejected by approver" outcomes, configurable multi-step approval chains per ticket type, role-guarded decisions, and separate requester ("My Tickets") and approver ("Approvals") interfaces
+- **Client app vs admin console** — the SPA is split into a user-facing workspace at `/` (top navbar, personal dashboard, tickets) and a back-office console under `/admin/*` (sidebar shell, system pages), gated by the `admin_console:access` permission on the route and re-checked by every admin API
 - **i18n** — English/Russian UI toggle (EN shell + RU translations)
-- **Rich demo data** — 500 users, 3 organizations, 90 days of events (12 types with property dimensions), audit entries, notifications, keys, and webhook history on first launch
+- **Rich demo data** — 500 users, 3 organizations, 120 tickets across the whole approval lifecycle, 90 days of events (12 types with property dimensions), audit entries, notifications, keys, and webhook history on first launch
 - Gin HTTP API
 - React admin SPA (Vite + TanStack Router/Query/Table, shadcn/ui, Tailwind v4) embedded in the binary, with Server-Sent Events for live updates
 - OpenAPI contract
@@ -28,6 +30,25 @@ The project is intentionally small enough to understand, but it includes the pat
 - ClickHouse analytics schema
 - Unit, integration, e2e, and performance test structure
 - Reliability rules: graceful shutdown, context propagation, bounded concurrency, retry limits, and health checks
+
+## Demo accounts
+
+Seeded by the demo dataset (also shown as a one-click table on the login page when the
+`demo_mode` flag is on). Passwords are for local verification only.
+
+| Account | Password | Roles | Signs into | What to check |
+|---|---|---|---|---|
+| `demo@go-template.local` | `demo-password-123` | superadmin | both | Everything; the compose/quickstart login |
+| `demo-u-0004@demo.example` | `password123` | requester | client app only | Files and tracks tickets; `/admin` redirects away; can withdraw a ticket in any active state |
+| `demo-u-0005@demo.example` | `password123` | approver | client app only | The Approvals inbox: decides the final step of a chain |
+| `demo-u-0006@demo.example` | `password123` | requester + approver | client app only | Both client sides of the flow |
+| `demo-u-0002@demo.example` | `password123` | manager | admin + approvals | Admin console and a filled approvals inbox (first chain step) |
+| `demo-u-0001@demo.example` | `password123` | admin | admin + approvals | Full console, org-wide ticket tabs, decides any step |
+| `demo-u-0003@demo.example` | `password123` | viewer | admin (read-only) | Read-only back-office access |
+| `demo-u-0010@demo.example` | `password123` | manager (Acme org) | admin, org scope | Sees only Acme's tickets — switch the org scope |
+
+Full flow to try: sign in as **u-0004**, file and submit an Expense ticket → **u-0002** approves
+the manager step → **u-0005** approves the final step → back as **u-0004**, deliver the result.
 
 ## Run Locally
 

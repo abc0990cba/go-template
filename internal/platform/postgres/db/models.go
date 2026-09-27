@@ -155,6 +155,67 @@ type Setting struct {
 	UpdatedAt   time.Time
 }
 
+type Ticket struct {
+	ID          string
+	Number      int32
+	OrgID       string
+	TypeID      string
+	TypeKey     string
+	Title       string
+	Description string
+	Priority    string
+	Status      string
+	CurrentStep int32
+	CreatedBy   string
+	DecidedBy   string
+	DecidedAt   pgtype.Timestamptz
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type TicketApproval struct {
+	ID           string
+	TicketID     string
+	StepIndex    int32
+	Name         string
+	ApproverRole string
+	Status       string
+	DecidedBy    string
+	DecidedAt    pgtype.Timestamptz
+	Comment      string
+	CreatedAt    time.Time
+}
+
+type TicketComment struct {
+	ID        string
+	TicketID  string
+	AuthorID  string
+	Body      string
+	CreatedAt time.Time
+}
+
+type TicketEvent struct {
+	ID        string
+	TicketID  string
+	ActorID   string
+	Action    string
+	Detail    string
+	CreatedAt time.Time
+}
+
+type TicketType struct {
+	ID          string
+	OrgID       string
+	Key         string
+	Name        string
+	Description string
+	Steps       string
+	Active      bool
+	CreatedBy   string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type User struct {
 	ID        string
 	Email     string

@@ -13,6 +13,7 @@ sql:
       - migrations/postgres/000009_api_keys.up.sql
       - migrations/postgres/000010_impersonation.up.sql
       - migrations/postgres/000011_webhooks.up.sql
+      - migrations/postgres/000012_tickets.up.sql
     queries: queries
     gen:
       go:

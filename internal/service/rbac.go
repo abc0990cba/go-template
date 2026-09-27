@@ -55,13 +55,18 @@ var Resources = []Resource{
 	{Key: "webhooks", Description: "Outgoing webhooks", Actions: []string{ActionRead, ActionCreate, ActionUpdate, ActionDelete, ActionExecute}},
 	{Key: "api_keys", Description: "Personal API keys", Actions: []string{ActionRead, ActionCreate, ActionDelete}},
 	{Key: "impersonation", Description: "Sign in as another user", Actions: []string{ActionExecute}},
+	{Key: "tickets", Description: "Tickets and approvals", Actions: []string{ActionRead, "read_all", ActionCreate, ActionUpdate, ActionDelete, "approve"}},
+	{Key: "ticket_types", Description: "Ticket types and approval chains", Actions: []string{ActionRead, ActionCreate, ActionUpdate, ActionDelete}},
+	{Key: "admin_console", Description: "Access to the /admin console", Actions: []string{"access"}},
 }
 
 // systemRoles are seeded at startup; system roles cannot be deleted.
 var systemRoles = []model.Role{
 	{Key: "superadmin", Name: "Super Admin", Description: "Unrestricted platform access", IsSystem: true},
 	{Key: "admin", Name: "Administrator", Description: "Manages users, organizations, and settings", IsSystem: true},
-	{Key: "manager", Name: "Manager", Description: "Operates jobs and reports, edits users", IsSystem: true},
+	{Key: "manager", Name: "Manager", Description: "Operates jobs and reports, edits users, approves tickets", IsSystem: true},
+	{Key: "requester", Name: "Requester", Description: "Files, tracks, and completes own tickets", IsSystem: true},
+	{Key: "approver", Name: "Approver", Description: "Decides on approval steps of tickets", IsSystem: true},
 	{Key: "viewer", Name: "Viewer", Description: "Read-only access", IsSystem: true},
 }
 
@@ -83,6 +88,9 @@ var systemPolicies = [][]string{
 	{"admin", PlatformDomain, "webhooks", "*"},
 	{"admin", PlatformDomain, "api_keys", "*"},
 	{"admin", PlatformDomain, "impersonation", ActionExecute},
+	{"admin", PlatformDomain, "tickets", "*"},
+	{"admin", PlatformDomain, "ticket_types", "*"},
+	{"admin", PlatformDomain, "admin_console", "access"},
 
 	{"manager", PlatformDomain, "users", ActionRead},
 	{"manager", PlatformDomain, "users", ActionUpdate},
@@ -92,11 +100,30 @@ var systemPolicies = [][]string{
 	{"manager", PlatformDomain, "reports", ActionCreate},
 	{"manager", PlatformDomain, "enrichments", ActionRead},
 	{"manager", PlatformDomain, "analytics", ActionRead},
+	{"manager", PlatformDomain, "tickets", ActionRead},
+	{"manager", PlatformDomain, "tickets", "read_all"},
+	{"manager", PlatformDomain, "tickets", ActionCreate},
+	{"manager", PlatformDomain, "tickets", ActionUpdate},
+	{"manager", PlatformDomain, "tickets", ActionDelete},
+	{"manager", PlatformDomain, "tickets", "approve"},
+	{"manager", PlatformDomain, "ticket_types", ActionRead},
+	{"manager", PlatformDomain, "admin_console", "access"},
+
+	// The two sides of the ticket flow: requesters file and track their own
+	// tickets, approvers decide on the steps assigned to their role.
+	{"requester", PlatformDomain, "tickets", ActionRead},
+	{"requester", PlatformDomain, "tickets", ActionCreate},
+	{"requester", PlatformDomain, "tickets", ActionUpdate},
+	{"requester", PlatformDomain, "tickets", ActionDelete},
+	{"approver", PlatformDomain, "tickets", ActionRead},
+	{"approver", PlatformDomain, "tickets", "approve"},
 
 	{"viewer", PlatformDomain, "jobs", ActionRead},
 	{"viewer", PlatformDomain, "reports", ActionRead},
 	{"viewer", PlatformDomain, "enrichments", ActionRead},
 	{"viewer", PlatformDomain, "analytics", ActionRead},
+	{"viewer", PlatformDomain, "tickets", ActionRead},
+	{"viewer", PlatformDomain, "admin_console", "access"},
 }
 
 // RBACService wraps the Casbin enforcer with role metadata, permission
@@ -135,6 +162,52 @@ func (s *RBACService) Enforce(sub, dom, obj, act string) bool {
 // membership bypass used by the domain middleware.
 func (s *RBACService) IsAdmin(sub, dom string) bool {
 	return s.Enforce(sub, dom, "*", "*")
+}
+
+// HasRole reports whether the subject holds the role in the domain. The
+// ticket approval guards use it to check the current step's approver role.
+func (s *RBACService) HasRole(sub, dom, role string) bool {
+	if s.enforcer == nil || sub == "" || role == "" {
+		return false
+	}
+	for _, held := range s.enforcer.GetRolesForUserInDomain(sub, dom) {
+		if held == role {
+			return true
+		}
+	}
+	return false
+}
+
+// UsersWithRole lists every subject holding the role in the domain; the
+// ticket service notifies them when a step starts waiting for their role.
+func (s *RBACService) UsersWithRole(dom, role string) []string {
+	if s.enforcer == nil || role == "" {
+		return nil
+	}
+	users := s.enforcer.GetUsersForRoleInDomain(role, dom)
+	return users
+}
+
+// ReloadPolicies re-reads every rule from the store into the enforcer.
+// Raw-store mutations (the demo reset deletes grouping rules directly)
+// leave the cached model stale, and casbin then silently skips re-adding
+// rules it still believes exist — a reload re-syncs the two.
+func (s *RBACService) ReloadPolicies() error {
+	if s.enforcer == nil {
+		return nil
+	}
+	return s.enforcer.LoadPolicy()
+}
+
+// RolesForUser lists the role keys the subject holds in the domain; the
+// ticket inbox matches the current step's approver role against them.
+func (s *RBACService) RolesForUser(sub, dom string) []string {
+	if s.enforcer == nil || sub == "" {
+		return nil
+	}
+	roles := s.enforcer.GetRolesForUserInDomain(sub, dom)
+	sort.Strings(roles)
+	return roles
 }
 
 // Roles lists the role metadata.

@@ -25,6 +25,7 @@ const Channel = "app:realtime"
 const (
 	TypeAnalyticsEvent = "analytics.event"
 	TypeJobUpdated     = "job.updated"
+	TypeTicketUpdated  = "ticket.updated"
 	TypeNotification   = "notification.created"
 	TypeSnapshot       = "snapshot"
 	TypeConnected      = "connected"
@@ -172,7 +173,6 @@ func (b *RedisBridge) Publish(ev Event) {
 
 // Close releases the Redis connection.
 func (b *RedisBridge) Close() error { return b.rdb.Close() }
-
 
 // WebhookSink adapts the webhook fan-out to the EventSink shape so the
 // fan sink can forward analytics events to subscribed endpoints.

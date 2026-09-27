@@ -27,8 +27,8 @@ const (
 	demoIDPrefix = "demo-"
 	// demoMarkerID doubles as the first seeded user: its presence signals
 	// "dataset already seeded" without needing an extra marker row.
-	demoMarkerID  = "demo-u-0001"
-	demoUserCount = 500
+	demoMarkerID   = "demo-u-0001"
+	demoUserCount  = 500
 	demoJobCount   = 160
 	demoReportN    = 40
 	demoEnrichN    = 220
@@ -43,6 +43,7 @@ const (
 	demoNotifN     = 60
 	demoAPIKeyN    = 2
 	demoWebhookN   = 8
+	demoTicketN    = 120
 )
 
 // name pools keep the dataset realistic without a faker dependency.
@@ -57,6 +58,12 @@ var (
 		name  string
 		share int
 	}{{"done", 60}, {"failed", 12}, {"queued", 5}, {"running", 3}}
+	// demoTicketStatuses spread the seeded tickets over the whole state
+	// machine, with the two terminal outcomes clearly separated.
+	demoTicketStatuses = []struct {
+		name  string
+		share int
+	}{{"draft", 15}, {"in_review", 25}, {"approved", 12}, {"completed", 20}, {"rejected", 15}, {"withdrawn", 13}}
 )
 
 // SeedDemoData fills the store with the demo dataset unless it already
@@ -94,7 +101,7 @@ func DemoDataExists(repos Repos) bool {
 // backs `make seed-demo-reset` and cmd/seed-demo -reset.
 func ResetAndSeedDemoData(services *service.Container, repos Repos, cfg config.Config, logger *slog.Logger) error {
 	ctx := context.Background()
-	if err := resetDemoData(ctx, repos); err != nil {
+	if err := resetDemoData(ctx, services, repos); err != nil {
 		return fmt.Errorf("reset demo data: %w", err)
 	}
 	return seedDemoData(ctx, services, repos, cfg, logger)
@@ -104,7 +111,7 @@ func ResetAndSeedDemoData(services *service.Container, repos Repos, cfg config.C
 // identities, and sessions) plus demo jobs, reports, enrichments, and
 // warehouse events. It works through an optional store extension so the
 // service ports stay untouched.
-func resetDemoData(ctx context.Context, repos Repos) error {
+func resetDemoData(ctx context.Context, services *service.Container, repos Repos) error {
 	type demoResetter interface {
 		ResetDemoData(ctx context.Context) error
 	}
@@ -128,6 +135,14 @@ func resetDemoData(ctx context.Context, repos Repos) error {
 			return err
 		}
 		if err := r.DeleteDemoOrgRules(ctx); err != nil {
+			return err
+		}
+	}
+	// The policy engine cached the rules it loaded before the cleanup and
+	// bypassed the deletes (they go through the raw rule store); without a
+	// reload casbin would skip re-adding rules it still believes exist.
+	if services != nil {
+		if err := services.RBAC.ReloadPolicies(); err != nil {
 			return err
 		}
 	}
@@ -161,6 +176,16 @@ func seedDemoData(ctx context.Context, services *service.Container, repos Repos,
 	if err := seedDemoRBAC(ctx, services, repos, rng, now); err != nil {
 		return fmt.Errorf("seed orgs and roles: %w", err)
 	}
+	orgs, err := demoOrgContexts(ctx, services)
+	if err != nil {
+		return fmt.Errorf("load demo orgs: %w", err)
+	}
+	if err := seedDemoTicketTypes(ctx, repos, now); err != nil {
+		return fmt.Errorf("seed ticket types: %w", err)
+	}
+	if err := seedDemoTickets(ctx, repos, rng, now, orgs); err != nil {
+		return fmt.Errorf("seed tickets: %w", err)
+	}
 	if err := seedDemoAudit(ctx, repos, rng, now); err != nil {
 		return fmt.Errorf("seed audit: %w", err)
 	}
@@ -174,6 +199,17 @@ func seedDemoData(ctx context.Context, services *service.Container, repos Repos,
 		return fmt.Errorf("seed webhooks: %w", err)
 	}
 	return nil
+}
+
+// demoAccountNames pin readable names onto the six platform demo accounts
+// so the login-page table, the README, and the IdentityChip all agree.
+var demoAccountNames = map[int]string{
+	1: "Ada Admin",
+	2: "Max Manager",
+	3: "Vera Viewer",
+	4: "Rita Requester",
+	5: "Ari Approver",
+	6: "Sam Staff",
 }
 
 // seedDemoUsers creates the marker plus the demo population; users 1..10
@@ -190,10 +226,14 @@ func seedDemoUsers(ctx context.Context, repos Repos, rng *rand.Rand, now time.Ti
 		if i <= demoLoginable {
 			email = id + demoDataDomain
 		}
+		name := first + " " + last
+		if fixed, ok := demoAccountNames[i]; ok {
+			name = fixed
+		}
 		user := model.User{
 			ID:        id,
 			Email:     email,
-			Name:      first + " " + last,
+			Name:      name,
 			CreatedAt: createdAt,
 			UpdatedAt: createdAt,
 		}
@@ -320,8 +360,8 @@ func seedDemoEnrichments(ctx context.Context, repos Repos, rng *rand.Rand, now t
 // demoEventProperties pools keep the event dimensions realistic: the
 // breakdown charts slice by feature, acquisition source, and country.
 var (
-	demoFeatures = []string{"dashboard", "users", "jobs", "analytics", "reports", "settings"}
-	demoSources  = []string{"direct", "google", "github", "twitter", "newsletter"}
+	demoFeatures  = []string{"dashboard", "users", "jobs", "analytics", "reports", "settings"}
+	demoSources   = []string{"direct", "google", "github", "twitter", "newsletter"}
 	demoCountries = []string{"US", "DE", "NL", "FI", "IE", "CA", "GB", "PL", "UA", "BR"}
 )
 
@@ -368,7 +408,7 @@ func seedDemoEvents(ctx context.Context, repos Repos, rng *rand.Rand, now time.T
 		for n := 8 + rng.Intn(17); n > 0; n-- {
 			events = append(events, model.EventRecord{
 				Name: "user_logged_in", OccurredAt: at(),
-				UserID:   demoIDPrefix + "u-" + pad4(1+rng.Intn(demoLoginable)),
+				UserID:     demoIDPrefix + "u-" + pad4(1+rng.Intn(demoLoginable)),
 				Properties: eventProps(rng, true),
 			})
 		}
@@ -380,7 +420,7 @@ func seedDemoEvents(ctx context.Context, repos Repos, rng *rand.Rand, now time.T
 		for n := views; n > 0; n-- {
 			events = append(events, model.EventRecord{
 				Name: "page_view", OccurredAt: at(),
-				UserID:   demoIDPrefix + "u-" + pad4(1+rng.Intn(demoUserCount)),
+				UserID:     demoIDPrefix + "u-" + pad4(1+rng.Intn(demoUserCount)),
 				Properties: eventProps(rng, true),
 			})
 		}
@@ -388,14 +428,14 @@ func seedDemoEvents(ctx context.Context, repos Repos, rng *rand.Rand, now time.T
 		for n := 8 + rng.Intn(18); n > 0; n-- {
 			events = append(events, model.EventRecord{
 				Name: "feature_used", OccurredAt: at(),
-				UserID:   demoIDPrefix + "u-" + pad4(1+rng.Intn(demoUserCount)),
+				UserID:     demoIDPrefix + "u-" + pad4(1+rng.Intn(demoUserCount)),
 				Properties: fmt.Sprintf(`{"feature":%q,"source":%q}`, pick(rng, demoFeatures), pick(rng, demoSources)),
 			})
 		}
 		// Operational pings keep the secondary series alive.
 		for n := 1 + rng.Intn(4); n > 0; n-- {
 			events = append(events, model.EventRecord{
-				Name: pick(rng, []string{"notification_sent", "api_key_created", "settings_updated", "report_generated"}),
+				Name:       pick(rng, []string{"notification_sent", "api_key_created", "settings_updated", "report_generated"}),
 				OccurredAt: at(), UserID: demoIDPrefix + "u-" + pad4(1+rng.Intn(demoLoginable)),
 				Properties: eventProps(rng, false),
 			})
@@ -407,7 +447,7 @@ func seedDemoEvents(ctx context.Context, repos Repos, rng *rand.Rand, now time.T
 		if i%4 == 0 || i%8 == 0 {
 			events = append(events, model.EventRecord{
 				Name: "oauth_linked", OccurredAt: now.Add(-time.Duration(rng.Int63n(int64(demoTraceSpan)))),
-				UserID: demoIDPrefix + "u-" + pad4(i),
+				UserID:     demoIDPrefix + "u-" + pad4(i),
 				Properties: eventProps(rng, false),
 			})
 		}
@@ -430,13 +470,13 @@ func seedDemoEvents(ctx context.Context, repos Repos, rng *rand.Rand, now time.T
 // demo user is a platform admin, org leads hold manager, the rest viewer.
 func seedDemoRBAC(ctx context.Context, services *service.Container, repos Repos, rng *rand.Rand, now time.Time) error {
 	orgNames := []struct{ name, slug string }{
-			{"Acme Corp", "acme"}, {"Globex", "globex"}, {"Initech", "initech"},
+		{"Acme Corp", "acme"}, {"Globex", "globex"}, {"Initech", "initech"},
 	}
 	for n, named := range orgNames[:demoOrgN] {
 		org := model.Organization{
-			ID:   fmt.Sprintf("%sorg-%d", demoIDPrefix, n+1),
-			Name: named.name,
-			Slug: named.slug,
+			ID:        fmt.Sprintf("%sorg-%d", demoIDPrefix, n+1),
+			Name:      named.name,
+			Slug:      named.slug,
 			CreatedAt: now.Add(-time.Duration(rng.Int63n(int64(demoUserSpan)))),
 		}
 		if err := repos.Orgs.CreateOrg(ctx, org); err != nil && !errors.Is(err, repository.ErrConflict) {
@@ -455,13 +495,40 @@ func seedDemoRBAC(ctx context.Context, services *service.Container, repos Repos,
 			if err := repos.Orgs.AddOrgMember(ctx, model.OrgMember{OrgID: org.ID, UserID: member, JoinedAt: now.Add(-time.Duration(rng.Int63n(int64(400 * time.Hour))))}); err != nil {
 				continue // duplicates are fine
 			}
-			_ = services.RBAC.AssignRole(member, "viewer", org.ID)
+			// Members file tickets; every second one can also approve, so
+			// the approvals inbox is populated and some users see both
+			// interfaces.
+			_ = services.RBAC.AssignRole(member, "requester", org.ID)
+			if m%2 == 0 {
+				_ = services.RBAC.AssignRole(member, "approver", org.ID)
+			}
 		}
 	}
-	// Platform-level grants for the loginable head of the dataset.
-	_ = services.RBAC.AssignRole(demoIDPrefix+"u-0001", "admin", service.PlatformDomain)
-	_ = services.RBAC.AssignRole(demoIDPrefix+"u-0002", "manager", service.PlatformDomain)
-	_ = services.RBAC.AssignRole(demoIDPrefix+"u-0003", "viewer", service.PlatformDomain)
+	// Platform-level grants for the loginable head of the dataset. The six
+	// named accounts cover every interface: admin, manager, viewer, a pure
+	// requester, a pure approver, and a requester+approver hybrid — the
+	// quickstart table and the login page walk through them.
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0001", "admin", service.PlatformDomain); err != nil {
+		return err
+	}
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0002", "manager", service.PlatformDomain); err != nil {
+		return err
+	}
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0003", "viewer", service.PlatformDomain); err != nil {
+		return err
+	}
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0004", "requester", service.PlatformDomain); err != nil {
+		return err
+	}
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0005", "approver", service.PlatformDomain); err != nil {
+		return err
+	}
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0006", "requester", service.PlatformDomain); err != nil {
+		return err
+	}
+	if err := services.RBAC.AssignRole(demoIDPrefix+"u-0006", "approver", service.PlatformDomain); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -478,17 +545,17 @@ func seedDemoAudit(ctx context.Context, repos Repos, rng *rand.Rand, now time.Ti
 		a := pick(rng, actions)
 		actorN := 1 + rng.Intn(demoLoginable)
 		entry := model.AuditEntry{
-			ID: demoIDPrefix + "a-" + pad4(i+1),
-			ActorID:   demoIDPrefix + "u-" + pad4(actorN),
-			ActorEmail: demoIDPrefix + "u-" + pad4(actorN) + demoDataDomain,
-			Action:    a.action,
+			ID:           demoIDPrefix + "a-" + pad4(i+1),
+			ActorID:      demoIDPrefix + "u-" + pad4(actorN),
+			ActorEmail:   demoIDPrefix + "u-" + pad4(actorN) + demoDataDomain,
+			Action:       a.action,
 			ResourceType: a.resource,
-			ResourceID: demoIDPrefix + "u-" + pad4(1+rng.Intn(demoUserCount)),
-			Domain: "*",
-			Diff:    "{}",
-			IP:      fmt.Sprintf("203.0.113.%d", 1+rng.Intn(200)),
-			RequestID: demoIDPrefix + "r-" + pad4(1+rng.Intn(9999)),
-			CreatedAt: now.Add(-time.Duration(rng.Int63n(int64(30 * 24 * time.Hour)))),
+			ResourceID:   demoIDPrefix + "u-" + pad4(1+rng.Intn(demoUserCount)),
+			Domain:       "*",
+			Diff:         "{}",
+			IP:           fmt.Sprintf("203.0.113.%d", 1+rng.Intn(200)),
+			RequestID:    demoIDPrefix + "r-" + pad4(1+rng.Intn(9999)),
+			CreatedAt:    now.Add(-time.Duration(rng.Int63n(int64(30 * 24 * time.Hour)))),
 		}
 		if err := repos.Audit.RecordAudit(ctx, entry); err != nil {
 			return err
@@ -542,9 +609,9 @@ func seedDemoAPIKeys(ctx context.Context, repos Repos, rng *rand.Rand, now time.
 		}
 		key := model.APIKey{
 			ID: fmt.Sprintf("%skey-%d", demoIDPrefix, i), UserID: demoIDPrefix + "u-0001",
-			Name: pick(rng, []string{"CI integration", "Local scripts", "Analytics exporter"}),
-			Prefix: "gtpl_demo" + strconv.Itoa(i),
-			Scopes: []string{"users:read", "jobs:read"},
+			Name:       pick(rng, []string{"CI integration", "Local scripts", "Analytics exporter"}),
+			Prefix:     "gtpl_demo" + strconv.Itoa(i),
+			Scopes:     []string{"users:read", "jobs:read"},
 			LastUsedAt: &createdAt, ExpiresAt: expires, CreatedAt: createdAt,
 		}
 		if err := repos.APIKeys.CreateAPIKey(ctx, key, base64.RawURLEncoding.EncodeToString(sum[:])); err != nil {
@@ -558,12 +625,12 @@ func seedDemoAPIKeys(ctx context.Context, repos Repos, rng *rand.Rand, now time.
 // plus a delivery history for the log UI.
 func seedDemoWebhooks(ctx context.Context, repos Repos, rng *rand.Rand, now time.Time) error {
 	endpoint := model.WebhookEndpoint{
-		ID: demoIDPrefix + "wh-0001",
-		URL: "https://hooks.demo.example/platform",
-		Secret: "demo-secret-not-used-for-delivery",
-		Events: []string{"user.logged_in", "job.done", "job.failed"},
+		ID:          demoIDPrefix + "wh-0001",
+		URL:         "https://hooks.demo.example/platform",
+		Secret:      "demo-secret-not-used-for-delivery",
+		Events:      []string{"user.logged_in", "job.done", "job.failed"},
 		Description: "Sample subscription (inactive — flip it on with your own URL)",
-		Active: false, OrgID: "", CreatedBy: demoIDPrefix + "u-0001",
+		Active:      false, OrgID: "", CreatedBy: demoIDPrefix + "u-0001",
 		CreatedAt: now.Add(-30 * 24 * time.Hour), UpdatedAt: now.Add(-30 * 24 * time.Hour),
 	}
 	if err := repos.Webhooks.InsertWebhookEndpoint(ctx, endpoint); err != nil {
@@ -585,7 +652,7 @@ func seedDemoWebhooks(ctx context.Context, repos Repos, rng *rand.Rand, now time
 		}
 		delivery := model.WebhookDelivery{
 			ID: demoIDPrefix + "wd-" + pad4(i+1), EndpointID: endpoint.ID,
-			Event: pick(rng, []string{"user.logged_in", "job.done", "job.failed"}),
+			Event:   pick(rng, []string{"user.logged_in", "job.done", "job.failed"}),
 			Payload: "{}", Status: status, Attempts: attempts,
 			LastResponseStatus: responseStatus, LastError: lastError,
 			CreatedAt: deliveredAt,
@@ -602,6 +669,320 @@ func seedDemoWebhooks(ctx context.Context, repos Repos, rng *rand.Rand, now time
 
 // demos is the rough pre-allocation size of the event backfill.
 const demos = 90 * 70
+
+// demoTicketTypeSpec is one seeded ticket type with its approval chain.
+type demoTicketTypeSpec struct {
+	key, name, description string
+	steps                  []model.TicketStep
+}
+
+// demoTicketTypes exercise multi-step chains over both approving roles:
+// the org lead holds manager, approver roles go to half the members.
+var demoTicketTypes = []demoTicketTypeSpec{
+	{"expense", "Expense report", "Reimburse travel, training, or equipment costs", []model.TicketStep{
+		{Name: "Manager review", ApproverRole: "manager"},
+		{Name: "Finance approval", ApproverRole: "approver"},
+	}},
+	{"access_request", "Access request", "Grant or extend access to a system", []model.TicketStep{
+		{Name: "Access approval", ApproverRole: "approver"},
+	}},
+	{"vacation", "Vacation request", "Book paid time off", []model.TicketStep{
+		{Name: "Manager review", ApproverRole: "manager"},
+		{Name: "HR approval", ApproverRole: "approver"},
+	}},
+}
+
+// demoTicketTitles pools realistic subjects per type.
+var demoTicketTitles = map[string][]string{
+	"expense": {
+		"Team offsite travel reimbursement",
+		"Kubernetes certification exam fee",
+		"Home office monitor purchase",
+		"Client visit mileage expenses",
+		"Conference tickets for the platform team",
+	},
+	"access_request": {
+		"Production database read access",
+		"CI/CD admin rights for the release week",
+		"Analytics warehouse access for the data team",
+		"On-call PagerDuty schedule access",
+		"VPN split-tunnel exception",
+	},
+	"vacation": {
+		"Annual leave in late October",
+		"Long weekend away",
+		"Family trip abroad",
+		"Study leave for the exam week",
+		"Winter holiday block",
+	},
+}
+
+var demoTicketPriorities = []struct {
+	name  string
+	share int
+}{{"low", 25}, {"medium", 45}, {"high", 20}, {"urgent", 10}}
+
+var demoTicketComments = []string{
+	"Uploaded the receipts, please take a look.",
+	"Could you clarify the cost center for this?",
+	"Approved on my side — moving it forward.",
+	"This exceeds the quarterly budget line; can we split it?",
+	"Thanks for the quick turnaround!",
+	"Blocking until the vendor invoice arrives.",
+	"Details updated as discussed on the call.",
+	"Reminding everyone this needs two approvals.",
+}
+
+var demoTicketRejections = []string{
+	"Missing itemized receipts; please resubmit with attachments.",
+	"Overlaps with the existing subscription — consolidate first.",
+	"Not within the current budget cycle, retry next quarter.",
+	"Policy requires the manager's sign-off before this step.",
+}
+
+// seedDemoTicketTypes writes the platform-wide ticket types.
+func seedDemoTicketTypes(ctx context.Context, repos Repos, now time.Time) error {
+	for _, spec := range demoTicketTypes {
+		typ := model.TicketType{
+			ID:          fmt.Sprintf("%stt-%s", demoIDPrefix, spec.key),
+			Key:         spec.key,
+			Name:        spec.name,
+			Description: spec.description,
+			Steps:       spec.steps,
+			Active:      true,
+			CreatedBy:   demoIDPrefix + "u-0001",
+			CreatedAt:   now.Add(-60 * 24 * time.Hour),
+			UpdatedAt:   now.Add(-60 * 24 * time.Hour),
+		}
+		if err := repos.Tickets.CreateTicketType(ctx, typ); err != nil && !errors.Is(err, repository.ErrConflict) {
+			return err
+		}
+	}
+	return nil
+}
+
+// demoOrgContext carries one seeded org's cast: who files tickets, who
+// approves them, who manages them.
+type demoOrgContext struct {
+	id        string
+	members   []string
+	approvers []string
+	managers  []string
+}
+
+// decideAs picks a plausible decider for the role inside the org, falling
+// back to any member when the cast is thin.
+func (c demoOrgContext) decideAs(rng *rand.Rand, role string) string {
+	switch role {
+	case "manager":
+		if len(c.managers) > 0 {
+			return pick(rng, c.managers)
+		}
+	case "approver":
+		if len(c.approvers) > 0 {
+			return pick(rng, c.approvers)
+		}
+	}
+	return pick(rng, c.members)
+}
+
+// demoOrgContexts reloads the seeded organizations with their members and
+// role holders, so tickets land in orgs their members can actually see.
+func demoOrgContexts(ctx context.Context, services *service.Container) ([]demoOrgContext, error) {
+	orgs, _, err := services.RBAC.ListOrgs(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+	var out []demoOrgContext
+	for _, org := range orgs {
+		if !strings.HasPrefix(org.ID, demoIDPrefix) {
+			continue
+		}
+		members, err := services.RBAC.OrgMembers(ctx, org.ID)
+		if err != nil {
+			return nil, err
+		}
+		c := demoOrgContext{id: org.ID}
+		for _, m := range members {
+			c.members = append(c.members, m.UserID)
+			for _, role := range services.RBAC.RolesForUser(m.UserID, org.ID) {
+				switch role {
+				case "approver":
+					c.approvers = append(c.approvers, m.UserID)
+				case "manager":
+					c.managers = append(c.managers, m.UserID)
+				}
+			}
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
+// seedDemoTickets writes tickets across the full state machine: consistent
+// approval steps for the status (pending at the current step, skipped after
+// a rejection, all approved on the happy path), a timeline per ticket, and
+// a discussion on some of them. Most tickets land in the demo orgs; the
+// rest live in the platform domain where the seeded admins act.
+func seedDemoTickets(ctx context.Context, repos Repos, rng *rand.Rand, now time.Time, orgs []demoOrgContext) error {
+	// The platform cast mirrors the documented demo accounts: u-0004/u-0006
+	// file tickets, u-0002 decides the manager steps, u-0005 (+ the admin
+	// u-0001) the approver steps — every loginable account owns a slice of
+	// the flow.
+	platform := demoOrgContext{
+		id:        service.PlatformDomain,
+		members:   []string{demoIDPrefix + "u-0004", demoIDPrefix + "u-0005", demoIDPrefix + "u-0006", demoIDPrefix + "u-0001"},
+		approvers: []string{demoIDPrefix + "u-0005", demoIDPrefix + "u-0001"},
+		managers:  []string{demoIDPrefix + "u-0002"},
+	}
+	for i := 1; i <= demoTicketN; i++ {
+		spec := demoTicketTypes[rng.Intn(len(demoTicketTypes))]
+		status := pickWeighted(rng, demoTicketStatuses)
+		createdAt := now.Add(-time.Duration(rng.Int63n(int64(demoTraceSpan))))
+		cast := platform
+		if len(orgs) > 0 && rng.Intn(5) != 0 {
+			cast = orgs[rng.Intn(len(orgs))]
+		}
+
+		ticket := model.Ticket{
+			ID:          demoIDPrefix + "t-" + pad4(i),
+			OrgID:       cast.id,
+			TypeID:      fmt.Sprintf("%stt-%s", demoIDPrefix, spec.key),
+			TypeKey:     spec.key,
+			Title:       pick(rng, demoTicketTitles[spec.key]),
+			Description: "Seeded demo ticket for the " + spec.name + " flow.",
+			Priority:    pickWeighted(rng, demoTicketPriorities),
+			Status:      model.TicketDraft,
+			CreatedBy:   pick(rng, cast.members),
+			CreatedAt:   createdAt,
+			UpdatedAt:   createdAt,
+		}
+		// Org leads occasionally file their own, so the manager logins have
+		// a "my tickets" history too.
+		if len(cast.managers) > 0 && rng.Intn(4) == 0 {
+			ticket.CreatedBy = cast.managers[0]
+		}
+		number, err := repos.Tickets.CreateTicket(ctx, ticket)
+		if err != nil {
+			return err
+		}
+		ticket.Number = number
+
+		submittedAt := createdAt.Add(time.Duration(rng.Int63n(int64(2 * time.Hour))))
+		actor := func(role string) string { return cast.decideAs(rng, role) }
+		steps := make([]model.TicketApproval, 0, len(spec.steps))
+		for idx, step := range spec.steps {
+			steps = append(steps, model.TicketApproval{
+				ID:       fmt.Sprintf("%sta-%04d-%02d", demoIDPrefix, i, idx),
+				TicketID: ticket.ID, StepIndex: idx, Name: step.Name,
+				ApproverRole: step.ApproverRole, Status: model.ApprovalPending, CreatedAt: submittedAt,
+			})
+		}
+		advance := func(idx int, status, comment string, at time.Time) {
+			steps[idx].Status = status
+			steps[idx].DecidedBy = actor(steps[idx].ApproverRole)
+			steps[idx].DecidedAt = &at
+			steps[idx].Comment = comment
+		}
+
+		events := []model.TicketEvent{
+			{ID: fmt.Sprintf("%ste-%04d-00", demoIDPrefix, i), TicketID: ticket.ID, ActorID: ticket.CreatedBy, Action: "created", Detail: ticket.Title, CreatedAt: createdAt},
+		}
+
+		switch status {
+		case model.TicketDraft:
+			ticket.UpdatedAt = createdAt
+		case model.TicketInReview:
+			ticket.Status = model.TicketInReview
+			ticket.UpdatedAt = submittedAt
+			events = append(events, model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-01", demoIDPrefix, i), TicketID: ticket.ID, ActorID: ticket.CreatedBy, Action: "submitted", CreatedAt: submittedAt})
+			if rng.Intn(2) == 1 && len(steps) > 1 {
+				// Mid-chain: the first step already approved.
+				decidedAt := submittedAt.Add(time.Duration(rng.Int63n(int64(48 * time.Hour))))
+				advance(0, model.ApprovalApproved, "Looks fine to me.", decidedAt)
+				ticket.CurrentStep = 1
+				events = append(events, model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-02", demoIDPrefix, i), TicketID: ticket.ID, ActorID: steps[0].DecidedBy, Action: "step_approved", Detail: steps[0].Name, CreatedAt: decidedAt})
+			}
+		case model.TicketApproved, model.TicketCompleted:
+			ticket.Status = status
+			at := submittedAt
+			for idx := range steps {
+				at = at.Add(time.Duration(rng.Int63n(int64(48 * time.Hour))))
+				advance(idx, model.ApprovalApproved, pick(rng, []string{"", "Approved.", "All good.", ""}), at)
+				events = append(events, model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-%02d", demoIDPrefix, i, idx+1), TicketID: ticket.ID, ActorID: steps[idx].DecidedBy, Action: "approved", Detail: steps[idx].Name, CreatedAt: at})
+			}
+			ticket.DecidedBy = steps[len(steps)-1].DecidedBy
+			ticket.DecidedAt = &at
+			ticket.UpdatedAt = at
+			if status == model.TicketCompleted {
+				completedAt := at.Add(time.Duration(rng.Int63n(int64(72 * time.Hour))))
+				ticket.UpdatedAt = completedAt
+				events = append(events, model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-99", demoIDPrefix, i), TicketID: ticket.ID, ActorID: ticket.CreatedBy, Action: "completed", Detail: "result delivered by the requester", CreatedAt: completedAt})
+			}
+		case model.TicketRejected:
+			ticket.Status = model.TicketRejected
+			decidedAt := submittedAt.Add(time.Duration(rng.Int63n(int64(72 * time.Hour))))
+			stepIdx := rng.Intn(len(steps))
+			for idx := 0; idx < stepIdx; idx++ {
+				advance(idx, model.ApprovalApproved, "", submittedAt.Add(time.Duration(rng.Int63n(int64(24*time.Hour)))))
+			}
+			advance(stepIdx, model.ApprovalRejected, pick(rng, demoTicketRejections), decidedAt)
+			for idx := stepIdx + 1; idx < len(steps); idx++ {
+				steps[idx].Status = model.ApprovalSkipped
+			}
+			ticket.CurrentStep = stepIdx
+			ticket.DecidedBy = steps[stepIdx].DecidedBy
+			ticket.DecidedAt = &decidedAt
+			ticket.UpdatedAt = decidedAt
+			events = append(events,
+				model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-01", demoIDPrefix, i), TicketID: ticket.ID, ActorID: ticket.CreatedBy, Action: "submitted", CreatedAt: submittedAt},
+				model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-90", demoIDPrefix, i), TicketID: ticket.ID, ActorID: steps[stepIdx].DecidedBy, Action: "rejected", Detail: steps[stepIdx].Comment, CreatedAt: decidedAt},
+			)
+		case model.TicketWithdrawn:
+			ticket.Status = model.TicketWithdrawn
+			withdrawnAt := submittedAt.Add(time.Duration(rng.Int63n(int64(24 * time.Hour))))
+			for idx := range steps {
+				steps[idx].Status = model.ApprovalSkipped
+			}
+			ticket.DecidedBy = ticket.CreatedBy
+			ticket.DecidedAt = &withdrawnAt
+			ticket.UpdatedAt = withdrawnAt
+			events = append(events,
+				model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-01", demoIDPrefix, i), TicketID: ticket.ID, ActorID: ticket.CreatedBy, Action: "submitted", CreatedAt: submittedAt},
+				model.TicketEvent{ID: fmt.Sprintf("%ste-%04d-95", demoIDPrefix, i), TicketID: ticket.ID, ActorID: ticket.CreatedBy, Action: "withdrawn", Detail: "withdrawn by the requester", CreatedAt: withdrawnAt},
+			)
+		}
+
+		if err := repos.Tickets.ReplaceApprovals(ctx, ticket.ID, steps); err != nil {
+			return err
+		}
+		if err := repos.Tickets.UpdateTicket(ctx, ticket); err != nil {
+			return err
+		}
+		for _, event := range events {
+			if err := repos.Tickets.AddTicketEvent(ctx, event); err != nil {
+				return err
+			}
+		}
+		// A discussion on roughly half of the tickets.
+		for n := rng.Intn(3); n > 0; n-- {
+			author := ticket.CreatedBy
+			if rng.Intn(2) == 1 {
+				author = actor(pick(rng, []string{"manager", "approver"}))
+			}
+			commentAt := createdAt.Add(time.Duration(rng.Int63n(int64(72 * time.Hour))))
+			comment := model.TicketComment{
+				ID:       fmt.Sprintf("%stc-%04d-%02d", demoIDPrefix, i, n),
+				TicketID: ticket.ID, AuthorID: author,
+				Body: pick(rng, demoTicketComments), CreatedAt: commentAt,
+			}
+			if err := repos.Tickets.AddTicketComment(ctx, comment); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
 
 func pick[T any](rng *rand.Rand, pool []T) T {
 	return pool[rng.Intn(len(pool))]

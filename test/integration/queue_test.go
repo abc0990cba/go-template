@@ -51,16 +51,16 @@ func TestQueueEndToEnd(t *testing.T) {
 	t.Cleanup(server.Shutdown)
 
 	t.Run("report job runs through redis", func(t *testing.T) {
-		before, err := services.Reports.List(ctx)
+		before, _, err := services.Reports.List(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
 		if err != nil {
 			t.Fatalf("list reports: %v", err)
 		}
-		if _, err := services.Jobs.Enqueue(ctx, jobs.TypeReportGenerate, "{}"); err != nil {
+		if _, err := services.Jobs.Enqueue(ctx, jobs.TypeReportGenerate, "{}", ""); err != nil {
 			t.Fatalf("enqueue: %v", err)
 		}
 		waitForJob(t, ctx, services, "done", 15*time.Second)
 
-		after, err := services.Reports.List(ctx)
+		after, _, err := services.Reports.List(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
 		if err != nil {
 			t.Fatalf("list reports: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestQueueEndToEnd(t *testing.T) {
 	})
 
 	t.Run("unknown task type is rejected", func(t *testing.T) {
-		if _, err := services.Jobs.Enqueue(ctx, "bogus.type", "{}"); err == nil {
+		if _, err := services.Jobs.Enqueue(ctx, "bogus.type", "{}", ""); err == nil {
 			t.Fatal("bogus type accepted")
 		}
 	})
@@ -91,7 +91,7 @@ func waitForJob(t *testing.T, ctx context.Context, services *service.Container, 
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		jobs, err := services.Jobs.List(ctx)
+		jobs, _, err := services.Jobs.List(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
 		if err != nil {
 			t.Fatalf("list jobs: %v", err)
 		}

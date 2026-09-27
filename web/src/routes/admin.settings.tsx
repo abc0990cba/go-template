@@ -13,7 +13,7 @@ import { api } from "@/lib/api";
 import { ensurePermission } from "@/lib/auth";
 import type { SettingView } from "@/lib/types";
 
-export const Route = createFileRoute("/_auth/settings")({
+export const Route = createFileRoute("/admin/settings")({
   staticData: { title: "Settings" },
   beforeLoad: ({ location }) => ensurePermission("settings", "read", location),
   component: SettingsPage,

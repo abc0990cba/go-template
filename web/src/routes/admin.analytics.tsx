@@ -24,7 +24,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { queryClient } from "@/lib/router";
 
-export const Route = createFileRoute("/_auth/analytics")({
+export const Route = createFileRoute("/admin/analytics")({
   staticData: { title: "Analytics" },
   component: AnalyticsPage,
 });

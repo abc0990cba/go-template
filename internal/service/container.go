@@ -31,6 +31,7 @@ type Deps struct {
 	EmailTokens  EmailTokensRepo
 	APIKeys      APIKeysRepo
 	Webhooks     WebhooksRepo
+	Tickets      TicketsRepo
 	WebhookDispatcher WebhookDispatcher
 	Mailer       mailer.Sender
 	// Realtime publishes live notifications to connected browsers; nil in
@@ -58,6 +59,7 @@ type Container struct {
 	Email         *EmailService
 	APIKeys       *APIKeysService
 	Webhooks      *WebhooksService
+	Tickets       *TicketsService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -84,6 +86,8 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	notifications := &NotificationsService{store: deps.Notifications, publish: deps.Realtime}
 	services.Notifications = notifications
 	services.Jobs.WithNotifications(notifications)
+	services.Tickets = &TicketsService{store: deps.Tickets, rbac: services.RBAC, events: deps.Events, logger: logger}
+	services.Tickets.WithNotifications(notifications)
 	services.Email = NewEmailService(deps.EmailTokens, deps.Auth, deps.Mailer, cfg.BaseURL, logger)
 	services.APIKeys = NewAPIKeysService(deps.APIKeys)
 	services.Webhooks = NewWebhooksService(deps.Webhooks, deps.WebhookDispatcher, services.Settings, &http.Client{Timeout: cfg.ExternalTimeout}, logger)

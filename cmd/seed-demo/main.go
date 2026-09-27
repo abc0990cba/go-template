@@ -53,7 +53,7 @@ func main() {
 
 	services := service.NewContainer(service.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
-		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks,
+		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
 		Events: repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(), RBACEnforcer: enforcer,
 	}, logger, cfg)
 	if err := services.RBAC.EnsureSystemRoles(context.Background()); err != nil {

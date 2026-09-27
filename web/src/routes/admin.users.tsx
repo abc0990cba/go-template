@@ -54,7 +54,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 
-export const Route = createFileRoute("/_auth/users")({
+export const Route = createFileRoute("/admin/users")({
   validateSearch: listSearchSchema,
   staticData: { title: "Users" },
   component: UsersPage,
@@ -86,7 +86,7 @@ function UsersPage() {
   };
 
   const setSearch = (patch: Partial<ListSearch>) => {
-    void navigate({ to: "/users", search: { ...search, ...patch } });
+    void navigate({ to: "/admin/users", search: { ...search, ...patch } });
   };
 
   const columns: ColumnDef<User>[] = [
@@ -116,7 +116,7 @@ function UsersPage() {
         <div className="flex items-center justify-end gap-1">
           <Button variant="ghost" size="icon" className="size-7" asChild>
             <Link
-              to="/users/$userId"
+              to="/admin/users/$userId"
               params={{ userId: row.original.id }}
               aria-label={`Open ${row.original.email}`}
             >

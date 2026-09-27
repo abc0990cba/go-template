@@ -4,7 +4,7 @@ import { ExplainerBanner } from "@/components/explainer-banner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export const Route = createFileRoute("/_auth/getting-started")({
+export const Route = createFileRoute("/admin/getting-started")({
   staticData: { title: "Getting Started" },
   component: GettingStartedPage,
 });
