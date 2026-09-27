@@ -182,7 +182,7 @@ function LoginPage() {
 
         {demoMode && (
           <I18nProvider>
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               <div>
                 <h2 className="text-lg font-semibold tracking-tight">Demo accounts</h2>
                 <p className="text-sm text-muted-foreground">

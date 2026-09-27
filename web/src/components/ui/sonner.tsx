@@ -9,11 +9,15 @@ import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme();
+  const { resolvedTheme } = useTheme();
+
+  // Custom palettes (vscode-dark, catppuccin-mocha…) resolve to their own
+  // names; sonner only understands light/dark, so bucket by luminance.
+  const DARK = new Set(["dark", "vscode-dark", "catppuccin-mocha"]);
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={resolvedTheme && DARK.has(resolvedTheme) ? "dark" : "light"}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,

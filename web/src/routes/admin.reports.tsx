@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { FileText, Loader2 } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
-import { usePagedList } from "@/hooks/use-paged-list";
+import { useTableView } from "@/hooks/use-paged-list";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,7 +41,7 @@ function ReportsPage() {
     after: search.after,
     q: search.q,
   };
-  const reports = usePagedList<Report>("reports", params);
+  const table = useTableView<Report>("reports", params, search.view);
 
   const setSearch = (patch: Partial<typeof search>) => {
     void navigate({ to: "/admin/reports", search: { ...search, ...patch } });
@@ -126,21 +126,26 @@ function ReportsPage() {
 
       <DataTable
         columns={columns}
-        data={reports.data?.data}
-        isPending={reports.isPending}
-        isPlaceholderData={reports.isPlaceholderData}
+        data={table.rows}
+        isPending={table.isPending}
+        isPlaceholderData={table.isPlaceholderData}
         emptyState="No reports yet — generate one."
         pagination={{
           mode: search.mode,
+          view: search.view,
           page: search.page,
-          hasMore: (reports.data?.next_cursor ?? "") !== "",
+          hasMore: table.hasMore,
           onFirstPage: () => setSearch({ page: 1, after: undefined }),
           onPreviousPage: () => setSearch({ page: Math.max(1, search.page - 1) }),
           onNextPage: () =>
             search.mode === "offset"
               ? setSearch({ page: search.page + 1 })
-              : setSearch({ page: search.page + 1, after: reports.data?.next_cursor }),
+              : setSearch({ page: search.page + 1, after: table.nextCursor }),
           onModeChange: (mode) => setSearch({ mode, page: 1, after: undefined }),
+          onViewChange: (view) => setSearch({ view, page: 1, after: undefined }),
+          onLoadMore: table.loadMore,
+          isFetchingMore: table.isFetchingMore,
+          loadedCount: table.loadedCount,
         }}
         toolbar={
           <div className="ml-auto">

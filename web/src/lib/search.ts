@@ -7,6 +7,7 @@ import { z } from "zod";
  */
 export const listSearchSchema = z.object({
   mode: z.enum(["offset", "cursor", "keyset"]).catch("offset").default("offset"),
+  view: z.enum(["paged", "infinite"]).catch("paged").default("paged"),
   page: z.coerce.number().int().min(1).catch(1).default(1),
   after: z.string().optional(),
   q: z.string().optional(),

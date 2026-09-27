@@ -55,6 +55,11 @@ function DashboardPage() {
   const { data: jobs } = useSuspenseQuery(recentJobsQuery);
   const { feed } = useLive();
 
+  // The API nests per-event counters under events:{}; recharts reads flat
+  // keys, so lift them up — Line dataKey="user_registered" expects a
+  // top-level field.
+  const chartData = (series ?? []).map((point) => ({ ...point, ...point.events }));
+
   return (
     <div className="space-y-4">
       <PageIntro />
@@ -99,7 +104,7 @@ function DashboardPage() {
           <CardContent>
             <ChartContainer config={chartConfig} className="h-64 w-full">
               {/* recharts crashes on null data; the API degrades to [] but stay defensive */}
-              <LineChart data={series ?? []} margin={{ left: -20, right: 12 }}>
+              <LineChart data={chartData} margin={{ left: -20, right: 12 }}>
                 <CartesianGrid vertical={false} />
                 <XAxis
                   dataKey="day"

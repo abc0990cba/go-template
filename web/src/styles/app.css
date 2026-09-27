@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark *, .vscode-dark *, .catppuccin-mocha *));
 
 :root {
   --radius: 0.625rem;
@@ -26,9 +26,9 @@
   --ring: oklch(0.708 0 0);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --chart-3: oklch(0.496 0.157 258.35);
+  --chart-4: oklch(0.666 0.179 58.318);
+  --chart-5: oklch(0.556 0.208 293.15);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -37,6 +37,7 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  color-scheme: light;
 }
 
 .dark {
@@ -59,19 +60,170 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  /* Charts: light, high-chroma hues so lines and bars stay readable on the
+     near-black background — the previous dark blue all but vanished. */
+  --chart-1: oklch(0.707 0.165 254.624);
+  --chart-2: oklch(0.765 0.177 163.223);
+  --chart-3: oklch(0.828 0.189 84.429);
+  --chart-4: oklch(0.702 0.183 293.541);
+  --chart-5: oklch(0.704 0.191 22.216);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary: oklch(0.707 0.165 254.624);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
+}
+
+/* VS Code Light Modern: white workbench, #005fb8 accent, muted gray text. */
+.vscode-light {
+  --background: #ffffff;
+  --foreground: #3b3b3b;
+  --card: #ffffff;
+  --card-foreground: #3b3b3b;
+  --popover: #ffffff;
+  --popover-foreground: #3b3b3b;
+  --primary: #005fb8;
+  --primary-foreground: #ffffff;
+  --secondary: #f8f8f8;
+  --secondary-foreground: #3b3b3b;
+  --muted: #f8f8f8;
+  --muted-foreground: #616161;
+  --accent: #e8e8e8;
+  --accent-foreground: #3b3b3b;
+  --destructive: #cf222e;
+  --destructive-foreground: #ffffff;
+  --border: #e5e5e5;
+  --input: #d4d4d4;
+  --ring: #005fb8;
+  --chart-1: #005fb8;
+  --chart-2: #1a7f37;
+  --chart-3: #bf8803;
+  --chart-4: #8250df;
+  --chart-5: #cf222e;
+  --sidebar: #f8f8f8;
+  --sidebar-foreground: #3b3b3b;
+  --sidebar-primary: #005fb8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8e8e8;
+  --sidebar-accent-foreground: #3b3b3b;
+  --sidebar-border: #e5e5e5;
+  --sidebar-ring: #005fb8;
+  color-scheme: light;
+}
+
+/* VS Code Dark Modern: #181818 workbench, #0078d4 accent, #cccccc text. */
+.vscode-dark {
+  --background: #181818;
+  --foreground: #cccccc;
+  --card: #1f1f1d;
+  --card-foreground: #cccccc;
+  --popover: #1f1f1d;
+  --popover-foreground: #cccccc;
+  --primary: #0078d4;
+  --primary-foreground: #ffffff;
+  --secondary: #272727;
+  --secondary-foreground: #cccccc;
+  --muted: #272727;
+  --muted-foreground: #9d9d9d;
+  --accent: #2e2e2e;
+  --accent-foreground: #e8e8e8;
+  --destructive: #f14c4c;
+  --destructive-foreground: #181818;
+  --border: #2b2b2b;
+  --input: #3c3c3c;
+  --ring: #0078d4;
+  --chart-1: #4fc1ff;
+  --chart-2: #89d185;
+  --chart-3: #dcdcaa;
+  --chart-4: #c586c0;
+  --chart-5: #f48771;
+  --sidebar: #181818;
+  --sidebar-foreground: #cccccc;
+  --sidebar-primary: #0078d4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2e2e2e;
+  --sidebar-accent-foreground: #e8e8e8;
+  --sidebar-border: #2b2b2b;
+  --sidebar-ring: #0078d4;
+  color-scheme: dark;
+}
+
+/* Catppuccin Latte ("Cappuccino Light"): warm light grays, mauve accent. */
+.catppuccin-latte {
+  --background: #eff1f5;
+  --foreground: #4c4f69;
+  --card: #e6e9ef;
+  --card-foreground: #4c4f69;
+  --popover: #eff1f5;
+  --popover-foreground: #4c4f69;
+  --primary: #8839ef;
+  --primary-foreground: #eff1f5;
+  --secondary: #ccd0da;
+  --secondary-foreground: #4c4f69;
+  --muted: #ccd0da;
+  --muted-foreground: #6c6f85;
+  --accent: #dce0e8;
+  --accent-foreground: #4c4f69;
+  --destructive: #d20f39;
+  --destructive-foreground: #ffffff;
+  --border: #bcc0cc;
+  --input: #bcc0cc;
+  --ring: #8839ef;
+  --chart-1: #1e66f5;
+  --chart-2: #40a02b;
+  --chart-3: #df8e1d;
+  --chart-4: #8839ef;
+  --chart-5: #d20f39;
+  --sidebar: #e6e9ef;
+  --sidebar-foreground: #4c4f69;
+  --sidebar-primary: #8839ef;
+  --sidebar-primary-foreground: #eff1f5;
+  --sidebar-accent: #dce0e8;
+  --sidebar-accent-foreground: #4c4f69;
+  --sidebar-border: #bcc0cc;
+  --sidebar-ring: #8839ef;
+  color-scheme: light;
+}
+
+/* Catppuccin Mocha ("Cappuccino Dark"): base #1e1e2e, mauve accent. */
+.catppuccin-mocha {
+  --background: #1e1e2e;
+  --foreground: #cdd6f4;
+  --card: #181825;
+  --card-foreground: #cdd6f4;
+  --popover: #181825;
+  --popover-foreground: #cdd6f4;
+  --primary: #cba6f7;
+  --primary-foreground: #1e1e2e;
+  --secondary: #313244;
+  --secondary-foreground: #cdd6f4;
+  --muted: #313244;
+  --muted-foreground: #a6adc8;
+  --accent: #414559;
+  --accent-foreground: #cdd6f4;
+  --destructive: #f38ba8;
+  --destructive-foreground: #1e1e2e;
+  --border: #3d4155;
+  --input: #414559;
+  --ring: #cba6f7;
+  --chart-1: #89b4fa;
+  --chart-2: #a6e3a1;
+  --chart-3: #fab387;
+  --chart-4: #cba6f7;
+  --chart-5: #f38ba8;
+  --sidebar: #181825;
+  --sidebar-foreground: #cdd6f4;
+  --sidebar-primary: #cba6f7;
+  --sidebar-primary-foreground: #1e1e2e;
+  --sidebar-accent: #414559;
+  --sidebar-accent-foreground: #cdd6f4;
+  --sidebar-border: #3d4155;
+  --sidebar-ring: #cba6f7;
+  color-scheme: dark;
 }
 
 @theme inline {

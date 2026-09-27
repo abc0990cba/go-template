@@ -3,8 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { usePagedList } from "@/hooks/use-paged-list";
-import type { ListParams } from "@/lib/types";
+import { useTableView } from "@/hooks/use-paged-list";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -78,7 +77,7 @@ function UsersPage() {
     q: search.q,
   };
 
-  const users = useQueryUsers(params);
+  const table = useTableView<User>("users", params, search.view);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["users"] });
@@ -171,7 +170,7 @@ function UsersPage() {
     },
   ];
 
-  const hasMore = (users.data?.next_cursor ?? "") !== "";
+  const hasMore = table.hasMore;
 
   return (
     <div className="space-y-4">
@@ -179,7 +178,7 @@ function UsersPage() {
       <ExplainerBanner
         title="Users — one table, three pagination strategies"
         howTo={[
-          "Switch modes with the segmented control above the table; page or cursor state lives in the URL, so back/forward work.",
+          "Switch strategies and views with the segmented controls under the table; page or cursor state lives in the URL, so back/forward work.",
           "Create/edit dialogs and delete confirmations call POST/PUT/DELETE /api/users.",
           "Search is server-side: type at least 3 characters and the query re-runs with q=.",
         ]}
@@ -187,20 +186,22 @@ function UsersPage() {
         This page exists to make pagination tangible. Offset mode is the familiar LIMIT/OFFSET;
         cursor mode resumes from an opaque continuation key; keyset mode filters directly on the{" "}
         <code>(created_at DESC, id ASC)</code> index, which is why it stays fast on the 100k-user
-        performance dataset. The backend implements all three for every collection — this table is
-        where you can feel the difference.
+        performance dataset. The view switcher swaps the same strategies into an infinite-scroll
+        feed. The backend implements all three for every collection — this table is where you can
+        feel the difference.
       </ExplainerBanner>
 
       <DataTable
         columns={columns}
-        data={users.data?.data}
-        isPending={users.isPending}
-        isPlaceholderData={users.isPlaceholderData}
+        data={table.rows}
+        isPending={table.isPending}
+        isPlaceholderData={table.isPlaceholderData}
         emptyState={
           search.q ? `No users match “${search.q}”.` : "No users yet — create the first one."
         }
         pagination={{
           mode: search.mode,
+          view: search.view,
           page: search.page,
           hasMore,
           onFirstPage: () => setSearch({ page: 1, after: undefined }),
@@ -209,10 +210,14 @@ function UsersPage() {
             if (search.mode === "offset") {
               setSearch({ page: search.page + 1 });
             } else {
-              setSearch({ page: search.page + 1, after: users.data?.next_cursor });
+              setSearch({ page: search.page + 1, after: table.nextCursor });
             }
           },
           onModeChange: (mode) => setSearch({ mode, page: 1, after: undefined }),
+          onViewChange: (view) => setSearch({ view, page: 1, after: undefined }),
+          onLoadMore: table.loadMore,
+          isFetchingMore: table.isFetchingMore,
+          loadedCount: table.loadedCount,
         }}
         toolbar={
           <>
@@ -254,10 +259,6 @@ function PageIntro() {
       </p>
     </div>
   );
-}
-
-function useQueryUsers(params: Partial<ListParams>) {
-  return usePagedList<User>("users", params);
 }
 
 function SearchBox({ value, onCommit }: { value: string; onCommit: (q: string) => void }) {

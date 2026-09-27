@@ -1,37 +1,77 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PAGINATION_MODES } from "@/components/data-table/mode-switcher";
-import type { PaginationMode } from "@/lib/types";
+import type { PaginationMode, ViewMode } from "@/lib/types";
 
 interface ListPaginationProps {
   mode: PaginationMode;
+  view: ViewMode;
   page: number;
   hasMore: boolean;
   onFirstPage: () => void;
   onPreviousPage: () => void;
   onNextPage: () => void;
+  /** Infinite-scroll extras; used when view is "infinite". */
+  onLoadMore?: () => void;
+  isFetchingMore?: boolean;
+  loadedCount?: number;
 }
 
 /**
- * ListPagination adapts its controls to the active mode: real page numbers
- * for offset, continuation for cursor and keyset. This difference is the
- * point of the mode switcher — the UI makes the trade-off visible.
+ * ListPagination adapts its controls to the active view and mode: page
+ * numbers for the paged view, a load-more button (plus the auto sentinel
+ * the DataTable renders) for infinite scroll. The strategy decides whether
+ * "Previous" means offset arithmetic or restarting the continuation chain.
  */
 export function ListPagination({
   mode,
+  view,
   page,
   hasMore,
   onFirstPage,
   onPreviousPage,
   onNextPage,
+  onLoadMore,
+  isFetchingMore = false,
+  loadedCount = 0,
 }: ListPaginationProps) {
-  const summary = PAGINATION_MODES.find((candidate) => candidate.value === mode)?.label ?? mode;
+  const strategyLabel =
+    PAGINATION_MODES.find((candidate) => candidate.value === mode)?.label ?? mode;
+
+  if (view === "infinite") {
+    return (
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground" aria-live="polite">
+          {loadedCount} {loadedCount === 1 ? "row" : "rows"} loaded
+          {hasMore ? ` · more via ${strategyLabel.toLowerCase()}` : " · end of list"}
+        </p>
+        {hasMore && (
+          <Button variant="outline" size="sm" disabled={isFetchingMore} onClick={onLoadMore}>
+            {isFetchingMore ? (
+              <Loader2 data-slot="icon" className="animate-spin" />
+            ) : (
+              <ChevronDown data-slot="icon" />
+            )}
+            Load more
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <p className="text-sm text-muted-foreground">
-        {mode === "offset"
-          ? `Page ${page}`
-          : `Continuing after the ${summary === "Cursor" ? "cursor" : "last row"}`}
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {mode === "offset" ? (
+          <>
+            Page <span className="font-medium text-foreground">{page}</span>
+          </>
+        ) : (
+          <>
+            Page <span className="font-medium text-foreground">{page}</span> ·{" "}
+            {strategyLabel === "Cursor" ? "cursor" : "keyset"} continuation
+          </>
+        )}
       </p>
       <div className="flex items-center gap-2">
         {mode === "offset" ? (

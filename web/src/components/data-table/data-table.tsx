@@ -6,10 +6,9 @@ import {
   type ColumnFiltersState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Loader2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import type { PaginationMode } from "@/lib/types";
-import { ListPagination } from "@/components/data-table/list-pagination";
+import { InfiniteSentinel, PaginationBar, type ModeTarget } from "@/components/data-table/pagination-bar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -34,22 +33,22 @@ interface DataTableProps<TData> {
   pagination?: ModeTarget;
 }
 
-/** ModeTarget is the URL-backed pagination state a page hands to the table. */
-export interface ModeTarget {
-  mode: PaginationMode;
-  page: number;
-  hasMore: boolean;
-  onFirstPage: () => void;
-  onPreviousPage: () => void;
-  onNextPage: () => void;
-  onModeChange: (mode: PaginationMode) => void;
-}
+/**
+ * ModeTarget (re-exported from pagination-bar) is the URL-backed pagination
+ * state a page hands to the table: the strategy (offset/cursor/keyset), the
+ * presentation view (paged/infinite), and the callbacks that move either
+ * forward.
+ */
+export type { ModeTarget } from "@/components/data-table/pagination-bar";
 
 /**
  * DataTable renders a server-paginated collection with TanStack Table.
  * Pagination and filters live in the URL (the caller passes a ModeTarget
  * backed by route search params); the table itself only handles row
- * rendering plus optional client-side sorting.
+ * rendering plus optional client-side sorting. The PaginationBar under the
+ * table exposes the two switchers — pagination strategy and view — so every
+ * table in the app supports offset, cursor, and keyset paging, plus
+ * infinite scroll, with a single control surface.
  */
 export function DataTable<TData>({
   columns,
@@ -74,6 +73,10 @@ export function DataTable<TData>({
     manualPagination: true,
     enableSorting: sorting,
   });
+
+  const onLoadMore = pagination?.onLoadMore;
+  const autoLoad =
+    pagination?.view === "infinite" && pagination.hasMore && !pagination.isFetchingMore && onLoadMore;
 
   return (
     <div className="space-y-3">
@@ -131,27 +134,28 @@ export function DataTable<TData>({
                 </TableRow>
               ))
             )}
+            {pagination?.view === "infinite" && pagination.isFetchingMore ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="py-3 text-center">
+                  <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" /> Loading more…
+                  </span>
+                </TableCell>
+              </TableRow>
+            ) : null}
           </TableBody>
         </Table>
+        {autoLoad ? <InfiniteSentinel onLoadMore={onLoadMore} /> : null}
       </div>
-      {pagination ? (
-        <ListPagination
-          mode={pagination.mode}
-          page={pagination.page}
-          hasMore={pagination.hasMore}
-          onFirstPage={pagination.onFirstPage}
-          onPreviousPage={pagination.onPreviousPage}
-          onNextPage={pagination.onNextPage}
-        />
-      ) : null}
+      {pagination ? <PaginationBar pagination={pagination} /> : null}
     </div>
   );
 }
 
-function SkeletonRows({ columns }: { columns: number }) {
+function SkeletonRows({ columns, rows = 5 }: { columns: number; rows?: number }) {
   return (
     <>
-      {Array.from({ length: 5 }, (_unused, index) => (
+      {Array.from({ length: rows }, (_unused, index) => (
         <TableRow key={index}>
           {Array.from({ length: columns }, (_, cell) => (
             <TableCell key={cell}>

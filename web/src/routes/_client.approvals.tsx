@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useTableView } from "@/hooks/use-paged-list";
 import { api } from "@/lib/api";
 import { listSearchSchema, type ListSearch } from "@/lib/search";
 import type { Ticket, TicketDecision } from "@/lib/types";
@@ -44,11 +45,7 @@ function ApprovalsPage() {
     after: search.after,
     q: search.q,
   };
-  const inboxQuery = useQuery({
-    queryKey: ["approvals", "inbox", params],
-    queryFn: () => api.approvals(params),
-    placeholderData: (previous) => previous,
-  });
+  const inbox = useTableView<Ticket>("approvals", params, search.view);
   const decided = useQuery({
     queryKey: ["approvals", "decided"],
     queryFn: () => api.decidedApprovals(50),
@@ -199,7 +196,7 @@ function ApprovalsPage() {
     },
   ];
 
-  const activeInbox = inboxQuery.data?.data;
+  const activeInbox = inbox.rows;
 
   return (
     <div className="space-y-4">
@@ -236,20 +233,25 @@ function ApprovalsPage() {
         <DataTable
           columns={columns}
           data={activeInbox}
-          isPending={inboxQuery.isPending}
-          isPlaceholderData={inboxQuery.isPlaceholderData}
+          isPending={inbox.isPending}
+          isPlaceholderData={inbox.isPlaceholderData}
           emptyState="Nothing waits on your roles right now."
           pagination={{
             mode: search.mode,
+            view: search.view,
             page: search.page,
-            hasMore: (inboxQuery.data?.next_cursor ?? "") !== "",
+            hasMore: inbox.hasMore,
             onFirstPage: () => setSearch({ page: 1, after: undefined }),
             onPreviousPage: () => setSearch({ page: Math.max(1, search.page - 1) }),
             onNextPage: () =>
               search.mode === "offset"
                 ? setSearch({ page: search.page + 1 })
-                : setSearch({ page: search.page + 1, after: inboxQuery.data?.next_cursor }),
+                : setSearch({ page: search.page + 1, after: inbox.nextCursor }),
             onModeChange: (mode) => setSearch({ mode, page: 1, after: undefined }),
+            onViewChange: (view) => setSearch({ view, page: 1, after: undefined }),
+            onLoadMore: inbox.loadMore,
+            isFetchingMore: inbox.isFetchingMore,
+            loadedCount: inbox.loadedCount,
           }}
           toolbar={
             <Button

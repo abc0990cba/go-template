@@ -12,10 +12,27 @@ if (!root) {
   throw new Error("root element is missing");
 }
 
+// Theme values map 1:1 to the token blocks in styles/app.css; next-themes
+// applies the chosen value as a class on <html>.
+const THEMES = [
+  "light",
+  "dark",
+  "vscode-light",
+  "vscode-dark",
+  "catppuccin-latte",
+  "catppuccin-mocha",
+] as const;
+
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        themes={[...THEMES]}
+        disableTransitionOnChange
+      >
         <RouterProvider router={router} />
         <Toaster position="bottom-right" />
       </ThemeProvider>

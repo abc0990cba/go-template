@@ -8,7 +8,7 @@ import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { TicketStatusBadge, ticketLabel } from "@/components/ticket-status-badge";
 import { useLive } from "@/hooks/use-event-stream";
-import { usePagedList } from "@/hooks/use-paged-list";
+import { useTableView } from "@/hooks/use-paged-list";
 import { useCan } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -60,7 +60,7 @@ function TicketsPage() {
     status: search.status,
     scope,
   };
-  const tickets = usePagedList<Ticket>("tickets", params);
+  const table = useTableView<Ticket>("tickets", params, search.view);
   const counts = useQuery({
     queryKey: ["tickets", "counts", scope],
     queryFn: () => api.ticketCounts(scope),
@@ -163,21 +163,26 @@ function TicketsPage() {
 
       <DataTable
         columns={columns}
-        data={tickets.data?.data}
-        isPending={tickets.isPending}
-        isPlaceholderData={tickets.isPlaceholderData}
+        data={table.rows}
+        isPending={table.isPending}
+        isPlaceholderData={table.isPlaceholderData}
         emptyState="No tickets yet. File the first one with “New ticket”."
         pagination={{
           mode: search.mode,
+          view: search.view,
           page: search.page,
-          hasMore: (tickets.data?.next_cursor ?? "") !== "",
+          hasMore: table.hasMore,
           onFirstPage: () => setSearch({ page: 1, after: undefined }),
           onPreviousPage: () => setSearch({ page: Math.max(1, search.page - 1) }),
           onNextPage: () =>
             search.mode === "offset"
               ? setSearch({ page: search.page + 1 })
-              : setSearch({ page: search.page + 1, after: tickets.data?.next_cursor }),
+              : setSearch({ page: search.page + 1, after: table.nextCursor }),
           onModeChange: (mode) => setSearch({ mode, page: 1, after: undefined }),
+          onViewChange: (view) => setSearch({ view, page: 1, after: undefined }),
+          onLoadMore: table.loadMore,
+          isFetchingMore: table.isFetchingMore,
+          loadedCount: table.loadedCount,
         }}
         toolbar={
           <>

@@ -165,7 +165,7 @@ function AnalyticsPage() {
                   axisLine={false}
                   width={80}
                 />
-                <Bar dataKey="count" fill="var(--color-logged_in)" radius={4} name="Events" />
+                <Bar dataKey="count" fill="var(--color-user_logged_in)" radius={4} name="Events" />
               </BarChart>
             </ChartContainer>
           </CardContent>

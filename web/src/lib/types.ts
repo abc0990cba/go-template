@@ -155,6 +155,13 @@ export interface Paged<T> {
 /** The shared pagination vocabulary of every list endpoint. */
 export type PaginationMode = "offset" | "cursor" | "keyset";
 
+/**
+ * How a table presents pages: classic controls (Prev/Next) or a continuous
+ * feed that appends rows as the user scrolls. Independent of the strategy —
+ * infinite scroll works over offset, cursor, and keyset alike.
+ */
+export type ViewMode = "paged" | "infinite";
+
 export interface ListParams {
   mode: PaginationMode;
   limit: number;

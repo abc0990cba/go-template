@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { CloudDownload, Loader2 } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
-import { usePagedList } from "@/hooks/use-paged-list";
+import { useTableView } from "@/hooks/use-paged-list";
 import { useLive } from "@/hooks/use-event-stream";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ function EnrichmentPage() {
     offset: search.mode === "offset" ? (search.page - 1) * limit : 0,
     after: search.after,
   };
-  const profiles = usePagedList<EnrichmentProfile>("enrichment-profiles", params);
+  const table = useTableView<EnrichmentProfile>("enrichment-profiles", params, search.view);
 
   const setSearch = (patch: Partial<typeof search>) => {
     void navigate({ to: "/admin/enrichment", search: { ...search, ...patch } });
@@ -138,21 +138,26 @@ function EnrichmentPage() {
 
       <DataTable
         columns={columns}
-        data={profiles.data?.data}
-        isPending={profiles.isPending}
-        isPlaceholderData={profiles.isPlaceholderData}
+        data={table.rows}
+        isPending={table.isPending}
+        isPlaceholderData={table.isPlaceholderData}
         emptyState="No profiles stored yet — fetch a batch to populate this trail."
         pagination={{
           mode: search.mode,
+          view: search.view,
           page: search.page,
-          hasMore: (profiles.data?.next_cursor ?? "") !== "",
+          hasMore: table.hasMore,
           onFirstPage: () => setSearch({ page: 1, after: undefined }),
           onPreviousPage: () => setSearch({ page: Math.max(1, search.page - 1) }),
           onNextPage: () =>
             search.mode === "offset"
               ? setSearch({ page: search.page + 1 })
-              : setSearch({ page: search.page + 1, after: profiles.data?.next_cursor }),
+              : setSearch({ page: search.page + 1, after: table.nextCursor }),
           onModeChange: (mode) => setSearch({ mode, page: 1, after: undefined }),
+          onViewChange: (view) => setSearch({ view, page: 1, after: undefined }),
+          onLoadMore: table.loadMore,
+          isFetchingMore: table.isFetchingMore,
+          loadedCount: table.loadedCount,
         }}
       />
     </div>

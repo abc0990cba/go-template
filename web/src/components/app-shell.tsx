@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { useMatches, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useTheme } from "next-themes";
 import {
   BarChart3,
   Bell,
@@ -18,16 +17,20 @@ import {
   Webhook,
   ListTodo,
   LogOut,
-  Moon,
-  Search,
-  Sun,
   Ticket,
   UserCog,
   Users,
   Workflow,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -44,14 +47,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
@@ -67,13 +62,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { api, setActiveOrg } from "@/lib/api";
+import { HeaderWidgets, AccountAvatar } from "@/components/header-widgets";
+import { api } from "@/lib/api";
 import { meQuery } from "@/lib/auth";
 import { useCan } from "@/hooks/use-permissions";
-import { LiveBadge } from "@/components/live-badge";
-import { IdentityChip } from "@/components/identity-chip";
-import { NotificationBell } from "@/components/notification-bell";
-import { I18nProvider, useI18n, type Locale } from "@/lib/i18n";
+import { I18nProvider, useI18n } from "@/lib/i18n";
 
 interface NavItem {
   to: string;
@@ -213,53 +206,8 @@ const NAV_SECONDARY: NavItem[] = [
 ];
 
 /**
- * OrgSwitcher selects the active Casbin domain: a tenant or the platform.
- * The choice rides every API call as X-Org-Id and survives reloads.
- */
-export function OrgSwitcher() {
-  const { data: me } = useSuspenseQuery(meQuery());
-  const orgT = useI18n().t;
-  const queryClient = useQueryClient();
-  const [active, setActive] = useState(() => localStorage.getItem("app.activeOrg") ?? "");
-  const current = me.orgs.find((org) => org.id === active);
-  const scopeLabel = current ? current.name : "Platform scope";
-
-  const pick = (orgId: string) => {
-    setActiveOrg(orgId);
-    setActive(orgId);
-    // Everything the caller sees is domain-scoped; refetch it.
-    void queryClient.invalidateQueries();
-  };
-
-  if (me.orgs.length === 0 && !me.permissions.includes("orgs:read")) {
-    return null;
-  }
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 text-muted-foreground">
-          {current ? <Building2 className="size-3.5" /> : <Globe className="size-3.5" />}
-          <span className="hidden max-w-40 truncate sm:inline">{scopeLabel}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        <DropdownMenuLabel>Active scope</DropdownMenuLabel>
-        <DropdownMenuItem onClick={() => pick("")}>
-          <Globe /> {orgT("scope.platform")}
-        </DropdownMenuItem>
-        {me.orgs.map((org) => (
-          <DropdownMenuItem key={org.id} onClick={() => pick(org.id)}>
-            <Building2 /> {org.name}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/**
  * AppShell is the authenticated layout: collapsible sidebar, header with
- * theme toggle and the SSE status badge, and the ⌘K command palette. It
+ * theme picker and the SSE status badge, and the ⌘K command palette. It
  * renders inside the _auth route so every authenticated page shares it.
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -276,7 +224,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navAdmin = visible(NAV_ADMIN);
   const navSecondary = visible(NAV_SECONDARY);
   const navAll = [...navMain, ...navAdmin, ...navSecondary];
-  const { locale, setLocale, t } = useI18n();
+  const { t } = useI18n();
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -311,12 +259,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton size="lg" onClick={() => goTo("/")} tooltip="Go Template Admin">
-                  <span className="flex size-8 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
                     G
                   </span>
-                  <span className="flex flex-col leading-tight">
-                    <span className="font-semibold">Go Template</span>
-                    <span className="text-xs text-muted-foreground">Admin Console</span>
+                  {/* Hidden (not clipped) in icon mode so collapsing never
+                      shows half-squeezed text. */}
+                  <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
+                    <span className="truncate font-semibold">Go Template</span>
+                    <span className="truncate text-xs text-muted-foreground">Admin Console</span>
                   </span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -399,41 +349,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Sidebar>
 
         <SidebarInset>
-          <header className="flex h-14 items-center gap-3 border-b px-4">
+          <header className="flex h-14 items-center gap-2 border-b px-3 md:px-4">
             <SidebarTrigger />
             <Separator orientation="vertical" className="!h-5" />
             <PageTitle />
-            <div className="ml-auto flex items-center gap-2">
-              <IdentityChip />
-              <OrgSwitcher />
-              <NotificationBell />
-              <LiveBadge />
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-2 text-muted-foreground"
-                onClick={() => setPaletteOpen(true)}
-              >
-                <Search className="size-3.5" />
-                <span className="hidden sm:inline">{t("action.search")}</span>
-                <kbd className="pointer-events-none rounded border bg-muted px-1.5 font-mono text-[10px]">
-                  ⌘K
-                </kbd>
-              </Button>
-              <LanguageToggle locale={locale} setLocale={setLocale} />
-              <ThemeToggle />
+            <div className="ml-auto flex items-center gap-1">
+              <HeaderWidgets onOpenSearch={() => setPaletteOpen(true)} />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="rounded-full"
-                    aria-label="Account menu"
-                  >
-                    <Avatar className="size-8">
-                      <AvatarFallback>{initials(user.name || user.email)}</AvatarFallback>
-                    </Avatar>
-                  </Button>
+                  <AccountAvatar name={user.name} email={user.email} />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>
@@ -478,39 +402,9 @@ function PageTitle() {
     .toReversed()
     .find((match) => (match.staticData as { title?: string }).title !== undefined);
   return (
-    <span className="text-sm font-medium">
+    <span className="min-w-0 truncate text-sm font-medium">
       {(current?.staticData as { title?: string })?.title ?? "Go Template"}
     </span>
-  );
-}
-
-/** LanguageToggle flips the UI between English and Russian. */
-export function LanguageToggle({ locale, setLocale }: { locale: Locale; setLocale: (l: Locale) => void }) {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      className="text-xs text-muted-foreground"
-      aria-label="Toggle language"
-      onClick={() => setLocale(locale === "en" ? "ru" : "en")}
-    >
-      {locale === "en" ? "EN" : "RU"}
-    </Button>
-  );
-}
-
-export function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      aria-label="Toggle dark mode"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-    >
-      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-    </Button>
   );
 }
 
@@ -545,7 +439,9 @@ function CommandPalette({
                 >
                   <item.icon />
                   <span>{item.title}</span>
-                  <span className="ml-auto text-xs text-muted-foreground">{item.description}</span>
+                  <span className="ml-auto hidden text-xs text-muted-foreground lg:inline">
+                    {item.description}
+                  </span>
                 </CommandItem>
               ))}
               <CommandItem
@@ -554,7 +450,9 @@ function CommandPalette({
               >
                 <BarChart3 />
                 <span>API Docs</span>
-                <span className="ml-auto text-xs text-muted-foreground">Scalar reference</span>
+                <span className="ml-auto hidden text-xs text-muted-foreground lg:inline">
+                  Scalar reference
+                </span>
               </CommandItem>
             </CommandGroup>
           </CommandList>
@@ -562,13 +460,6 @@ function CommandPalette({
       </DialogContent>
     </Dialog>
   );
-}
-
-function initials(nameOrEmail: string) {
-  const parts = nameOrEmail.split(/[\s@.]+/).filter(Boolean);
-  const first = parts.at(0)?.charAt(0) ?? "?";
-  const second = parts.at(1)?.charAt(0) ?? "";
-  return (first + second).toUpperCase();
 }
 
 /**
@@ -585,8 +476,10 @@ export function ImpersonationBanner() {
   });
   if (!me.impersonated) return null;
   return (
-    <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-amber-500 px-4 py-1.5 text-sm font-medium text-black">
-      {t("banner.impersonating")} {me.email} ({me.impersonator_name ?? "admin"})
+    <div className="sticky top-0 z-50 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-500 px-4 py-1.5 text-center text-sm font-medium text-black">
+      <span className="min-w-0 truncate">
+        {t("banner.impersonating")} {me.email} ({me.impersonator_name ?? "admin"})
+      </span>
       <Button
         size="sm"
         variant="outline"

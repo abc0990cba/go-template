@@ -27,15 +27,15 @@ export function IdentityChip() {
   const roles = me.roles.slice(0, 2);
 
   return (
-    <div className="flex items-center gap-2 rounded-full border py-1 pl-1 pr-3">
+    <div className="hidden items-center gap-2 rounded-full border py-1 pl-1 pr-2 xl:flex">
       <Avatar className="size-7">
         <AvatarFallback className="text-xs">{initials(me.name || me.email)}</AvatarFallback>
       </Avatar>
-      <div className="hidden leading-tight sm:block">
+      <div className="hidden leading-tight xl:block">
         <p className="max-w-36 truncate text-xs font-medium">{me.name || me.email}</p>
         <p className="max-w-36 truncate text-[10px] text-muted-foreground">{scope}</p>
       </div>
-      <div className="hidden gap-1 md:flex">
+      <div className="hidden gap-1 xl:flex">
         {roles.map((role) => (
           <Badge key={role} variant="secondary" className="px-1.5 text-[10px]">
             {role}

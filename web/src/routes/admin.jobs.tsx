@@ -6,7 +6,7 @@ import { Play, RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { useLive } from "@/hooks/use-event-stream";
-import { usePagedList } from "@/hooks/use-paged-list";
+import { useTableView } from "@/hooks/use-paged-list";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -42,7 +42,7 @@ function JobsPage() {
     q: search.q,
     status: search.status,
   };
-  const jobs = usePagedList<Job>("jobs", params);
+  const table = useTableView<Job>("jobs", params, search.view);
 
   const setSearch = (patch: Partial<ListSearch>) => {
     void navigate({ to: "/admin/jobs", search: { ...search, ...patch } });
@@ -127,21 +127,26 @@ function JobsPage() {
 
       <DataTable
         columns={columns}
-        data={jobs.data?.data}
-        isPending={jobs.isPending}
-        isPlaceholderData={jobs.isPlaceholderData}
+        data={table.rows}
+        isPending={table.isPending}
+        isPlaceholderData={table.isPlaceholderData}
         emptyState="No jobs match the filters. Enqueue enrichment work or generate a report."
         pagination={{
           mode: search.mode,
+          view: search.view,
           page: search.page,
-          hasMore: (jobs.data?.next_cursor ?? "") !== "",
+          hasMore: table.hasMore,
           onFirstPage: () => setSearch({ page: 1, after: undefined }),
           onPreviousPage: () => setSearch({ page: Math.max(1, search.page - 1) }),
           onNextPage: () =>
             search.mode === "offset"
               ? setSearch({ page: search.page + 1 })
-              : setSearch({ page: search.page + 1, after: jobs.data?.next_cursor }),
+              : setSearch({ page: search.page + 1, after: table.nextCursor }),
           onModeChange: (mode) => setSearch({ mode, page: 1, after: undefined }),
+          onViewChange: (view) => setSearch({ view, page: 1, after: undefined }),
+          onLoadMore: table.loadMore,
+          isFetchingMore: table.isFetchingMore,
+          loadedCount: table.loadedCount,
         }}
         toolbar={
           <>

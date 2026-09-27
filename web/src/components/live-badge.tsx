@@ -41,7 +41,8 @@ export function LiveBadge({ className }: { className?: string }) {
           )}
         />
       </span>
-      {LABEL[status]}
+      {/* On phones the dot carries the state; the label needs the space. */}
+      <span className="hidden sm:inline">{LABEL[status]}</span>
     </span>
   );
 }

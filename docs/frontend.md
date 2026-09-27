@@ -9,7 +9,7 @@ The UI is a React single-page admin console in `web/`, embedded into the Go bina
 - **TanStack Router** — file-based routes in `src/routes`, type-safe search params. Table state (pagination mode, page/cursor, filters) lives in the URL, so any table view is linkable and back-button friendly. Auth guards run in `beforeLoad`: `_client.tsx` guards the user-facing workspace, `admin.tsx` additionally requires the `admin_console:access` permission.
 - **TanStack Query** — all server state. Request deduplication, caching, and invalidation happen here; the SSE stream invalidates queries as push events arrive.
 - **TanStack Table** — data tables (sorting client-side; pagination is delegated to the server).
-- **react-hook-form + zod** for forms; **next-themes** for dark mode.
+- **react-hook-form + zod** for forms; **next-themes** for theming. The theme picker offers `light`, `dark`, `vscode-light`, `vscode-dark`, `catppuccin-latte` ("Cappuccino Light"), and `catppuccin-mocha` ("Cappuccino Dark"); each value maps to a token block in `src/styles/app.css` and is applied as a class on `<html>`. Chart palettes (`--chart-1…5`) are defined per theme — dark themes carry lighter, high-chroma hues so lines and bars stay readable.
 - **oxlint** (correctness/suspicious at error; pedantic/restriction/style as warnings; `no-console`, non-null assertions and array-reduce at error) and **oxfmt** for formatting. Generated code (`src/routeTree.gen.ts`, `src/components/ui/**`, the shadcn `use-mobile` hook) is lint-exempt.
 
 ## Layout
@@ -34,7 +34,7 @@ web/
 ## Conventions
 
 - Every page mounts an `ExplainerBanner` ("what this is / how to use it / under the hood") under its header.
-- Every list page uses the shared `DataTable` + `ModeSwitcher` (offset | cursor | keyset) and `usePagedList`; per-mode controls make the pagination trade-offs visible.
+- Every list page uses the shared `DataTable` + `PaginationBar` and `useTableView`: the strategy switcher (offset | cursor | keyset) and the view switcher (Pages | Infinite scroll) sit under every server-paginated table, and the mode/view/page/cursor state lives in the URL (`?mode=&view=&page=&after=`). Infinite scroll appends pages via `useInfiniteList` (IntersectionObserver sentinel + a manual "Load more" button). The audit page keeps bespoke row markup but mounts the same `PaginationBar`.
 - API access goes through `src/lib/api.ts`; wire types live in `src/lib/types.ts` and mirror `api/openapi/openapi.yaml`.
 
 ## Checks
