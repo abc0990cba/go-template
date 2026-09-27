@@ -113,7 +113,7 @@ function UsersPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" className="size-7" asChild>
+          <Button variant="ghost" size="icon" className="size-8 md:size-7" asChild>
             <Link
               to="/admin/users/$userId"
               params={{ userId: row.original.id }}

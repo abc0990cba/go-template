@@ -64,7 +64,7 @@ export function NotificationBell() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 gap-1 text-xs text-muted-foreground"
+            className="h-8 gap-1 text-xs text-muted-foreground md:h-6"
             onClick={() => markAll.mutate()}
             disabled={count === 0}
           >

@@ -1,4 +1,5 @@
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import * as React from "react";
 import { useState } from "react";
 import { Building2, Globe, Search } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -138,9 +139,25 @@ export function initials(nameOrEmail: string) {
   return (first + second).toUpperCase();
 }
 
-export function AccountAvatar({ name, email }: { name: string; email: string }) {
+/**
+ * AccountAvatar is the round profile button. Both shells render it inside
+ * `DropdownMenuTrigger asChild`, so every trigger prop (onClick, aria-*,
+ * ref) must flow through to the underlying Button — dropping the rest
+ * spread here silently disconnects the account menu.
+ */
+export function AccountAvatar({
+  name,
+  email,
+  ...props
+}: { name: string; email: string } & React.ComponentProps<typeof Button>) {
   return (
-    <Button variant="ghost" size="icon-sm" className="rounded-full p-0" aria-label="Account menu">
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="rounded-full p-0"
+      aria-label="Account menu"
+      {...props}
+    >
       <Avatar className="size-8">
         <AvatarFallback>{initials(name || email)}</AvatarFallback>
       </Avatar>

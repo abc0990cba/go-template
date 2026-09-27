@@ -273,3 +273,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * Mobile: scale the rem base so every rem-authored size — text, spacing,
+ * radii, buttons — grows together on phones (17px matches iOS body text;
+ * Android comfortable density lands close). The desktop base stays 16px.
+ * Widths in px (dense table badges and such) are intentionally unaffected.
+ */
+@media (max-width: 767.98px) {
+  html {
+    font-size: 17px;
+  }
+}
+

@@ -463,8 +463,10 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
       },
       size: {
-        default: "h-8 text-sm",
-        sm: "h-7 text-xs",
+        // On phones the sidebar renders as an off-canvas sheet, so its
+        // buttons grow to touch size there and stay compact on desktop.
+        default: "h-11 text-sm md:h-8",
+        sm: "h-9 text-xs md:h-7",
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },
     },

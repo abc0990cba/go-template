@@ -84,7 +84,7 @@ function LoginPage() {
     : "w-full max-w-sm space-y-4";
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-6">
+    <div className="flex min-h-svh items-center justify-center p-4 md:p-6">
       <div className={containerClass}>
         <Card>
           <CardHeader>
@@ -178,7 +178,6 @@ function LoginPage() {
             </AlertDescription>
           </Alert>
         )}
-        </div>
 
         {demoMode && (
           <I18nProvider>
@@ -195,5 +194,6 @@ function LoginPage() {
           </I18nProvider>
         )}
       </div>
+    </div>
   );
 }

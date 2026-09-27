@@ -57,7 +57,7 @@ export function DemoAccountPicker() {
           <TableRow>
             <TableHead>{t("demo.account")}</TableHead>
             <TableHead>{t("demo.roles")}</TableHead>
-            <TableHead>{t("demo.password")}</TableHead>
+            <TableHead className="hidden md:table-cell">{t("demo.password")}</TableHead>
             <TableHead className="hidden md:table-cell">{t("demo.whatToCheck")}</TableHead>
             <TableHead className="text-right">{t("demo.area")}</TableHead>
           </TableRow>
@@ -78,7 +78,7 @@ export function DemoAccountPicker() {
                   ))}
                 </div>
               </TableCell>
-              <TableCell>
+              <TableCell className="hidden md:table-cell">
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{account.password}</code>
               </TableCell>
               <TableCell className="hidden max-w-72 text-xs text-muted-foreground md:table-cell">
@@ -91,7 +91,7 @@ export function DemoAccountPicker() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 gap-1"
+                  className="gap-1"
                   disabled={pendingEmail !== ""}
                   onClick={() => {
                     setPendingEmail(account.email);

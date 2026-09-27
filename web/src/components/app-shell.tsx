@@ -349,7 +349,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </Sidebar>
 
         <SidebarInset>
-          <header className="flex h-14 items-center gap-2 border-b px-3 md:px-4">
+          <header className="flex h-16 items-center gap-2 border-b px-3 md:h-14 md:px-4">
             <SidebarTrigger />
             <Separator orientation="vertical" className="!h-5" />
             <PageTitle />
@@ -359,7 +359,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <DropdownMenuTrigger asChild>
                   <AccountAvatar name={user.name} email={user.email} />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
                     <p>{user.name}</p>
                     <p className="text-xs font-normal text-muted-foreground">{user.email}</p>
@@ -378,7 +378,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </DropdownMenu>
             </div>
           </header>
-          <main className="flex-1 space-y-4 p-4 md:p-6">{children}</main>
+          <main className="flex-1 space-y-4 p-3 pb-8 md:p-6">{children}</main>
         </SidebarInset>
 
         <CommandPalette
@@ -483,7 +483,7 @@ export function ImpersonationBanner() {
       <Button
         size="sm"
         variant="outline"
-        className="h-6"
+        className="h-8 md:h-6"
         onClick={() => stop.mutate()}
         disabled={stop.isPending}
       >

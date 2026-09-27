@@ -76,7 +76,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       <ImpersonationBanner />
       <div className="flex min-h-svh flex-col bg-muted/30">
         <header className="sticky top-0 z-40 border-b bg-background">
-          <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 md:px-4">
+          <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 md:h-14 md:px-4">
             <Link to="/" className="flex shrink-0 items-center gap-2">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
                 G
@@ -133,25 +133,15 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          {/* Mobile navigation: the same links as a scrollable row. */}
-          <nav className="flex items-center gap-1 overflow-x-auto border-t px-3 py-1.5 md:hidden">
-            {links.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                activeProps={{ className: "bg-muted text-foreground font-medium" }}
-              >
-                <link.icon className="size-3.5" />
-                {t(link.key)}
-              </Link>
-            ))}
-          </nav>
+          {/* Mobile navigation lives in the bottom bar below — thumb reach
+              beats a squeezed top row on touch screens. */}
         </header>
 
-        <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-4 md:p-6">{children}</main>
+        <main className="mx-auto w-full max-w-7xl flex-1 space-y-4 p-3 pb-28 md:p-6">
+          {children}
+        </main>
 
-        <footer className="border-t bg-background py-3">
+        <footer className="hidden border-t bg-background py-3 md:block">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 text-xs text-muted-foreground">
             <span>Go Template — {t("shell.clientArea")}</span>
             {can("admin_console", "access") && (
@@ -161,6 +151,30 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
         </footer>
+
+        {/* Bottom navigation: the primary sections as icon+label tabs, one
+            thumb tap away (Android/iOS convention). Safe-area padding keeps
+            it clear of the home indicator. */}
+        <nav
+          aria-label="Primary"
+          className="fixed inset-x-0 bottom-0 z-40 border-t bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
+        >
+          <div className="mx-auto grid max-w-7xl grid-flow-col auto-cols-fr">
+            {links.map((link) => (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-1.5 text-muted-foreground transition-colors active:bg-muted"
+                activeProps={{ className: "bg-muted text-foreground font-medium" }}
+              >
+                <link.icon className="size-5" />
+                <span className="w-full truncate text-center text-[11px] leading-none">
+                  {t(link.key)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </nav>
       </div>
 
       <Dialog open={switchOpen} onOpenChange={setSwitchOpen}>

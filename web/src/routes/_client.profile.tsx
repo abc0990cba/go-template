@@ -90,15 +90,15 @@ function ProfilePage() {
       ) : null}
 
       <Card>
-        <CardHeader className="flex flex-row items-center gap-4">
+        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <Avatar className="size-12">
             <AvatarFallback className="text-lg">{initial(user.name || user.email)}</AvatarFallback>
           </Avatar>
-          <div>
+          <div className="min-w-0">
             <CardTitle>{user.name || "—"}</CardTitle>
-            <CardDescription className="font-mono">{user.email}</CardDescription>
+            <CardDescription className="font-mono break-all">{user.email}</CardDescription>
           </div>
-          <div className="ml-auto">
+          <div className="sm:ml-auto">
             <Button
               variant="destructive"
               size="sm"

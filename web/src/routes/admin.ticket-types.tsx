@@ -112,13 +112,13 @@ function TicketTypesPage() {
       header: "",
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
-          <Button size="sm" variant="outline" className="h-7" onClick={() => setEditing(row.original)}>
+          <Button size="sm" variant="outline" className="h-8 md:h-7" onClick={() => setEditing(row.original)}>
             Edit
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="h-7 text-destructive"
+            className="h-8 md:h-7 text-destructive"
             onClick={() => remove.mutate(row.original.id)}
           >
             <Trash2 /> Delete
