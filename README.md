@@ -13,6 +13,9 @@ The project is intentionally small enough to understand, but it includes the pat
 - **API keys** — personal `gtpl_…` Bearer tokens with scope narrowing (`obj:act`), shown once, revocable
 - **Impersonation** — admin "sign in as" with a visible banner, audited start/stop, and user notification
 - **Webhooks** — event subscriptions with HMAC-SHA256 signatures, queue-backed delivery and retries, delivery log with a test-send button
+- **Event streams** — user enrichment merged from two external systems, Kafka (`user-profile.v1`) and NATS JetStream (`users.contact.v1`), with exactly-once application (inbox dedupe + per-source sequence guards + row-locked field ownership), a transactional outbox relay, and a dead-letter queue with an admin replay console — see [docs/enrichment-streams.md](docs/enrichment-streams.md)
+- **Resilience toolkit** — circuit breakers around every outbound call (`app_cb_state` metrics), Redis-backed distributed rate limiting with in-memory fallback, and `Idempotency-Key` middleware that turns client retries into replays
+- **Local stream tooling** — `make demo-up` brings up Redpanda + NATS; `cmd/devtools` publishes events into both brokers, reads relayed output, and drives the breaker / rate-limit / idempotency demos (`make demo-enrichment`, `demo-dlq`, `demo-breaker`, …)
 - **Tickets & approvals** — a request workflow in the spirit of Jira: a state machine with distinct "withdrawn by requester" vs "rejected by approver" outcomes, configurable multi-step approval chains per ticket type, role-guarded decisions, and separate requester ("My Tickets") and approver ("Approvals") interfaces
 - **Client app vs admin console** — the SPA is split into a user-facing workspace at `/` (top navbar, personal dashboard, tickets) and a back-office console under `/admin/*` (sidebar shell, system pages), gated by the `admin_console:access` permission on the route and re-checked by every admin API
 - **i18n** — English/Russian UI toggle (EN shell + RU translations)
@@ -92,7 +95,7 @@ make seed-demo     # load the demo dataset
 make docker-up
 ```
 
-The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` and `APP_REDIS_ADDR` (see `.env.example`) — or run `make docker-up` — for PostgreSQL (pgx + sqlc + startup migrations) and the Redis/asynq queue with a real worker process. Add `--profile observability` for Jaeger, Prometheus, and Grafana; see `docs/observability.md`. ClickHouse analytics power the event charts when `APP_CLICKHOUSE_ADDR` is set; without it the app degrades to the in-memory event trail.
+The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` and `APP_REDIS_ADDR` (see `.env.example`) — or run `make docker-up` — for PostgreSQL (pgx + sqlc + startup migrations) and the Redis/asynq queue with a real worker process. Add `--profile observability` for Jaeger, Prometheus, and Grafana; see `docs/observability.md`. ClickHouse analytics power the event charts when `APP_CLICKHOUSE_ADDR` is set; without it the app degrades to the in-memory event trail. For the enrichment streams, `make demo-up` adds Redpanda (Kafka API) and NATS with JetStream; the workers start consuming and the outbox relay starts publishing automatically.
 
 ## Project Rules
 

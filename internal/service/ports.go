@@ -186,22 +186,62 @@ type TicketsRepo interface {
 	ListTicketEvents(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketEvent, error)
 }
 
+// StreamsRepo applies enrichment events from the Kafka and NATS streams and
+// manages the transactional outbox and the dead-letter queue. ApplyStreamEvent
+// is exactly-once per (source, event_id) and atomic: dedupe check, per-source
+// sequence guard, owned-fields merge, and the outbox write commit together.
+type StreamsRepo interface {
+	ApplyStreamEvent(ctx context.Context, event model.StreamEvent) (model.StreamApplyResult, error)
+
+	// StreamSeqs reports the applied per-source sequence numbers of a user;
+	// the demo trigger uses them to publish the next one.
+	StreamSeqs(ctx context.Context, userID string) (profile, contact int64, err error)
+
+	// Outbox: Claim leases a batch (SKIP LOCKED + stale-lease reclaim), the
+	// relay publishes outside the lease, then marks processed or releases
+	// with an attempts bump. FailPermanently parks exhausted events.
+	ClaimOutboxBatch(ctx context.Context, limit, leaseSeconds, maxAttempts int) ([]model.OutboxEvent, error)
+	MarkOutboxProcessed(ctx context.Context, ids []string) error
+	ReleaseOutboxBatch(ctx context.Context, ids []string) error
+	FailOutboxPermanently(ctx context.Context, ids []string) error
+	CountOutboxPending(ctx context.Context) (int, error)
+	ListOutbox(ctx context.Context, opts repository.ListOptions) ([]model.OutboxEvent, string, error)
+
+	// Dead letters: poison or unprocessable messages parked for inspection.
+	SaveDeadLetter(ctx context.Context, letter model.DeadLetter) error
+	GetDeadLetter(ctx context.Context, id string) (model.DeadLetter, error)
+	ListDeadLetters(ctx context.Context, opts repository.DeadLetterOptions) ([]model.DeadLetter, string, error)
+	MarkDeadLetterReplayed(ctx context.Context, id string) error
+	CountDeadLettersPending(ctx context.Context) (int, error)
+}
+
+// IdempotencyRepo stores API idempotency-key reservations and responses.
+// Reserve inserts atomically: it reports already=true when the (user, key)
+// pair exists, and the caller compares the stored record to decide between
+// replay, rejection, and conflict.
+type IdempotencyRepo interface {
+	ReserveIdempotency(ctx context.Context, record model.IdempotencyRecord) (stored model.IdempotencyRecord, already bool, err error)
+	CompleteIdempotency(ctx context.Context, key, userID string, status int, body []byte, contentType string) error
+	PruneIdempotency(ctx context.Context) (int64, error)
+}
 
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (
-	_ AuthRepo      = (*repository.MemoryStore)(nil)
-	_ UsersRepo     = (*repository.MemoryStore)(nil)
-	_ JobsRepo      = (*repository.MemoryStore)(nil)
-	_ ReportsRepo   = (*repository.MemoryStore)(nil)
-	_ AnalyticsRepo = (*repository.MemoryStore)(nil)
-	_ Pinger        = (*repository.MemoryStore)(nil)
-	_ EventSink     = (*repository.MemoryStore)(nil)
-	_ OrgsRepo      = (*repository.MemoryStore)(nil)
-	_ RolesRepo     = (*repository.MemoryStore)(nil)
-	_ AuditRepo     = (*repository.MemoryStore)(nil)
+	_ AuthRepo          = (*repository.MemoryStore)(nil)
+	_ UsersRepo         = (*repository.MemoryStore)(nil)
+	_ JobsRepo          = (*repository.MemoryStore)(nil)
+	_ ReportsRepo       = (*repository.MemoryStore)(nil)
+	_ AnalyticsRepo     = (*repository.MemoryStore)(nil)
+	_ Pinger            = (*repository.MemoryStore)(nil)
+	_ EventSink         = (*repository.MemoryStore)(nil)
+	_ OrgsRepo          = (*repository.MemoryStore)(nil)
+	_ RolesRepo         = (*repository.MemoryStore)(nil)
+	_ AuditRepo         = (*repository.MemoryStore)(nil)
 	_ NotificationsRepo = (*repository.MemoryStore)(nil)
-	_ EmailTokensRepo = (*repository.MemoryStore)(nil)
-	_ APIKeysRepo = (*repository.MemoryStore)(nil)
-	_ TicketsRepo = (*repository.MemoryStore)(nil)
+	_ EmailTokensRepo   = (*repository.MemoryStore)(nil)
+	_ APIKeysRepo       = (*repository.MemoryStore)(nil)
+	_ TicketsRepo       = (*repository.MemoryStore)(nil)
+	_ StreamsRepo       = (*repository.MemoryStore)(nil)
+	_ IdempotencyRepo   = (*repository.MemoryStore)(nil)
 )

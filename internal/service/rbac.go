@@ -57,6 +57,7 @@ var Resources = []Resource{
 	{Key: "impersonation", Description: "Sign in as another user", Actions: []string{ActionExecute}},
 	{Key: "tickets", Description: "Tickets and approvals", Actions: []string{ActionRead, "read_all", ActionCreate, ActionUpdate, ActionDelete, "approve"}},
 	{Key: "ticket_types", Description: "Ticket types and approval chains", Actions: []string{ActionRead, ActionCreate, ActionUpdate, ActionDelete}},
+	{Key: "streams", Description: "Event streams: outbox and dead letters", Actions: []string{ActionRead, "replay"}},
 	{Key: "admin_console", Description: "Access to the /admin console", Actions: []string{"access"}},
 }
 
@@ -90,6 +91,7 @@ var systemPolicies = [][]string{
 	{"admin", PlatformDomain, "impersonation", ActionExecute},
 	{"admin", PlatformDomain, "tickets", "*"},
 	{"admin", PlatformDomain, "ticket_types", "*"},
+	{"admin", PlatformDomain, "streams", "*"},
 	{"admin", PlatformDomain, "admin_console", "access"},
 
 	{"manager", PlatformDomain, "users", ActionRead},
@@ -107,6 +109,8 @@ var systemPolicies = [][]string{
 	{"manager", PlatformDomain, "tickets", ActionDelete},
 	{"manager", PlatformDomain, "tickets", "approve"},
 	{"manager", PlatformDomain, "ticket_types", ActionRead},
+	{"manager", PlatformDomain, "streams", ActionRead},
+	{"manager", PlatformDomain, "streams", "replay"},
 	{"manager", PlatformDomain, "admin_console", "access"},
 
 	// The two sides of the ticket flow: requesters file and track their own

@@ -7,13 +7,17 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
 // Config carries every tunable the binaries need. Zero values are never
 // valid: Load fails unless all fields pass validation.
 type Config struct {
-	HTTPAddr        string
+	HTTPAddr string
+	// MetricsAddr serves /metrics; empty disables the listener (the api
+	// serves metrics on its main port, the worker opts in via compose).
+	MetricsAddr     string
 	BaseURL         string
 	LogLevel        slog.Level
 	DatabaseURL     string
@@ -53,6 +57,34 @@ type Config struct {
 	SMTPUsername    string
 	SMTPPassword    string
 	SMTPFrom        string
+
+	// Streams — user enrichment from two external systems. Empty
+	// KafkaBrokers or NatsURL disables that consumer, matching the
+	// optional-infrastructure rule used for ClickHouse and Redis.
+	KafkaBrokers       []string
+	KafkaTopicProfile  string
+	KafkaTopicEvents   string
+	KafkaGroup         string
+	NatsURL            string
+	NatsStream         string
+	NatsSubjectContact string
+	NatsSubjectEvents  string
+	NatsDurable        string
+
+	// Circuit breakers wrap outbound calls (HTTP enrichment, webhooks,
+	// broker publishes).
+	CBFailureThreshold int
+	CBOpenTimeout      time.Duration
+
+	// Outbox relay drains transactional events to the brokers.
+	OutboxInterval    time.Duration
+	OutboxBatch       int
+	OutboxMaxAttempts int
+
+	// Rate limiting and idempotency.
+	APIRateRPS     float64
+	APIRateBurst   int
+	IdempotencyTTL time.Duration
 }
 
 // Load reads configuration from the environment. Invalid values fail startup
@@ -61,6 +93,7 @@ type Config struct {
 func Load() (Config, error) {
 	cfg := Config{
 		HTTPAddr:       env("APP_HTTP_ADDR", ":8080"),
+		MetricsAddr:    os.Getenv("APP_METRICS_ADDR"),
 		BaseURL:        env("APP_BASE_URL", "http://localhost:8080"),
 		DatabaseURL:    os.Getenv("APP_DATABASE_URL"),
 		RedisAddr:      os.Getenv("APP_REDIS_ADDR"),
@@ -90,6 +123,16 @@ func Load() (Config, error) {
 		SMTPUsername:   os.Getenv("APP_SMTP_USERNAME"),
 		SMTPPassword:   os.Getenv("APP_SMTP_PASSWORD"),
 		SMTPFrom:       env("APP_SMTP_FROM", "no-reply@go-template.local"),
+
+		KafkaBrokers:       splitEnv("APP_KAFKA_BROKERS"),
+		KafkaTopicProfile:  env("APP_KAFKA_TOPIC_PROFILE", "user-profile.v1"),
+		KafkaTopicEvents:   env("APP_KAFKA_TOPIC_EVENTS", "user-events.v1"),
+		KafkaGroup:         env("APP_KAFKA_GROUP", "go-template-enricher"),
+		NatsURL:            os.Getenv("APP_NATS_URL"),
+		NatsStream:         env("APP_NATS_STREAM", "USERS"),
+		NatsSubjectContact: env("APP_NATS_SUBJECT_CONTACT", "users.contact.v1"),
+		NatsSubjectEvents:  env("APP_NATS_SUBJECT_EVENTS", "users.events.v1"),
+		NatsDurable:        env("APP_NATS_DURABLE", "enricher-contact"),
 	}
 
 	var err error
@@ -145,6 +188,45 @@ func Load() (Config, error) {
 	if cfg.AuthRateRPS <= 0 || cfg.AuthRateBurst <= 0 {
 		return Config{}, fmt.Errorf("auth rate limit must be positive")
 	}
+	if cfg.CBFailureThreshold, err = intEnv("APP_CB_FAILURE_THRESHOLD", 5); err != nil {
+		return Config{}, err
+	}
+	if cfg.CBOpenTimeout, err = durationEnv("APP_CB_OPEN_TIMEOUT", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.CBFailureThreshold <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_CB_FAILURE_THRESHOLD")
+	}
+	if cfg.CBOpenTimeout <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_CB_OPEN_TIMEOUT")
+	}
+	if cfg.OutboxInterval, err = durationEnv("APP_OUTBOX_INTERVAL", time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.OutboxBatch, err = intEnv("APP_OUTBOX_BATCH", 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.OutboxMaxAttempts, err = intEnv("APP_OUTBOX_MAX_ATTEMPTS", 10); err != nil {
+		return Config{}, err
+	}
+	if cfg.OutboxInterval <= 0 || cfg.OutboxBatch <= 0 || cfg.OutboxMaxAttempts <= 0 {
+		return Config{}, fmt.Errorf("outbox settings must be positive")
+	}
+	if cfg.APIRateRPS, err = floatEnv("APP_API_RATE_RPS", 50); err != nil {
+		return Config{}, err
+	}
+	if cfg.APIRateBurst, err = intEnv("APP_API_RATE_BURST", 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.APIRateRPS <= 0 || cfg.APIRateBurst <= 0 {
+		return Config{}, fmt.Errorf("api rate limit must be positive")
+	}
+	if cfg.IdempotencyTTL, err = durationEnv("APP_IDEMPOTENCY_TTL", 24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.IdempotencyTTL <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_IDEMPOTENCY_TTL")
+	}
 	return cfg, nil
 }
 
@@ -153,6 +235,22 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+// splitEnv reads a comma-separated list; empty input yields a nil slice,
+// which callers treat as "feature disabled".
+func splitEnv(key string) []string {
+	value := os.Getenv(key)
+	if value == "" {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(value, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func durationEnv(key string, fallback time.Duration) (time.Duration, error) {

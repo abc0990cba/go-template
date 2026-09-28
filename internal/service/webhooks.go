@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/reliability"
 	"github.com/your-org/go-template/internal/repository"
 )
 
@@ -112,13 +113,15 @@ type WebhooksService struct {
 	dispatcher WebhookDispatcher
 	settings   *SettingsService
 	client     *http.Client
+	breakers   *reliability.Breakers
 	logger     *slog.Logger
 }
 
 // NewWebhooksService wires the service. Dispatcher may be nil in tests;
-// deliverInline then runs synchronously.
-func NewWebhooksService(store WebhooksRepo, dispatcher WebhookDispatcher, settings *SettingsService, client *http.Client, logger *slog.Logger) *WebhooksService {
-	return &WebhooksService{store: store, dispatcher: dispatcher, settings: settings, client: client, logger: logger}
+// deliverInline then runs synchronously. Breakers may be nil — deliveries
+// then run unprotected.
+func NewWebhooksService(store WebhooksRepo, dispatcher WebhookDispatcher, settings *SettingsService, client *http.Client, breakers *reliability.Breakers, logger *slog.Logger) *WebhooksService {
+	return &WebhooksService{store: store, dispatcher: dispatcher, settings: settings, client: client, breakers: breakers, logger: logger}
 }
 
 // Create adds an endpoint; the secret is generated when omitted.
@@ -278,14 +281,24 @@ func (s *WebhooksService) post(ctx context.Context, url string, body []byte, sig
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("X-Template-Signature", signature)
 	httpReq.Header.Set("X-Template-Delivery", deliveryID)
-	start := time.Now()
-	resp, err := s.client.Do(httpReq)
+	var status int
+	// A dead endpoint trips the webhooks.http breaker; while it is open
+	// deliveries fail fast instead of queuing timeouts.
+	err = s.breakers.Do(ctx, "webhooks.http", func() error {
+		start := time.Now()
+		resp, err := s.client.Do(httpReq)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+		status = resp.StatusCode
+		_ = time.Since(start)
+		return nil
+	})
 	if err != nil {
 		return 0, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-	_ = time.Since(start)
-	return resp.StatusCode, nil
+	return status, nil
 }
 
 // webhookMatches supports "*" as the subscribe-to-everything wildcard.

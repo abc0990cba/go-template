@@ -4,13 +4,20 @@ package model
 
 import "time"
 
-// User is an account in the system.
+// User is an account in the system. ExternalRef is the correlation id the
+// external systems use for this account; the enrichment streams (Kafka
+// profile, NATS contact) merge into EnrichProfile / EnrichContact, each
+// owned by exactly one source.
 type User struct {
-	ID        string    `json:"id"`
-	Email     string    `json:"email"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID            string     `json:"id"`
+	Email         string     `json:"email"`
+	Name          string     `json:"name"`
+	ExternalRef   string     `json:"external_ref,omitempty"`
+	EnrichProfile string     `json:"enrich_profile,omitempty"`
+	EnrichContact string     `json:"enrich_contact,omitempty"`
+	EnrichedAt    *time.Time `json:"enriched_at,omitempty"`
+	CreatedAt     time.Time  `json:"created_at"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
 // AuthIdentity links one external identity (password, google, github) to a

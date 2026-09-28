@@ -58,8 +58,97 @@ var JobDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 	Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 15, 60, 300},
 }, []string{"type"})
 
+// CBCurrentState gauges each named circuit breaker: 0 closed, 1 half-open,
+// 2 open.
+var CBCurrentState = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "app_cb_state",
+	Help: "Circuit breaker state (0 closed, 1 half-open, 2 open).",
+}, []string{"name"})
+
+// CBTransitions counts breaker state transitions.
+var CBTransitions = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_cb_transitions_total",
+	Help: "Circuit breaker state transitions.",
+}, []string{"name", "from", "to"})
+
+// EnrichmentEvents counts stream events by source and outcome.
+var EnrichmentEvents = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_enrichment_events_total",
+	Help: "User enrichment events by source and result.",
+}, []string{"source", "result"})
+
+// EnrichmentApplyDuration observes how long applying one event takes.
+var EnrichmentApplyDuration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+	Name:    "app_enrichment_apply_seconds",
+	Help:    "Time to apply one enrichment event.",
+	Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5},
+}, []string{"source"})
+
+// OutboxPending gauges events waiting for the relay.
+var OutboxPending = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "app_outbox_pending",
+	Help: "Outbox events not yet published.",
+})
+
+// OutboxRelayed counts relay outcomes by result.
+var OutboxRelayed = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_outbox_relay_total",
+	Help: "Outbox relay outcomes.",
+}, []string{"result"})
+
+// DeadLettersPending gauges parked messages awaiting replay.
+var DeadLettersPending = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "app_dead_letters_pending",
+	Help: "Dead letters not yet replayed.",
+})
+
+// DeadLettersReplayed counts dead letters successfully re-processed.
+var DeadLettersReplayed = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_dead_letters_replayed_total",
+	Help: "Dead letters replayed.",
+})
+
+// RateLimitRejected counts requests shed by rate limiters.
+var RateLimitRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_rate_limit_rejected_total",
+	Help: "Requests rejected by rate limiting.",
+}, []string{"scope"})
+
+// IdempotencyReplays counts replayed idempotent responses.
+var IdempotencyReplays = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_idempotency_replays_total",
+	Help: "Responses replayed from the idempotency store.",
+})
+
+// RateLimitErrors counts limiter infrastructure failures (fail-open events).
+var RateLimitErrors = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_rate_limit_errors_total",
+	Help: "Rate limiter infrastructure failures; requests fail open.",
+})
+
 func init() {
-	prometheus.MustRegister(JobsQueued, JobsProcessed, JobDuration)
+	prometheus.MustRegister(JobsQueued, JobsProcessed, JobDuration,
+		CBCurrentState, CBTransitions, EnrichmentEvents, EnrichmentApplyDuration,
+		OutboxPending, OutboxRelayed, DeadLettersPending, DeadLettersReplayed,
+		RateLimitRejected, RateLimitErrors, IdempotencyReplays)
+}
+
+// RecordBreakerState applies one transition to the gauges; adapters call it
+// from Breaker.OnStateChange with reliability.CircuitState values.
+func RecordBreakerState(name string, from, to int) {
+	CBCurrentState.WithLabelValues(name).Set(float64(to))
+	CBTransitions.WithLabelValues(name, stateName(from), stateName(to)).Inc()
+}
+
+func stateName(state int) string {
+	switch state {
+	case 2:
+		return "open"
+	case 1:
+		return "half-open"
+	default:
+		return "closed"
+	}
 }
 
 // SetupTracing installs the global tracer provider when endpoint is
@@ -100,9 +189,14 @@ func noopTracerProvider() trace.TracerProvider {
 }
 
 // SpanFromHeaders restores a remote span context from a string map (asynq
-// task headers) and starts a consumer span.
+// task headers, Kafka/NATS message headers) and starts a consumer span. A
+// nil map is valid — records without headers must not panic when the
+// propagator injects the extracted context back into the carrier.
 func SpanFromHeaders(ctx context.Context, headers map[string]string, name string) (context.Context, trace.Span) {
-	carrier := propagation.MapCarrier(headers)
+	carrier := propagation.MapCarrier{}
+	for k, v := range headers {
+		carrier[k] = v
+	}
 	ctx = Propagator.Extract(ctx, carrier)
 	ctx, span := Tracer.Start(ctx, name)
 	Propagator.Inject(ctx, carrier)

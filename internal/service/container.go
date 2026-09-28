@@ -10,6 +10,7 @@ import (
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/platform/mailer"
+	"github.com/your-org/go-template/internal/reliability"
 )
 
 // Deps bundles the ports the services run on. One store usually satisfies
@@ -18,30 +19,34 @@ import (
 // nil in the single-process development mode (jobs run inline; RBAC then
 // denies everything, which keeps non-HTTP processes safe).
 type Deps struct {
-	Auth         AuthRepo
-	Users        UsersRepo
-	Jobs         JobsRepo
-	Reports      ReportsRepo
-	Analytics    AnalyticsRepo
-	Orgs         OrgsRepo
-	Roles        RolesRepo
-	Audit        AuditRepo
-	Settings     SettingsRepo
-	Notifications NotificationsRepo
-	EmailTokens  EmailTokensRepo
-	APIKeys      APIKeysRepo
-	Webhooks     WebhooksRepo
-	Tickets      TicketsRepo
+	Auth              AuthRepo
+	Users             UsersRepo
+	Jobs              JobsRepo
+	Reports           ReportsRepo
+	Analytics         AnalyticsRepo
+	Orgs              OrgsRepo
+	Roles             RolesRepo
+	Audit             AuditRepo
+	Settings          SettingsRepo
+	Notifications     NotificationsRepo
+	EmailTokens       EmailTokensRepo
+	APIKeys           APIKeysRepo
+	Webhooks          WebhooksRepo
+	Tickets           TicketsRepo
+	Streams           StreamsRepo
 	WebhookDispatcher WebhookDispatcher
-	Mailer       mailer.Sender
+	// Breakers wraps outbound HTTP and broker calls; nil disables breakers.
+	Breakers *reliability.Breakers
+	Mailer   mailer.Sender
 	// Realtime publishes live notifications to connected browsers; nil in
 	// processes without an SSE hub.
-	Realtime     func(model.Notification)
-	Events       EventSink
-	EventStats   EventStats
-	Queue        JobQueue
-	Observer     JobObserver
-	RBACEnforcer *casbin.SyncedEnforcer
+	Realtime        func(model.Notification)
+	Events          EventSink
+	EventStats      EventStats
+	Queue           JobQueue
+	Observer        JobObserver
+	StreamsObserver StreamsObserver
+	RBACEnforcer    *casbin.SyncedEnforcer
 }
 
 // Container wires every service against the store ports; handlers depend on
@@ -60,6 +65,7 @@ type Container struct {
 	APIKeys       *APIKeysService
 	Webhooks      *WebhooksService
 	Tickets       *TicketsService
+	Streams       *StreamsService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -83,6 +89,8 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 		Audit:     &AuditService{store: deps.Audit, logger: logger},
 		Settings:  &SettingsService{store: deps.Settings},
 	}
+	services.Streams = NewStreamsService(deps.Streams, deps.StreamsObserver, logger)
+	services.Jobs.breakers = deps.Breakers
 	notifications := &NotificationsService{store: deps.Notifications, publish: deps.Realtime}
 	services.Notifications = notifications
 	services.Jobs.WithNotifications(notifications)
@@ -90,7 +98,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	services.Tickets.WithNotifications(notifications)
 	services.Email = NewEmailService(deps.EmailTokens, deps.Auth, deps.Mailer, cfg.BaseURL, logger)
 	services.APIKeys = NewAPIKeysService(deps.APIKeys)
-	services.Webhooks = NewWebhooksService(deps.Webhooks, deps.WebhookDispatcher, services.Settings, &http.Client{Timeout: cfg.ExternalTimeout}, logger)
+	services.Webhooks = NewWebhooksService(deps.Webhooks, deps.WebhookDispatcher, services.Settings, &http.Client{Timeout: cfg.ExternalTimeout}, deps.Breakers, logger)
 	services.Email.WithNotifier(func(ctx context.Context, userID, typ, title, body, link string) {
 		_ = notifications.Create(ctx, userID, typ, title, body, link)
 	})

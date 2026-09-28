@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   ScrollText,
   Settings,
+  Radio,
   Webhook,
   ListTodo,
   LogOut,
@@ -158,6 +159,14 @@ const NAV_ADMIN: NavItem[] = [
     icon: ScrollText,
     description: "Who changed what, when",
     permission: ["audit", "read"],
+  },
+  {
+    to: "/admin/streams",
+    title: "Streams",
+    key: "nav.streams",
+    icon: Radio,
+    description: "Outbox and dead letters",
+    permission: ["streams", "read"],
   },
   {
     to: "/admin/settings",

@@ -20,6 +20,8 @@ import {
   VenetianMask,
 } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
+import { IconActionButton } from "@/components/icon-action-button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import {
   AlertDialog,
@@ -113,28 +115,31 @@ function UsersPage() {
       enableSorting: false,
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1">
-          <Button variant="ghost" size="icon" className="size-8 md:size-7" asChild>
-            <Link
-              to="/admin/users/$userId"
-              params={{ userId: row.original.id }}
-              aria-label={`Open ${row.original.email}`}
-            >
-              <ArrowUpRight />
-            </Link>
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Link
+                to="/admin/users/$userId"
+                params={{ userId: row.original.id }}
+                aria-label={`Open ${row.original.email}`}
+                className="inline-flex size-7 items-center justify-center rounded-md hover:bg-accent"
+              >
+                <ArrowUpRight className="size-4" />
+              </Link>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Open details: profile, enrichment cards, fetched profiles</p>
+            </TooltipContent>
+          </Tooltip>
+          <IconActionButton
+            icon={ShieldCheck}
+            tooltip="Manage roles: assign or revoke this user's roles"
+            label={`Roles of ${row.original.email}`}
             onClick={() => setRolesOf(row.original)}
-            aria-label={`Roles of ${row.original.email}`}
-          >
-            <ShieldCheck />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
+          />
+          <IconActionButton
+            icon={VenetianMask}
+            tooltip="Sign in as this user (impersonation) — you act with their permissions until you stop"
+            label={`Sign in as ${row.original.email}`}
             onClick={() => {
               void api.impersonate(row.original.id).then(
                 () => {
@@ -143,28 +148,20 @@ function UsersPage() {
                 (e: Error) => toast.error(e.message),
               );
             }}
-            aria-label={`Sign in as ${row.original.email}`}
-          >
-            <VenetianMask />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7"
+          />
+          <IconActionButton
+            icon={Pencil}
+            tooltip="Edit name, email, and external_ref (the id the Kafka/NATS streams use)"
+            label={`Edit ${row.original.email}`}
             onClick={() => setEditing(row.original)}
-            aria-label={`Edit ${row.original.email}`}
-          >
-            <Pencil />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-7 text-destructive"
+          />
+          <IconActionButton
+            icon={Trash2}
+            tooltip="Delete this user — removes credentials, identities, and sessions; no undo"
+            label={`Delete ${row.original.email}`}
+            destructive
             onClick={() => setDeleting(row.original)}
-            aria-label={`Delete ${row.original.email}`}
-          >
-            <Trash2 />
-          </Button>
+          />
         </div>
       ),
     },
@@ -196,6 +193,9 @@ function UsersPage() {
         data={table.rows}
         isPending={table.isPending}
         isPlaceholderData={table.isPlaceholderData}
+        onRowClick={(user) =>
+          void navigate({ to: "/admin/users/$userId", params: { userId: user.id } })
+        }
         emptyState={
           search.q ? `No users match “${search.q}”.` : "No users yet — create the first one."
         }

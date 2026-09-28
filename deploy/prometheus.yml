@@ -6,3 +6,10 @@ scrape_configs:
     metrics_path: /metrics
     static_configs:
       - targets: ["api:8080"]
+
+  # Stream consumers, the outbox relay, and dead-letter depth live in the
+  # worker process; it serves its own /metrics when APP_METRICS_ADDR is set.
+  - job_name: go-template-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["worker:9090"]

@@ -33,6 +33,8 @@ import type {
   WebhookDelivery,
   WebhookEndpoint,
   User,
+  OutboxEvent,
+  DeadLetter,
 } from "./types";
 
 /**
@@ -181,16 +183,30 @@ export const api = {
 
   listUsers: (params: Partial<ListParams>) =>
     get<Paged<User>>(`/api/users?${buildListQuery(params)}`),
-  createUser: (email: string, name: string) => post<User>("/api/users", { email, name }),
+  createUser: (email: string, name: string, external_ref?: string) =>
+    post<User>("/api/users", { email, name, external_ref }),
   getUser: (id: string) => get<User>(`/api/users/${encodeURIComponent(id)}`),
-  updateUser: (id: string, email: string, name: string) =>
-    put<User>(`/api/users/${encodeURIComponent(id)}`, { email, name }),
+  updateUser: (id: string, email: string, name: string, external_ref?: string) =>
+    put<User>(`/api/users/${encodeURIComponent(id)}`, { email, name, external_ref }),
   deleteUser: (id: string) => del<void>(`/api/users/${encodeURIComponent(id)}`),
 
   listJobs: (params: Partial<ListParams>) => get<Paged<Job>>(`/api/jobs?${buildListQuery(params)}`),
   getJob: (id: string) => get<Job>(`/api/jobs/${encodeURIComponent(id)}`),
   processJob: () => post<{ processed: boolean }>("/api/jobs/process"),
   enqueueEnrichment: (count: number) => post<Job>("/api/jobs/enrichment", { count }),
+  listOutbox: (params: Partial<ListParams> & { status?: string }) =>
+    get<Paged<OutboxEvent> & { pending?: number }>(`/api/streams/outbox?${buildListQuery(params)}`),
+  listDeadLetters: (params: Partial<ListParams> & { pending?: boolean }) =>
+    get<Paged<DeadLetter> & { pending?: number }>(
+      `/api/streams/dead-letters?${buildListQuery({ ...params, status: params.pending ? "pending" : undefined })}`,
+    ),
+  replayDeadLetter: (id: string) =>
+    post<DeadLetter>(`/api/streams/dead-letters/${encodeURIComponent(id)}/replay`, {}),
+  triggerEnrichDemo: (id: string, source: "kafka" | "nats") =>
+    post<{ published: boolean; source: string; event_id: string; seq: number }>(
+      `/api/users/${encodeURIComponent(id)}/enrich-demo`,
+      { source },
+    ),
   listEnrichmentProfiles: (params: Partial<ListParams>) =>
     get<Paged<EnrichmentProfile>>(`/api/enrichment-profiles?${buildListQuery(params)}`),
 
@@ -330,9 +346,9 @@ export const api = {
   ticketAction: (id: string, action: TicketAction, comment = "") =>
     post<Ticket>(`/api/tickets/${encodeURIComponent(id)}/actions`, { action, comment }),
   ticketComments: (id: string, limit = 25) =>
-    get<Paged<TicketComment>>(`/api/tickets/${encodeURIComponent(id)}/comments?limit=${limit}`).then(
-      (p) => p.data,
-    ),
+    get<Paged<TicketComment>>(
+      `/api/tickets/${encodeURIComponent(id)}/comments?limit=${limit}`,
+    ).then((p) => p.data),
   addTicketComment: (id: string, body: string) =>
     post<TicketComment>(`/api/tickets/${encodeURIComponent(id)}/comments`, { body }),
   ticketEvents: (id: string, limit = 50) =>
@@ -345,8 +361,12 @@ export const api = {
   decidedApprovals: (limit = 25, offset = 0) =>
     get<Paged<TicketDecision>>(`/api/approvals?state=decided&limit=${limit}&offset=${offset}`),
   ticketTypes: () => get<Paged<TicketType>>("/api/ticket-types").then((p) => p.data),
-  createTicketType: (key: string, name: string, description: string, steps: { name: string; approver_role: string }[]) =>
-    post<TicketType>("/api/ticket-types", { key, name, description, steps }),
+  createTicketType: (
+    key: string,
+    name: string,
+    description: string,
+    steps: { name: string; approver_role: string }[],
+  ) => post<TicketType>("/api/ticket-types", { key, name, description, steps }),
   updateTicketType: (
     id: string,
     patchBody: {

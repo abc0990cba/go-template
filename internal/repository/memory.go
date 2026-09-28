@@ -77,6 +77,13 @@ type TicketOptions struct {
 	Priority  string
 }
 
+// DeadLetterOptions narrows dead-letter listings: ListOptions carries
+// pagination, Pending filters to not-yet-replayed letters.
+type DeadLetterOptions struct {
+	ListOptions
+	Pending bool
+}
+
 // SplitEnrichmentCursor splits an enrichment "after" cursor back into its
 // (created_at, sequence) components; the enrichment table has no id column,
 // so its keyset cursor carries both.
@@ -143,6 +150,21 @@ type MemoryStore struct {
 	approvals    map[string][]model.TicketApproval
 	comments     []model.TicketComment
 	ticketEvents []model.TicketEvent
+
+	// Streams: exactly-once enrichment bookkeeping, the outbox, dead
+	// letters, and API idempotency reservations.
+	processedEvents map[string]model.StreamApplyResult // "source\x00event_id"
+	enrichSeqs      map[string]streamSeqs              // user id → applied seq per source
+	outboxItems     []*model.OutboxEvent
+	deadLetters     []model.DeadLetter
+	idempotency     map[string]model.IdempotencyRecord // "user_id\x00key"
+}
+
+// streamSeqs tracks the highest applied enrichment sequence per source; the
+// fake mirrors the users.enrich_profile_seq / enrich_contact_seq columns.
+type streamSeqs struct {
+	profile int64
+	contact int64
 }
 
 // apiKeyRow pairs the stored key with its hash.
@@ -160,19 +182,22 @@ type emailTokenRow struct {
 // NewMemoryStore returns an empty store ready for use.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		users:       map[string]model.User{},
-		passwords:   map[string]string{},
-		sessions:    map[string]sessionEntry{},
-		oauthStates: map[string]model.OAuthState{},
-		jobs:        map[string]model.Job{},
-		reports:     map[string]model.Report{},
-		orgs:        map[string]model.Organization{},
-		roles:       map[string]model.Role{},
-		settings:    map[string]model.Setting{},
-		ticketTypes: map[string]model.TicketType{},
-		tickets:     map[string]model.Ticket{},
-		ticketSeq:   map[string]int{},
-		approvals:   map[string][]model.TicketApproval{},
+		users:           map[string]model.User{},
+		passwords:       map[string]string{},
+		sessions:        map[string]sessionEntry{},
+		oauthStates:     map[string]model.OAuthState{},
+		jobs:            map[string]model.Job{},
+		reports:         map[string]model.Report{},
+		orgs:            map[string]model.Organization{},
+		roles:           map[string]model.Role{},
+		settings:        map[string]model.Setting{},
+		ticketTypes:     map[string]model.TicketType{},
+		tickets:         map[string]model.Ticket{},
+		ticketSeq:       map[string]int{},
+		approvals:       map[string][]model.TicketApproval{},
+		processedEvents: map[string]model.StreamApplyResult{},
+		enrichSeqs:      map[string]streamSeqs{},
+		idempotency:     map[string]model.IdempotencyRecord{},
 	}
 }
 
@@ -189,6 +214,9 @@ func (s *MemoryStore) CreateUser(ctx context.Context, user model.User, passwordH
 		if strings.EqualFold(existing.Email, user.Email) {
 			return ErrConflict
 		}
+		if user.ExternalRef != "" && existing.ExternalRef == user.ExternalRef {
+			return ErrConflict
+		}
 	}
 	s.users[user.ID] = user
 	if passwordHash != "" {
@@ -200,12 +228,21 @@ func (s *MemoryStore) CreateUser(ctx context.Context, user model.User, passwordH
 	return nil
 }
 
-// UpdateUser overwrites an existing user and refreshes UpdatedAt.
+// UpdateUser overwrites an existing user and refreshes UpdatedAt. The
+// enrichment columns are stream-owned; a conflicting external_ref on another
+// user is rejected, mirroring the partial unique index.
 func (s *MemoryStore) UpdateUser(ctx context.Context, user model.User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.users[user.ID]; !ok {
 		return ErrNotFound
+	}
+	if user.ExternalRef != "" {
+		for id, existing := range s.users {
+			if id != user.ID && existing.ExternalRef == user.ExternalRef {
+				return ErrConflict
+			}
+		}
 	}
 	user.UpdatedAt = time.Now()
 	s.users[user.ID] = user
@@ -2121,6 +2158,23 @@ func (s *MemoryStore) ResetDemoData(ctx context.Context) error {
 		events = append(events, event)
 	}
 	s.ticketEvents = events
+	for key, applied := range s.processedEvents {
+		if strings.HasPrefix(applied.UserID, "demo-") {
+			delete(s.processedEvents, key)
+		}
+	}
+	for id := range s.enrichSeqs {
+		if strings.HasPrefix(id, "demo-") {
+			delete(s.enrichSeqs, id)
+		}
+	}
+	outbox := s.outboxItems[:0]
+	for _, item := range s.outboxItems {
+		if !strings.HasPrefix(item.AggregateID, "demo-") {
+			outbox = append(outbox, item)
+		}
+	}
+	s.outboxItems = outbox
 	return nil
 }
 

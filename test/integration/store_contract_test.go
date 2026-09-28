@@ -345,7 +345,11 @@ func runStoreContract(t *testing.T, store storeContract) {
 		if err := store.ReplaceApprovals(ctx, "t2", []model.TicketApproval{{ID: "a2", TicketID: "t2", StepIndex: 0, Name: "Review", ApproverRole: "approver", Status: model.ApprovalPending, CreatedAt: now}}); err != nil {
 			t.Fatalf("t2 approvals: %v", err)
 		}
-		if err := store.UpdateTicket(ctx, func() model.Ticket { t := ticket("t2", "org1", "Beta", "u2", now.Add(time.Hour)); t.Status = model.TicketInReview; return t }()); err != nil {
+		if err := store.UpdateTicket(ctx, func() model.Ticket {
+			t := ticket("t2", "org1", "Beta", "u2", now.Add(time.Hour))
+			t.Status = model.TicketInReview
+			return t
+		}()); err != nil {
 			t.Fatalf("mark t2 in review: %v", err)
 		}
 		inbox, next, err := store.ListTicketsForApprover(ctx, "org1", []string{"approver"}, repository.ListOptions{Mode: "offset", Limit: 10})

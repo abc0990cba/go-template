@@ -143,7 +143,7 @@ func (a *App) apiCreateUser(c *gin.Context) {
 		a.problem(c, http.StatusBadRequest, "invalid request", err)
 		return
 	}
-	user, err := a.services.Users.Create(c.Request.Context(), derefEmail(&req.Email), derefString(req.Name))
+	user, err := a.services.Users.Create(c.Request.Context(), derefEmail(&req.Email), derefString(req.Name), derefString(req.ExternalRef))
 	if err != nil {
 		a.fail(c, err)
 		return
@@ -168,7 +168,7 @@ func (a *App) apiUpdateUser(c *gin.Context) {
 		return
 	}
 	before, _ := a.services.Users.Get(c.Request.Context(), c.Param("id"))
-	user, err := a.services.Users.Update(c.Request.Context(), c.Param("id"), derefEmail(&req.Email), req.Name)
+	user, err := a.services.Users.Update(c.Request.Context(), c.Param("id"), derefEmail(&req.Email), req.Name, derefString(req.ExternalRef))
 	if err != nil {
 		a.fail(c, err)
 		return

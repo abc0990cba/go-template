@@ -43,7 +43,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import type { TicketApproval, TicketStatus } from "@/lib/types";
 
-export const Route = createFileRoute("/_client/tickets/$ticketId")({
+export const Route = createFileRoute("/_client/tickets_/$ticketId")({
   staticData: { title: "Ticket" },
   component: TicketDetailPage,
 });

@@ -8,7 +8,11 @@ import {
 } from "@tanstack/react-table";
 import { ArrowUpDown, Loader2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { InfiniteSentinel, PaginationBar, type ModeTarget } from "@/components/data-table/pagination-bar";
+import {
+  InfiniteSentinel,
+  PaginationBar,
+  type ModeTarget,
+} from "@/components/data-table/pagination-bar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -31,6 +35,11 @@ interface DataTableProps<TData> {
   sorting?: boolean;
   toolbar?: ReactNode;
   pagination?: ModeTarget;
+  /**
+   * Makes whole rows clickable (detail-page navigation). Clicks on buttons
+   * and links inside a row stay theirs: the guard skips them.
+   */
+  onRowClick?: (row: TData) => void;
 }
 
 /**
@@ -59,6 +68,7 @@ export function DataTable<TData>({
   sorting = true,
   toolbar,
   pagination,
+  onRowClick,
 }: DataTableProps<TData>) {
   const [sortingState, setSortingState] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -76,7 +86,10 @@ export function DataTable<TData>({
 
   const onLoadMore = pagination?.onLoadMore;
   const autoLoad =
-    pagination?.view === "infinite" && pagination.hasMore && !pagination.isFetchingMore && onLoadMore;
+    pagination?.view === "infinite" &&
+    pagination.hasMore &&
+    !pagination.isFetchingMore &&
+    onLoadMore;
 
   return (
     <div className="space-y-3">
@@ -125,7 +138,22 @@ export function DataTable<TData>({
               </TableRow>
             ) : (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow
+                  key={row.id}
+                  className={onRowClick ? "cursor-pointer" : undefined}
+                  onClick={
+                    onRowClick
+                      ? (event) => {
+                          if (
+                            (event.target as HTMLElement).closest("button, a, [role='menuitem']")
+                          ) {
+                            return; // buttons and links keep their own action
+                          }
+                          onRowClick(row.original);
+                        }
+                      : undefined
+                  }
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

@@ -4,12 +4,12 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"net/http"
+	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/time/rate"
+
+	"github.com/your-org/go-template/internal/observ"
 )
 
 // securityHeaders sets hardening headers on every response. The SPA is
@@ -67,50 +67,29 @@ func sameHost(origin, host string) bool {
 	return strings.EqualFold(strings.TrimSuffix(origin, "/"), host)
 }
 
-type bucketEntry struct {
-	limiter  *rate.Limiter
-	lastSeen time.Time
-}
-
-type ipBuckets struct {
-	mu         sync.Mutex
-	buckets    map[string]*bucketEntry
-	newLimiter func() *rate.Limiter
-}
-
-func newIPBuckets(rps float64, burst int) *ipBuckets {
-	ib := &ipBuckets{buckets: map[string]*bucketEntry{}}
-	go func() {
-		for {
-			time.Sleep(time.Minute)
-			ib.mu.Lock()
-			for ip, b := range ib.buckets {
-				if time.Since(b.lastSeen) > 10*time.Minute {
-					delete(ib.buckets, ip)
-				}
-			}
-			ib.mu.Unlock()
-		}
-	}()
-	ib.newLimiter = func() *rate.Limiter { return rate.NewLimiter(rate.Limit(rps), burst) }
-	return ib
-}
-
-// authRateLimit throttles login and register attempts per client IP with a
-// token bucket; idle buckets are dropped after ten minutes.
-func (a *App) authRateLimit() gin.HandlerFunc {
+// rateLimitScope builds the per-scope limiter middleware. With the factory
+// wired the budget is shared by every api process (Redis sliding window);
+// without one, per-process token buckets do the job. Limiter failures fail
+// open: shedding traffic because the limiter is down would turn one outage
+// into two.
+func (a *App) rateLimitScope(scope string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		a.limits.mu.Lock()
-		b, ok := a.limits.buckets[c.ClientIP()]
-		if !ok {
-			b = &bucketEntry{limiter: a.limits.newLimiter()}
-			a.limits.buckets[c.ClientIP()] = b
+		limiter := a.limiters[scope]
+		if limiter == nil {
+			c.Next()
+			return
 		}
-		b.lastSeen = time.Now()
-		limiter := b.limiter
-		a.limits.mu.Unlock()
-
-		if !limiter.Allow() {
+		ok, retryAfter, err := limiter.Allow(c.Request.Context(), scope+":"+c.ClientIP())
+		if err != nil {
+			observ.RateLimitErrors.Inc()
+			c.Next()
+			return
+		}
+		if !ok {
+			observ.RateLimitRejected.WithLabelValues(scope).Inc()
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+			}
 			a.problem(c, http.StatusTooManyRequests, "too many requests", nil)
 			c.Abort()
 			return
@@ -118,3 +97,11 @@ func (a *App) authRateLimit() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// apiRateLimit sheds excess traffic across the whole /api surface, per
+// client IP, with the general API budget.
+func (a *App) apiRateLimit() gin.HandlerFunc { return a.rateLimitScope("api") }
+
+// authRateLimit throttles login, register, and password-reset attempts per
+// client IP with a much tighter budget than the general API limit.
+func (a *App) authRateLimit() gin.HandlerFunc { return a.rateLimitScope("auth") }

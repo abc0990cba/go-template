@@ -40,13 +40,13 @@ type EmailService struct {
 // in-app copies of password changes.
 func NewEmailService(tokens EmailTokensRepo, auth AuthRepo, sender mailer.Sender, baseURL string, logger *slog.Logger) *EmailService {
 	return &EmailService{
-		tokens:   tokens,
-		auth:     auth,
-		mailer:   sender,
-		baseURL:  strings.TrimRight(baseURL, "/"),
-		resetTTL: time.Hour,
+		tokens:    tokens,
+		auth:      auth,
+		mailer:    sender,
+		baseURL:   strings.TrimRight(baseURL, "/"),
+		resetTTL:  time.Hour,
 		verifyTTL: 24 * time.Hour,
-		logger:   logger,
+		logger:    logger,
 	}
 }
 

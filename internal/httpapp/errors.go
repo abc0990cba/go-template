@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/your-org/go-template/internal/reliability"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
 )
@@ -19,6 +20,10 @@ func httpError(err error) (int, string) {
 		return http.StatusConflict, "conflict"
 	case errors.Is(err, service.ErrInvalidTransition):
 		return http.StatusConflict, "invalid transition"
+	case errors.Is(err, service.ErrAlreadyReplayed):
+		return http.StatusConflict, "already replayed"
+	case errors.Is(err, reliability.ErrCircuitOpen):
+		return http.StatusServiceUnavailable, "dependency temporarily unavailable"
 	case errors.Is(err, service.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid credentials"
 	case errors.Is(err, service.ErrForbidden):

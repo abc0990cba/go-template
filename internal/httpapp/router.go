@@ -3,6 +3,7 @@
 package httpapp
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/oauth"
+	"github.com/your-org/go-template/internal/platform/ratelimit"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
@@ -27,16 +29,53 @@ type App struct {
 	pinger   service.Pinger
 	oauth    *oauth.Manager
 	hub      *realtime.Hub
-	limits   *ipBuckets
+	// limiters shed excess traffic per scope; memory in dev, Redis-backed
+	// when the factory is wired.
+	limiters map[string]ratelimit.Limiter
+	// idempotencyStore stores Idempotency-Key reservations; nil disables it.
+	idempotencyStore service.IdempotencyRepo
+	// demoEnricher publishes the admin console's test enrichment events;
+	// nil disables the buttons.
+	demoEnricher service.EnrichDemoPublisher
+	// readyProbes are extra readiness checks (broker pings), run after the
+	// store ping.
+	readyProbes []func(ctx context.Context) error
+}
+
+// Options carries the HTTP layer's optional dependencies; zero values keep
+// the previous behavior (in-memory rate limiting, no idempotency, store-only
+// readiness).
+type Options struct {
+	// LimiterFactory builds one limiter per scope ("api", "auth"); nil uses
+	// in-memory token buckets.
+	LimiterFactory func(scope string, rps float64, burst int) ratelimit.Limiter
+	Idempotency    service.IdempotencyRepo
+	DemoEnricher   service.EnrichDemoPublisher
+	ReadyProbes    []func(ctx context.Context) error
 }
 
 // NewRouter builds the complete Gin engine: middleware, health endpoints,
 // OpenAPI docs, the /api group with the SSE stream, and the embedded SPA.
-func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger, build observ.Build, hub *realtime.Hub) http.Handler {
+func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger, build observ.Build, hub *realtime.Hub, opts ...Options) http.Handler {
+	var o Options
+	if len(opts) > 0 {
+		o = opts[0]
+	}
+	limiters := map[string]ratelimit.Limiter{
+		"api":  ratelimit.NewMemory(cfg.APIRateRPS, cfg.APIRateBurst),
+		"auth": ratelimit.NewMemory(cfg.AuthRateRPS, cfg.AuthRateBurst),
+	}
+	if o.LimiterFactory != nil {
+		limiters["api"] = o.LimiterFactory("api", cfg.APIRateRPS, cfg.APIRateBurst)
+		limiters["auth"] = o.LimiterFactory("auth", cfg.AuthRateRPS, cfg.AuthRateBurst)
+	}
 	app := &App{
 		cfg: cfg, services: services, logger: logger, pinger: pinger,
 		oauth: oauth.NewManager(cfg), hub: hub,
-		limits: newIPBuckets(cfg.AuthRateRPS, cfg.AuthRateBurst),
+		limiters:         limiters,
+		idempotencyStore: o.Idempotency,
+		demoEnricher:     o.DemoEnricher,
+		readyProbes:      o.ReadyProbes,
 	}
 	r := gin.New()
 	r.Use(gin.Recovery(), app.securityHeaders(), app.requestID(), app.metrics(), app.accessLog(), app.bodyLimit())
@@ -55,7 +94,9 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	// JSON API. Authentication uses the session cookie (browser) or a
 	// Bearer token (non-browser clients); unsafe methods are additionally
 	// checked against Origin/Sec-Fetch-Site, replacing the old form CSRF.
-	api := r.Group("/api", app.originCheck())
+	// Every /api request passes the shared rate limiter; auth endpoints add
+	// a much tighter per-IP budget on top.
+	api := r.Group("/api", app.originCheck(), app.apiRateLimit())
 	api.POST("/auth/register", app.authRateLimit(), app.apiRegister)
 	api.POST("/auth/login", app.authRateLimit(), app.apiLogin)
 	api.POST("/auth/logout", app.apiLogout)
@@ -113,12 +154,21 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized.GET("/webhooks/:id/deliveries", app.requirePermission("webhooks", "read"), app.apiWebhookDeliveries)
 	authorized.POST("/webhooks/:id/test", app.requirePermission("webhooks", "execute"), app.apiTestWebhook)
 
+	// Event streams administration: the transactional outbox and the
+	// dead-letter queue with its replay path.
+	authorized.GET("/streams/outbox", app.requirePermission("streams", "read"), app.apiListOutbox)
+	authorized.GET("/streams/dead-letters", app.requirePermission("streams", "read"), app.apiListDeadLetters)
+	authorized.POST("/streams/dead-letters/:id/replay", app.requirePermission("streams", "replay"), app.apiReplayDeadLetter)
+	authorized.POST("/users/:id/enrich-demo", app.requirePermission("users", "update"), app.apiTriggerEnrichDemo)
+
 	// Tickets: requesters file and track their own, approvers decide on
 	// their queue. Fine-grained ownership and step-role checks live in the
-	// service; these guards keep the catalog permissions.
+	// service; these guards keep the catalog permissions. Filing a ticket
+	// accepts an Idempotency-Key so client retries replay instead of
+	// double-filing.
 	authorized.GET("/tickets", app.requirePermission("tickets", "read"), app.apiListTickets)
 	authorized.GET("/tickets/counts", app.requirePermission("tickets", "read"), app.apiTicketCounts)
-	authorized.POST("/tickets", app.requirePermission("tickets", "create"), app.apiCreateTicket)
+	authorized.POST("/tickets", app.idempotency(), app.requirePermission("tickets", "create"), app.apiCreateTicket)
 	authorized.GET("/tickets/:id", app.requirePermission("tickets", "read"), app.apiGetTicket)
 	authorized.PATCH("/tickets/:id", app.requirePermission("tickets", "update"), app.apiUpdateTicket)
 	authorized.DELETE("/tickets/:id", app.requirePermission("tickets", "delete"), app.apiDeleteTicket)
@@ -165,12 +215,21 @@ func (a *App) ok(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// ready reflects dependency health; a failing check yields 503.
+// ready reflects dependency health; a failing check yields 503. The store
+// ping runs first, then the optional probes (broker pings) — the API is only
+// "ready" when the infrastructure the operators configured is reachable.
 func (a *App) ready(c *gin.Context) {
 	if err := a.pinger.Ping(c.Request.Context()); err != nil {
 		a.logger.Error("readiness check failed", "err", err)
 		a.problem(c, http.StatusServiceUnavailable, "not ready", nil)
 		return
+	}
+	for _, probe := range a.readyProbes {
+		if err := probe(c.Request.Context()); err != nil {
+			a.logger.Error("readiness probe failed", "err", err)
+			a.problem(c, http.StatusServiceUnavailable, "not ready", nil)
+			return
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

@@ -32,11 +32,12 @@ import { Route as AdminPoliciesRouteImport } from './routes/admin.policies'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminRolesRouteImport } from './routes/admin.roles'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminStreamsRouteImport } from './routes/admin.streams'
 import { Route as AdminTicketTypesRouteImport } from './routes/admin.ticket-types'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminWebhooksRouteImport } from './routes/admin.webhooks'
-import { Route as ClientTicketsTicketIdRouteImport } from './routes/_client.tickets.$ticketId'
-import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users.$userId'
+import { Route as ClientTicketsTicketIdRouteImport } from './routes/_client.tickets_.$ticketId'
+import { Route as AdminUsersUserIdRouteImport } from './routes/admin.users_.$userId'
 
 const ClientRoute = ClientRouteImport.update({
   id: '/_client',
@@ -152,6 +153,11 @@ const AdminSettingsRoute = AdminSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminStreamsRoute = AdminStreamsRouteImport.update({
+  id: '/streams',
+  path: '/streams',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminTicketTypesRoute = AdminTicketTypesRouteImport.update({
   id: '/ticket-types',
   path: '/ticket-types',
@@ -168,14 +174,14 @@ const AdminWebhooksRoute = AdminWebhooksRouteImport.update({
   getParentRoute: () => AdminRoute,
 } as any)
 const ClientTicketsTicketIdRoute = ClientTicketsTicketIdRouteImport.update({
-  id: '/$ticketId',
-  path: '/$ticketId',
-  getParentRoute: () => ClientTicketsRoute,
+  id: '/tickets_/$ticketId',
+  path: '/tickets/$ticketId',
+  getParentRoute: () => ClientRoute,
 } as any)
 const AdminUsersUserIdRoute = AdminUsersUserIdRouteImport.update({
-  id: '/$userId',
-  path: '/$userId',
-  getParentRoute: () => AdminUsersRoute,
+  id: '/users_/$userId',
+  path: '/users/$userId',
+  getParentRoute: () => AdminRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -189,7 +195,7 @@ export interface FileRoutesByFullPath {
   '/approvals': typeof ClientApprovalsRoute
   '/notifications': typeof ClientNotificationsRoute
   '/profile': typeof ClientProfileRoute
-  '/tickets': typeof ClientTicketsRouteWithChildren
+  '/tickets': typeof ClientTicketsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/enrichment': typeof AdminEnrichmentRoute
@@ -200,8 +206,9 @@ export interface FileRoutesByFullPath {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/streams': typeof AdminStreamsRoute
   '/admin/ticket-types': typeof AdminTicketTypesRoute
-  '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
   '/admin/': typeof AdminIndexRoute
   '/tickets/$ticketId': typeof ClientTicketsTicketIdRoute
@@ -216,7 +223,7 @@ export interface FileRoutesByTo {
   '/approvals': typeof ClientApprovalsRoute
   '/notifications': typeof ClientNotificationsRoute
   '/profile': typeof ClientProfileRoute
-  '/tickets': typeof ClientTicketsRouteWithChildren
+  '/tickets': typeof ClientTicketsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/enrichment': typeof AdminEnrichmentRoute
@@ -227,8 +234,9 @@ export interface FileRoutesByTo {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/streams': typeof AdminStreamsRoute
   '/admin/ticket-types': typeof AdminTicketTypesRoute
-  '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
   '/': typeof ClientIndexRoute
   '/admin': typeof AdminIndexRoute
@@ -247,7 +255,7 @@ export interface FileRoutesById {
   '/_client/approvals': typeof ClientApprovalsRoute
   '/_client/notifications': typeof ClientNotificationsRoute
   '/_client/profile': typeof ClientProfileRoute
-  '/_client/tickets': typeof ClientTicketsRouteWithChildren
+  '/_client/tickets': typeof ClientTicketsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/enrichment': typeof AdminEnrichmentRoute
@@ -258,13 +266,14 @@ export interface FileRoutesById {
   '/admin/reports': typeof AdminReportsRoute
   '/admin/roles': typeof AdminRolesRoute
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/streams': typeof AdminStreamsRoute
   '/admin/ticket-types': typeof AdminTicketTypesRoute
-  '/admin/users': typeof AdminUsersRouteWithChildren
+  '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
   '/_client/': typeof ClientIndexRoute
   '/admin/': typeof AdminIndexRoute
-  '/_client/tickets/$ticketId': typeof ClientTicketsTicketIdRoute
-  '/admin/users/$userId': typeof AdminUsersUserIdRoute
+  '/_client/tickets_/$ticketId': typeof ClientTicketsTicketIdRoute
+  '/admin/users_/$userId': typeof AdminUsersUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -290,6 +299,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/roles'
     | '/admin/settings'
+    | '/admin/streams'
     | '/admin/ticket-types'
     | '/admin/users'
     | '/admin/webhooks'
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/roles'
     | '/admin/settings'
+    | '/admin/streams'
     | '/admin/ticket-types'
     | '/admin/users'
     | '/admin/webhooks'
@@ -347,13 +358,14 @@ export interface FileRouteTypes {
     | '/admin/reports'
     | '/admin/roles'
     | '/admin/settings'
+    | '/admin/streams'
     | '/admin/ticket-types'
     | '/admin/users'
     | '/admin/webhooks'
     | '/_client/'
     | '/admin/'
-    | '/_client/tickets/$ticketId'
-    | '/admin/users/$userId'
+    | '/_client/tickets_/$ticketId'
+    | '/admin/users_/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -529,6 +541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSettingsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/streams': {
+      id: '/admin/streams'
+      path: '/streams'
+      fullPath: '/admin/streams'
+      preLoaderRoute: typeof AdminStreamsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/ticket-types': {
       id: '/admin/ticket-types'
       path: '/ticket-types'
@@ -550,65 +569,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminWebhooksRouteImport
       parentRoute: typeof AdminRoute
     }
-    '/_client/tickets/$ticketId': {
-      id: '/_client/tickets/$ticketId'
-      path: '/$ticketId'
+    '/_client/tickets_/$ticketId': {
+      id: '/_client/tickets_/$ticketId'
+      path: '/tickets/$ticketId'
       fullPath: '/tickets/$ticketId'
       preLoaderRoute: typeof ClientTicketsTicketIdRouteImport
-      parentRoute: typeof ClientTicketsRoute
+      parentRoute: typeof ClientRoute
     }
-    '/admin/users/$userId': {
-      id: '/admin/users/$userId'
-      path: '/$userId'
+    '/admin/users_/$userId': {
+      id: '/admin/users_/$userId'
+      path: '/users/$userId'
       fullPath: '/admin/users/$userId'
       preLoaderRoute: typeof AdminUsersUserIdRouteImport
-      parentRoute: typeof AdminUsersRoute
+      parentRoute: typeof AdminRoute
     }
   }
 }
-
-interface ClientTicketsRouteChildren {
-  ClientTicketsTicketIdRoute: typeof ClientTicketsTicketIdRoute
-}
-
-const ClientTicketsRouteChildren: ClientTicketsRouteChildren = {
-  ClientTicketsTicketIdRoute: ClientTicketsTicketIdRoute,
-}
-
-const ClientTicketsRouteWithChildren = ClientTicketsRoute._addFileChildren(
-  ClientTicketsRouteChildren,
-)
 
 interface ClientRouteChildren {
   ClientApprovalsRoute: typeof ClientApprovalsRoute
   ClientNotificationsRoute: typeof ClientNotificationsRoute
   ClientProfileRoute: typeof ClientProfileRoute
-  ClientTicketsRoute: typeof ClientTicketsRouteWithChildren
+  ClientTicketsRoute: typeof ClientTicketsRoute
   ClientIndexRoute: typeof ClientIndexRoute
+  ClientTicketsTicketIdRoute: typeof ClientTicketsTicketIdRoute
 }
 
 const ClientRouteChildren: ClientRouteChildren = {
   ClientApprovalsRoute: ClientApprovalsRoute,
   ClientNotificationsRoute: ClientNotificationsRoute,
   ClientProfileRoute: ClientProfileRoute,
-  ClientTicketsRoute: ClientTicketsRouteWithChildren,
+  ClientTicketsRoute: ClientTicketsRoute,
   ClientIndexRoute: ClientIndexRoute,
+  ClientTicketsTicketIdRoute: ClientTicketsTicketIdRoute,
 }
 
 const ClientRouteWithChildren =
   ClientRoute._addFileChildren(ClientRouteChildren)
-
-interface AdminUsersRouteChildren {
-  AdminUsersUserIdRoute: typeof AdminUsersUserIdRoute
-}
-
-const AdminUsersRouteChildren: AdminUsersRouteChildren = {
-  AdminUsersUserIdRoute: AdminUsersUserIdRoute,
-}
-
-const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
-  AdminUsersRouteChildren,
-)
 
 interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
@@ -621,10 +618,12 @@ interface AdminRouteChildren {
   AdminReportsRoute: typeof AdminReportsRoute
   AdminRolesRoute: typeof AdminRolesRoute
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminStreamsRoute: typeof AdminStreamsRoute
   AdminTicketTypesRoute: typeof AdminTicketTypesRoute
-  AdminUsersRoute: typeof AdminUsersRouteWithChildren
+  AdminUsersRoute: typeof AdminUsersRoute
   AdminWebhooksRoute: typeof AdminWebhooksRoute
   AdminIndexRoute: typeof AdminIndexRoute
+  AdminUsersUserIdRoute: typeof AdminUsersUserIdRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
@@ -638,10 +637,12 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminReportsRoute: AdminReportsRoute,
   AdminRolesRoute: AdminRolesRoute,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminStreamsRoute: AdminStreamsRoute,
   AdminTicketTypesRoute: AdminTicketTypesRoute,
-  AdminUsersRoute: AdminUsersRouteWithChildren,
+  AdminUsersRoute: AdminUsersRoute,
   AdminWebhooksRoute: AdminWebhooksRoute,
   AdminIndexRoute: AdminIndexRoute,
+  AdminUsersUserIdRoute: AdminUsersUserIdRoute,
 }
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)

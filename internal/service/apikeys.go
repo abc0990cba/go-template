@@ -55,8 +55,8 @@ func (s *APIKeysService) Create(ctx context.Context, userID, name string, scopes
 	}
 	key := model.APIKey{
 		ID: newID(), UserID: userID, Name: name,
-		Prefix:   secret[:len(APIKeyPrefix)+6],
-		Scopes:   scopes,
+		Prefix:    secret[:len(APIKeyPrefix)+6],
+		Scopes:    scopes,
 		CreatedAt: now, ExpiresAt: expires,
 	}
 	if err := s.store.CreateAPIKey(ctx, key, encodeHash(sum)); err != nil {

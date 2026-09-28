@@ -32,6 +32,24 @@ func (e AuthIdentityProvider) Valid() bool {
 	}
 }
 
+// Defines values for EnrichDemoRequestSource.
+const (
+	Kafka EnrichDemoRequestSource = "kafka"
+	Nats  EnrichDemoRequestSource = "nats"
+)
+
+// Valid indicates whether the value is a known member of the EnrichDemoRequestSource enum.
+func (e EnrichDemoRequestSource) Valid() bool {
+	switch e {
+	case Kafka:
+		return true
+	case Nats:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobStatus.
 const (
 	JobStatusDone    JobStatus = "done"
@@ -735,13 +753,33 @@ type AuthIdentityProvider string
 // CreateUserRequest defines model for CreateUserRequest.
 type CreateUserRequest struct {
 	Email openapi_types.Email `json:"email"`
-	Name  *string             `json:"name,omitempty"`
+
+	// ExternalRef Correlation id for the enrichment streams.
+	ExternalRef *string `json:"external_ref,omitempty"`
+	Name        *string `json:"name,omitempty"`
 }
 
 // DayCount defines model for DayCount.
 type DayCount struct {
 	Count int64  `json:"count"`
 	Day   string `json:"day"`
+}
+
+// EnrichDemoRequest defines model for EnrichDemoRequest.
+type EnrichDemoRequest struct {
+	// Source Which stream to publish into.
+	Source EnrichDemoRequestSource `json:"source"`
+}
+
+// EnrichDemoRequestSource Which stream to publish into.
+type EnrichDemoRequestSource string
+
+// EnrichDemoResult defines model for EnrichDemoResult.
+type EnrichDemoResult struct {
+	EventId   string `json:"event_id"`
+	Published bool   `json:"published"`
+	Seq       int64  `json:"seq"`
+	Source    string `json:"source"`
 }
 
 // EnrichmentProfile defines model for EnrichmentProfile.
@@ -1097,16 +1135,29 @@ type TicketTypeList struct {
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
 	Email openapi_types.Email `json:"email"`
-	Name  string              `json:"name"`
+
+	// ExternalRef Correlation id for the enrichment streams.
+	ExternalRef *string `json:"external_ref,omitempty"`
+	Name        string  `json:"name"`
 }
 
 // User defines model for User.
 type User struct {
 	CreatedAt time.Time           `json:"created_at"`
 	Email     openapi_types.Email `json:"email"`
-	Id        string              `json:"id"`
-	Name      string              `json:"name"`
-	UpdatedAt time.Time           `json:"updated_at"`
+
+	// EnrichContact Raw JSON object of NATS-owned enrichment fields.
+	EnrichContact *string `json:"enrich_contact,omitempty"`
+
+	// EnrichProfile Raw JSON object of Kafka-owned enrichment fields.
+	EnrichProfile *string    `json:"enrich_profile,omitempty"`
+	EnrichedAt    *time.Time `json:"enriched_at,omitempty"`
+
+	// ExternalRef Correlation id used by the Kafka and NATS enrichment streams.
+	ExternalRef *string   `json:"external_ref,omitempty"`
+	Id          string    `json:"id"`
+	Name        string    `json:"name"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // UserList defines model for UserList.
@@ -1677,6 +1728,9 @@ type AddTicketCommentJSONRequestBody AddTicketCommentJSONBody
 
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody = CreateUserRequest
+
+// TriggerEnrichDemoJSONRequestBody defines body for TriggerEnrichDemo for application/json ContentType.
+type TriggerEnrichDemoJSONRequestBody = EnrichDemoRequest
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest

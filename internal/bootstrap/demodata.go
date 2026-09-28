@@ -231,11 +231,15 @@ func seedDemoUsers(ctx context.Context, repos Repos, rng *rand.Rand, now time.Ti
 			name = fixed
 		}
 		user := model.User{
-			ID:        id,
-			Email:     email,
-			Name:      name,
-			CreatedAt: createdAt,
-			UpdatedAt: createdAt,
+			ID: id,
+			// Every demo user carries its id as external_ref, so the
+			// enrichment demos can target them: devtools kafka-profile
+			// --ref demo-u-0001 merges into that account.
+			ExternalRef: id,
+			Email:       email,
+			Name:        name,
+			CreatedAt:   createdAt,
+			UpdatedAt:   createdAt,
 		}
 		// Argon2id at ~20 ms per hash: ten hashes are startup-cheap and give
 		// the quickstart ten real logins. The hash goes through the service

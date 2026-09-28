@@ -14,18 +14,20 @@ type UserService struct {
 	store UsersRepo
 }
 
-// Create adds a user without a password credential.
-func (s *UserService) Create(ctx context.Context, email, name string) (model.User, error) {
+// Create adds a user without a password credential. externalRef is the
+// correlation id the enrichment streams use; empty is fine.
+func (s *UserService) Create(ctx context.Context, email, name, externalRef string) (model.User, error) {
 	if !strings.Contains(email, "@") {
 		return model.User{}, validationError("email must be valid")
 	}
 	now := time.Now()
-	user := model.User{ID: newID(), Email: email, Name: name, CreatedAt: now, UpdatedAt: now}
+	user := model.User{ID: newID(), Email: email, Name: name, ExternalRef: externalRef, CreatedAt: now, UpdatedAt: now}
 	return user, s.store.CreateUser(ctx, user, "")
 }
 
-// Update rewrites the email and name of an existing user.
-func (s *UserService) Update(ctx context.Context, id, email, name string) (model.User, error) {
+// Update rewrites the email, name, and external_ref of an existing user.
+// The enrichment columns are stream-owned and never touched from here.
+func (s *UserService) Update(ctx context.Context, id, email, name, externalRef string) (model.User, error) {
 	if !strings.Contains(email, "@") {
 		return model.User{}, validationError("email must be valid")
 	}
@@ -35,6 +37,7 @@ func (s *UserService) Update(ctx context.Context, id, email, name string) (model
 	}
 	user.Email = email
 	user.Name = name
+	user.ExternalRef = externalRef
 	err = s.store.UpdateUser(ctx, user)
 	return user, err
 }

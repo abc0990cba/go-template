@@ -5,8 +5,33 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  external_ref?: string;
+  enrich_profile?: string;
+  enrich_contact?: string;
+  enriched_at?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface OutboxEvent {
+  id: string;
+  event_type: string;
+  aggregate_id: string;
+  payload: string;
+  created_at: string;
+  processed_at?: string | null;
+  attempts: number;
+}
+
+export interface DeadLetter {
+  id: string;
+  source: string;
+  topic: string;
+  payload: string;
+  reason: string;
+  attempts: number;
+  created_at: string;
+  replayed_at?: string | null;
 }
 
 export interface AuthIdentity {

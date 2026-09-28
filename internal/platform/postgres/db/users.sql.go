@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countUsers = `-- name: CountUsers :one
@@ -22,32 +24,44 @@ func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (id, email, name, created_at, updated_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, name, created_at, updated_at
+INSERT INTO users (id, email, name, external_ref, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, email, name, external_ref, created_at, updated_at
 `
 
 type CreateUserParams struct {
-	ID        string
-	Email     string
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          string
+	Email       string
+	Name        string
+	ExternalRef pgtype.Text
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
+type CreateUserRow struct {
+	ID          string
+	Email       string
+	Name        string
+	ExternalRef pgtype.Text
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (CreateUserRow, error) {
 	row := q.db.QueryRow(ctx, createUser,
 		arg.ID,
 		arg.Email,
 		arg.Name,
+		arg.ExternalRef,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	var i User
+	var i CreateUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.ExternalRef,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -91,18 +105,34 @@ func (q *Queries) DeleteUser(ctx context.Context, id string) (int64, error) {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT id, email, name, created_at, updated_at
+SELECT id, email, name, external_ref, enrich_profile, enrich_contact, enriched_at, created_at, updated_at
 FROM users
 WHERE id = $1
 `
 
-func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
+type GetUserRow struct {
+	ID            string
+	Email         string
+	Name          string
+	ExternalRef   pgtype.Text
+	EnrichProfile string
+	EnrichContact string
+	EnrichedAt    pgtype.Timestamptz
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) GetUser(ctx context.Context, id string) (GetUserRow, error) {
 	row := q.db.QueryRow(ctx, getUser, id)
-	var i User
+	var i GetUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.ExternalRef,
+		&i.EnrichProfile,
+		&i.EnrichContact,
+		&i.EnrichedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -110,7 +140,7 @@ func (q *Queries) GetUser(ctx context.Context, id string) (User, error) {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT u.id, u.email, u.name, u.created_at, u.updated_at,
+SELECT u.id, u.email, u.name, u.external_ref, u.enrich_profile, u.enrich_contact, u.enriched_at, u.created_at, u.updated_at,
        COALESCE(p.password_hash, '') AS password_hash
 FROM users u
 LEFT JOIN password_credentials p ON p.user_id = u.id
@@ -118,12 +148,16 @@ WHERE lower(u.email) = lower($1)
 `
 
 type GetUserByEmailRow struct {
-	ID           string
-	Email        string
-	Name         string
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-	PasswordHash string
+	ID            string
+	Email         string
+	Name          string
+	ExternalRef   pgtype.Text
+	EnrichProfile string
+	EnrichContact string
+	EnrichedAt    pgtype.Timestamptz
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+	PasswordHash  string
 }
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEmailRow, error) {
@@ -133,6 +167,10 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.ExternalRef,
+		&i.EnrichProfile,
+		&i.EnrichContact,
+		&i.EnrichedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.PasswordHash,
@@ -140,8 +178,43 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (GetUserByEm
 	return i, err
 }
 
+const getUserByExternalRef = `-- name: GetUserByExternalRef :one
+SELECT id, email, name, external_ref, enrich_profile, enrich_contact, enriched_at, created_at, updated_at
+FROM users
+WHERE external_ref = $1
+`
+
+type GetUserByExternalRefRow struct {
+	ID            string
+	Email         string
+	Name          string
+	ExternalRef   pgtype.Text
+	EnrichProfile string
+	EnrichContact string
+	EnrichedAt    pgtype.Timestamptz
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) GetUserByExternalRef(ctx context.Context, externalRef pgtype.Text) (GetUserByExternalRefRow, error) {
+	row := q.db.QueryRow(ctx, getUserByExternalRef, externalRef)
+	var i GetUserByExternalRefRow
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.ExternalRef,
+		&i.EnrichProfile,
+		&i.EnrichContact,
+		&i.EnrichedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const listUsersKeyset = `-- name: ListUsersKeyset :many
-SELECT u.id, u.email, u.name, u.created_at, u.updated_at
+SELECT u.id, u.email, u.name, u.external_ref, u.enrich_profile, u.enrich_contact, u.enriched_at, u.created_at, u.updated_at
 FROM users u
 WHERE ($1::text = '' OR (u.email || ' ' || u.name) ILIKE '%' || $1::text || '%')
   AND (
@@ -158,19 +231,35 @@ type ListUsersKeysetParams struct {
 	Lim   int32
 }
 
-func (q *Queries) ListUsersKeyset(ctx context.Context, arg ListUsersKeysetParams) ([]User, error) {
+type ListUsersKeysetRow struct {
+	ID            string
+	Email         string
+	Name          string
+	ExternalRef   pgtype.Text
+	EnrichProfile string
+	EnrichContact string
+	EnrichedAt    pgtype.Timestamptz
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) ListUsersKeyset(ctx context.Context, arg ListUsersKeysetParams) ([]ListUsersKeysetRow, error) {
 	rows, err := q.db.Query(ctx, listUsersKeyset, arg.Query, arg.After, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []ListUsersKeysetRow
 	for rows.Next() {
-		var i User
+		var i ListUsersKeysetRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
 			&i.Name,
+			&i.ExternalRef,
+			&i.EnrichProfile,
+			&i.EnrichContact,
+			&i.EnrichedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -185,7 +274,7 @@ func (q *Queries) ListUsersKeyset(ctx context.Context, arg ListUsersKeysetParams
 }
 
 const listUsersOffset = `-- name: ListUsersOffset :many
-SELECT u.id, u.email, u.name, u.created_at, u.updated_at
+SELECT u.id, u.email, u.name, u.external_ref, u.enrich_profile, u.enrich_contact, u.enriched_at, u.created_at, u.updated_at
 FROM users u
 WHERE ($1::text = '' OR (u.email || ' ' || u.name) ILIKE '%' || $1::text || '%')
 ORDER BY u.created_at DESC, u.id ASC
@@ -199,19 +288,35 @@ type ListUsersOffsetParams struct {
 	Lim   int32
 }
 
-func (q *Queries) ListUsersOffset(ctx context.Context, arg ListUsersOffsetParams) ([]User, error) {
+type ListUsersOffsetRow struct {
+	ID            string
+	Email         string
+	Name          string
+	ExternalRef   pgtype.Text
+	EnrichProfile string
+	EnrichContact string
+	EnrichedAt    pgtype.Timestamptz
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) ListUsersOffset(ctx context.Context, arg ListUsersOffsetParams) ([]ListUsersOffsetRow, error) {
 	rows, err := q.db.Query(ctx, listUsersOffset, arg.Query, arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []ListUsersOffsetRow
 	for rows.Next() {
-		var i User
+		var i ListUsersOffsetRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
 			&i.Name,
+			&i.ExternalRef,
+			&i.EnrichProfile,
+			&i.EnrichContact,
+			&i.EnrichedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -225,26 +330,62 @@ func (q *Queries) ListUsersOffset(ctx context.Context, arg ListUsersOffsetParams
 	return items, nil
 }
 
+const lockUserByExternalRefForSeq = `-- name: LockUserByExternalRefForSeq :one
+SELECT id, enrich_profile_seq, enrich_contact_seq
+FROM users
+WHERE external_ref = $1
+FOR UPDATE
+`
+
+type LockUserByExternalRefForSeqRow struct {
+	ID               string
+	EnrichProfileSeq int64
+	EnrichContactSeq int64
+}
+
+func (q *Queries) LockUserByExternalRefForSeq(ctx context.Context, externalRef pgtype.Text) (LockUserByExternalRefForSeqRow, error) {
+	row := q.db.QueryRow(ctx, lockUserByExternalRefForSeq, externalRef)
+	var i LockUserByExternalRefForSeqRow
+	err := row.Scan(&i.ID, &i.EnrichProfileSeq, &i.EnrichContactSeq)
+	return i, err
+}
+
 const updateUser = `-- name: UpdateUser :one
 UPDATE users
-SET email = $2, name = $3, updated_at = now()
+SET email = $2, name = $3, external_ref = $4, updated_at = now()
 WHERE id = $1
-RETURNING id, email, name, created_at, updated_at
+RETURNING id, email, name, external_ref, created_at, updated_at
 `
 
 type UpdateUserParams struct {
-	ID    string
-	Email string
-	Name  string
+	ID          string
+	Email       string
+	Name        string
+	ExternalRef pgtype.Text
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUser, arg.ID, arg.Email, arg.Name)
-	var i User
+type UpdateUserRow struct {
+	ID          string
+	Email       string
+	Name        string
+	ExternalRef pgtype.Text
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (UpdateUserRow, error) {
+	row := q.db.QueryRow(ctx, updateUser,
+		arg.ID,
+		arg.Email,
+		arg.Name,
+		arg.ExternalRef,
+	)
+	var i UpdateUserRow
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Name,
+		&i.ExternalRef,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

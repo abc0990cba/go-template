@@ -1,0 +1,12 @@
+DROP TABLE idempotency_keys;
+DROP TABLE dead_letters;
+DROP TABLE outbox;
+DROP TABLE processed_events;
+DROP INDEX users_external_ref_key;
+ALTER TABLE users
+  DROP COLUMN external_ref,
+  DROP COLUMN enrich_profile,
+  DROP COLUMN enrich_contact,
+  DROP COLUMN enrich_profile_seq,
+  DROP COLUMN enrich_contact_seq,
+  DROP COLUMN enriched_at;

@@ -1,0 +1,5 @@
+# Local-only smoke override: move the api host port when 8080 is taken.
+services:
+  api:
+    ports: !override
+      - "18080:8080"

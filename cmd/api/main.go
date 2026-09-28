@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/httpapp"
@@ -21,8 +23,10 @@ import (
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/mailer"
 	asynqqueue "github.com/your-org/go-template/internal/platform/queue"
+	"github.com/your-org/go-template/internal/platform/ratelimit"
 	"github.com/your-org/go-template/internal/platform/rbac"
 	"github.com/your-org/go-template/internal/realtime"
+	"github.com/your-org/go-template/internal/reliability"
 	"github.com/your-org/go-template/internal/service"
 )
 
@@ -92,6 +96,16 @@ func main() {
 		webhookDispatcher = asynqqueue.NewWebhookEnqueuer(cfg.RedisAddr)
 	}
 
+	// Distributed rate limiting shares one Redis budget across api
+	// processes; single-process mode keeps token buckets in memory.
+	redisClient := openRedis(cfg)
+
+	// Circuit breakers wrap outbound calls; transitions land in Prometheus.
+	breakers := reliability.NewBreakers(cfg.CBFailureThreshold, cfg.CBOpenTimeout)
+	breakers.SetOnChange(func(name string, from, to reliability.CircuitState) {
+		observ.RecordBreakerState(name, int(from), int(to))
+	})
+
 	// The policy engine guards every protected route; policies persist
 	// through the same store and system roles are re-seeded idempotently.
 	enforcer, err := rbac.NewEnforcer(repos.Rules)
@@ -105,7 +119,9 @@ func main() {
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
 		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
-		Webhooks: repos.Webhooks, Tickets: repos.Tickets, WebhookDispatcher: webhookDispatcher, Mailer: sender,
+		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
+		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers,
+		StreamsObserver: observ.NewStreamsObserver(),
 		Realtime: func(n model.Notification) {
 			hub.Publish(realtime.NewEvent(realtime.TypeNotification, n))
 			if bridge != nil {
@@ -142,7 +158,34 @@ func main() {
 		bootstrap.SeedDemoData(services, repos, cfg, logger)
 	}
 
-	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build, hub)
+	// Broker pings join the readiness check only when the streams are on.
+	// The probes are ping-only: the api never joins a consumer group — a
+	// non-polling member would hold partitions away from the worker.
+	var readyProbes []func(ctx context.Context) error
+	var demoEnricher *bootstrap.DemoEnricher
+	if len(cfg.KafkaBrokers) > 0 || cfg.NatsURL != "" {
+		probes, closeProbes := bootstrap.Probes(ctx, cfg, logger)
+		defer closeProbes()
+		readyProbes = probes
+		// Producer-only clients behind the admin console's "send test
+		// event" buttons; nil when a broker is unreachable.
+		demoEnricher = bootstrap.OpenDemoEnricher(ctx, cfg, logger)
+		if demoEnricher != nil {
+			defer demoEnricher.Close()
+		}
+	}
+
+	router := httpapp.NewRouter(cfg, services, logger, repos.Pinger, build, hub, httpapp.Options{
+		LimiterFactory: func(_ string, rps float64, burst int) ratelimit.Limiter {
+			if redisClient != nil {
+				return ratelimit.NewRedis(redisClient, time.Second, int(rps))
+			}
+			return ratelimit.NewMemory(rps, burst)
+		},
+		Idempotency:  repos.Idempotency,
+		DemoEnricher: demoEnricher,
+		ReadyProbes:  readyProbes,
+	})
 
 	server := &http.Server{
 		Addr:              cfg.HTTPAddr,
@@ -242,6 +285,15 @@ func openMailer(cfg config.Config, logger *slog.Logger) mailer.Sender {
 		return mailer.NewLogMailer(logger)
 	}
 	return mailer.NewSMTP(mailCfg, logger)
+}
+
+// openRedis connects the shared limiter client when Redis is configured;
+// nil keeps rate limiting in-process.
+func openRedis(cfg config.Config) *redis.Client {
+	if cfg.RedisAddr == "" {
+		return nil
+	}
+	return redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
 }
 
 // openQueue returns the asynq-backed job queue, or nil in single-process

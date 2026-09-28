@@ -28,7 +28,7 @@ func (a *App) auditActor(c *gin.Context) model.User {
 // marshalled into the diff column. Write failures never fail the request.
 func (a *App) audit(c *gin.Context, action, resourceType, resourceID string, before, after any) {
 	user := a.auditActor(c)
-	diff := ""
+	diff := "{}" // jsonb column: an empty string is not valid JSON
 	if before != nil || after != nil {
 		if raw, err := json.Marshal(map[string]any{"before": before, "after": after}); err == nil {
 			diff = string(raw)

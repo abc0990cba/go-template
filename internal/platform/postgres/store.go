@@ -36,6 +36,9 @@ var (
 	_ service.ReportsRepo   = (*Store)(nil)
 	_ service.AnalyticsRepo = (*Store)(nil)
 	_ service.TicketsRepo   = (*Store)(nil)
+
+	_ service.StreamsRepo     = (*Store)(nil)
+	_ service.IdempotencyRepo = (*Store)(nil)
 )
 
 // Store is a PostgreSQL-backed implementation of every service port.
@@ -143,7 +146,7 @@ func (s *Store) tx(ctx context.Context, fn func(q *db.Queries) error) error {
 
 // CreateUser writes the user and, with a hash, its credential and password identity in one transaction.
 func (s *Store) CreateUser(ctx context.Context, user model.User, passwordHash string) error {
-	params := db.CreateUserParams{ID: user.ID, Email: user.Email, Name: user.Name, CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
+	params := db.CreateUserParams{ID: user.ID, Email: user.Email, Name: user.Name, ExternalRef: textOrNull(user.ExternalRef), CreatedAt: user.CreatedAt, UpdatedAt: user.UpdatedAt}
 	if passwordHash == "" {
 		_, err := s.q.CreateUser(ctx, params)
 		return mapErr(err)
@@ -168,9 +171,10 @@ func (s *Store) CreateUser(ctx context.Context, user model.User, passwordHash st
 	})
 }
 
-// UpdateUser rewrites email and name and refreshes updated_at.
+// UpdateUser rewrites email, name, and external_ref, and refreshes updated_at.
+// The enrichment columns are stream-owned and never touched here.
 func (s *Store) UpdateUser(ctx context.Context, user model.User) error {
-	_, err := s.q.UpdateUser(ctx, db.UpdateUserParams{ID: user.ID, Email: user.Email, Name: user.Name})
+	_, err := s.q.UpdateUser(ctx, db.UpdateUserParams{ID: user.ID, Email: user.Email, Name: user.Name, ExternalRef: textOrNull(user.ExternalRef)})
 	return mapErr(err)
 }
 
@@ -192,7 +196,8 @@ func (s *Store) GetUser(ctx context.Context, id string) (model.User, error) {
 	if err != nil {
 		return model.User{}, mapErr(err)
 	}
-	return userFromRow(row), nil
+	return userFromColumns(row.ID, row.Email, row.Name, row.ExternalRef,
+		row.EnrichProfile, row.EnrichContact, row.EnrichedAt, row.CreatedAt, row.UpdatedAt), nil
 }
 
 // GetUserByEmail matches case-insensitively and returns the password hash.
@@ -202,7 +207,9 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (model.User, s
 		return model.User{}, "", mapErr(err)
 	}
 	return userFromRow(db.User{
-		ID: row.ID, Email: row.Email, Name: row.Name, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		ID: row.ID, Email: row.Email, Name: row.Name, ExternalRef: row.ExternalRef,
+		EnrichProfile: row.EnrichProfile, EnrichContact: row.EnrichContact, EnrichedAt: row.EnrichedAt,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}), row.PasswordHash, nil
 }
 
@@ -213,35 +220,82 @@ func (s *Store) ListUsers(ctx context.Context, opts repository.ListUsersOptions)
 		limit = int32(opts.Limit)
 	}
 	var (
-		rows []db.User
-		err  error
+		users []model.User
+		err   error
 	)
 	if (opts.Mode == "cursor" || opts.Mode == "keyset") && opts.After != "" {
+		var rows []db.ListUsersKeysetRow
 		rows, err = s.q.ListUsersKeyset(ctx, db.ListUsersKeysetParams{Query: opts.Query, After: opts.After, Lim: limit + 1}) // #nosec G115 -- limit is clamped to 1..100
+		if err == nil {
+			users = make([]model.User, 0, len(rows))
+			for _, row := range rows {
+				users = append(users, userFromColumns(row.ID, row.Email, row.Name, row.ExternalRef,
+					row.EnrichProfile, row.EnrichContact, row.EnrichedAt, row.CreatedAt, row.UpdatedAt))
+			}
+		}
 	} else {
 		off := int32(0)
 		if opts.Offset > 0 {
 			off = int32(min(opts.Offset, 1<<31-1)) // #nosec G115 -- clamped to int32 range
 		}
+		var rows []db.ListUsersOffsetRow
 		rows, err = s.q.ListUsersOffset(ctx, db.ListUsersOffsetParams{Query: opts.Query, Off: off, Lim: limit + 1})
+		if err == nil {
+			users = make([]model.User, 0, len(rows))
+			for _, row := range rows {
+				users = append(users, userFromColumns(row.ID, row.Email, row.Name, row.ExternalRef,
+					row.EnrichProfile, row.EnrichContact, row.EnrichedAt, row.CreatedAt, row.UpdatedAt))
+			}
+		}
 	}
 	if err != nil {
 		return nil, "", mapErr(err)
 	}
 	next := ""
-	if len(rows) > int(limit) {
-		rows = rows[:limit]
-		next = rows[limit-1].ID
-	}
-	users := make([]model.User, 0, len(rows))
-	for _, row := range rows {
-		users = append(users, userFromRow(row))
+	if len(users) > int(limit) {
+		users = users[:limit]
+		next = users[limit-1].ID
 	}
 	return users, next, nil
 }
 
 func userFromRow(row db.User) model.User {
-	return model.User{ID: row.ID, Email: row.Email, Name: row.Name, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return userFromColumns(row.ID, row.Email, row.Name, row.ExternalRef,
+		row.EnrichProfile, row.EnrichContact, row.EnrichedAt, row.CreatedAt, row.UpdatedAt)
+}
+
+// userFromColumns assembles the domain user from the shared column set every
+// user-reading query returns; the generated row structs feed it.
+func userFromColumns(id, email, name string, externalRef pgtype.Text,
+	enrichProfile, enrichContact string, enrichedAt pgtype.Timestamptz, createdAt, updatedAt time.Time,
+) model.User {
+	var at *time.Time
+	if enrichedAt.Valid {
+		t := enrichedAt.Time
+		at = &t
+	}
+	return model.User{
+		ID: id, Email: email, Name: name,
+		ExternalRef:   externalRef.String,
+		EnrichProfile: enrichProfile,
+		EnrichContact: enrichContact,
+		EnrichedAt:    at,
+		CreatedAt:     createdAt, UpdatedAt: updatedAt,
+	}
+}
+
+// textOrNull maps "" to SQL NULL for nullable text columns.
+func textOrNull(value string) pgtype.Text {
+	return pgtype.Text{String: value, Valid: value != ""}
+}
+
+// timeFromPtr converts a nullable timestamptz back to a *time.Time.
+func timeFromPtr(ts pgtype.Timestamptz) *time.Time {
+	if !ts.Valid {
+		return nil
+	}
+	t := ts.Time
+	return &t
 }
 
 // CountUsers returns the number of users, 0 when the query fails.
@@ -643,6 +697,12 @@ func (s *Store) ResetDemoData(ctx context.Context) error {
 			return mapErr(err)
 		}
 		if _, err := q.DeleteDemoAudit(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoProcessedEvents(ctx); err != nil {
+			return mapErr(err)
+		}
+		if _, err := q.DeleteDemoOutbox(ctx); err != nil {
 			return mapErr(err)
 		}
 		_, err := q.DeleteDemoUsers(ctx)

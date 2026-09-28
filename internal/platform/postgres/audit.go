@@ -46,7 +46,7 @@ func (s *Store) ListAudit(ctx context.Context, opts repository.AuditOptions) ([]
 	for _, row := range rows {
 		entries = append(entries, model.AuditEntry{
 			ID: strconv.FormatInt(row.ID, 10), ActorID: row.ActorID, ActorEmail: row.ActorEmail,
-			Action: row.Action,
+			Action:       row.Action,
 			ResourceType: row.ResourceType, ResourceID: row.ResourceID, Domain: row.Domain,
 			Diff: row.Diff, IP: row.Ip, RequestID: row.RequestID, CreatedAt: row.CreatedAt,
 		})

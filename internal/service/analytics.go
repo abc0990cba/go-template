@@ -70,7 +70,6 @@ func (s *AnalyticsService) RecentEvents(ctx context.Context, limit int) []model.
 	return events
 }
 
-
 // validDimensions are the JSON properties the breakdown endpoint accepts;
 // anything else is rejected to keep the query surface explicit.
 var validDimensions = map[string]bool{"feature": true, "source": true, "country": true}

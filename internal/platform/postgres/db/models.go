@@ -60,6 +60,17 @@ type CasbinRule struct {
 	V5    string
 }
 
+type DeadLetter struct {
+	ID         string
+	Source     string
+	Topic      string
+	Payload    string
+	Reason     string
+	Attempts   int32
+	ReplayedAt pgtype.Timestamptz
+	CreatedAt  time.Time
+}
+
 type EmailToken struct {
 	ID        string
 	UserID    string
@@ -68,6 +79,19 @@ type EmailToken struct {
 	ExpiresAt time.Time
 	UsedAt    pgtype.Timestamptz
 	CreatedAt time.Time
+}
+
+type IdempotencyKey struct {
+	Key          string
+	UserID       string
+	Method       string
+	Path         string
+	RequestHash  string
+	Status       int32
+	ResponseBody []byte
+	ContentType  string
+	CreatedAt    time.Time
+	ExpiresAt    time.Time
 }
 
 type Job struct {
@@ -115,10 +139,30 @@ type Organization struct {
 	UpdatedAt time.Time
 }
 
+type Outbox struct {
+	ID          string
+	EventType   string
+	AggregateID string
+	Payload     string
+	Headers     string
+	Attempts    int32
+	ClaimedAt   pgtype.Timestamptz
+	ProcessedAt pgtype.Timestamptz
+	CreatedAt   time.Time
+}
+
 type PasswordCredential struct {
 	UserID       string
 	PasswordHash string
 	UpdatedAt    time.Time
+}
+
+type ProcessedEvent struct {
+	Source      string
+	EventID     string
+	UserID      string
+	Seq         int64
+	ProcessedAt time.Time
 }
 
 type Report struct {
@@ -217,11 +261,17 @@ type TicketType struct {
 }
 
 type User struct {
-	ID        string
-	Email     string
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID               string
+	Email            string
+	Name             string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	ExternalRef      pgtype.Text
+	EnrichProfile    string
+	EnrichContact    string
+	EnrichProfileSeq int64
+	EnrichContactSeq int64
+	EnrichedAt       pgtype.Timestamptz
 }
 
 type UserEnrichmentProfile struct {

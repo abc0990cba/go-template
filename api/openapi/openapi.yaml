@@ -194,6 +194,28 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
         default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [users]
+      summary: Publish a test enrichment event for this user
+      description: >-
+        Manual-testing hook: publishes one real profile (Kafka) or contact
+        (NATS) event carrying the user's external_ref and the next sequence
+        number. The stream consumers apply it exactly like production traffic;
+        the user's enrichment fields update within moments.
+      operationId: triggerEnrichDemo
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/EnrichDemoRequest" }
+      responses:
+        "200":
+          description: Event published
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EnrichDemoResult" }
+        default: { $ref: "#/components/responses/Problem" }
     delete:
       tags: [users]
       summary: Delete a user
@@ -1886,6 +1908,19 @@ components:
         id: { type: string }
         email: { type: string, format: email }
         name: { type: string }
+        external_ref:
+          type: string
+          description: Correlation id used by the Kafka and NATS enrichment streams.
+        enrich_profile:
+          type: string
+          description: Raw JSON object of Kafka-owned enrichment fields.
+        enrich_contact:
+          type: string
+          description: Raw JSON object of NATS-owned enrichment fields.
+        enriched_at:
+          type: string
+          format: date-time
+          nullable: true
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     UserWithToken:
@@ -1913,12 +1948,30 @@ components:
       properties:
         email: { type: string, format: email }
         name: { type: string }
+        external_ref: { type: string, description: Correlation id for the enrichment streams. }
     UpdateUserRequest:
       type: object
       required: [email, name]
       properties:
         email: { type: string, format: email }
         name: { type: string }
+        external_ref: { type: string, description: Correlation id for the enrichment streams. }
+    EnrichDemoRequest:
+      type: object
+      required: [source]
+      properties:
+        source:
+          type: string
+          enum: [kafka, nats]
+          description: Which stream to publish into.
+    EnrichDemoResult:
+      type: object
+      required: [published, source, event_id, seq]
+      properties:
+        published: { type: boolean }
+        source: { type: string }
+        event_id: { type: string }
+        seq: { type: integer, format: int64 }
     UserList:
       type: object
       required: [data]

@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2"
+	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 
 	"github.com/your-org/go-template/internal/model"
@@ -195,7 +195,6 @@ func TestOrgMembershipLifecycle(t *testing.T) {
 		t.Error("role assignments must be revoked when membership ends")
 	}
 }
-
 
 // testAdapter is a minimal Casbin persist.Adapter over the memory store,
 // mirroring the production adapter in internal/platform/rbac without

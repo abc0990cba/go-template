@@ -37,6 +37,7 @@ type JobService struct {
 	notifications  *NotificationsService
 	logger         *slog.Logger
 	client         *http.Client
+	breakers       *reliability.Breakers
 	maxConcurrency int
 }
 
@@ -199,30 +200,16 @@ func (s *JobService) RunJob(ctx context.Context, jobID string, run func(context.
 // EnrichBatch fetches count external profiles with bounded concurrency and
 // retries; it is the body of user.enrich_batch. Each profile is stored with
 // its raw JSON payload — user_enrichment_profiles.payload is a jsonb column,
-// so the stored value must be valid JSON.
+// so the stored value must be valid JSON. The upstream call runs behind the
+// enrichment.http circuit breaker: a failing dependency opens the breaker
+// and the batch fails fast instead of hammering it.
 func (s *JobService) EnrichBatch(ctx context.Context, count int) error {
 	return reliability.RunBounded(ctx, count, s.maxConcurrency, func(ctx context.Context, i int) error {
 		return reliability.Retry(ctx, 3, 100*time.Millisecond, func() error {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, enrichBatchURL, nil)
+			payload, err := s.fetchExternalProfile(ctx)
 			if err != nil {
 				return err
 			}
-			resp, err := s.client.Do(req)
-			if err != nil {
-				return err
-			}
-			defer func() { _ = resp.Body.Close() }()
-			if resp.StatusCode >= 500 {
-				return fmt.Errorf("transient upstream status %d", resp.StatusCode)
-			}
-			if resp.StatusCode >= 400 {
-				return reliability.PermanentError{Err: fmt.Errorf("permanent upstream status %d", resp.StatusCode)}
-			}
-			raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-			if err != nil {
-				return fmt.Errorf("read upstream profile: %w", err)
-			}
-			payload := strings.TrimSpace(string(raw))
 			if !json.Valid([]byte(payload)) {
 				// Defensive: keep the record jsonb-safe if the upstream
 				// body ever stops being JSON.
@@ -233,6 +220,40 @@ func (s *JobService) EnrichBatch(ctx context.Context, count int) error {
 			})
 		})
 	})
+}
+
+// fetchExternalProfile performs one guarded upstream call and returns the
+// raw body. 5xx responses count as breaker failures; 4xx are permanent and
+// never trip it.
+func (s *JobService) fetchExternalProfile(ctx context.Context) (string, error) {
+	var payload string
+	err := s.breakers.Do(ctx, "enrichment.http", func() error {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, enrichBatchURL, nil)
+		if err != nil {
+			return err
+		}
+		resp, err := s.client.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode >= 500 {
+			return fmt.Errorf("transient upstream status %d", resp.StatusCode)
+		}
+		if resp.StatusCode >= 400 {
+			return reliability.PermanentError{Err: fmt.Errorf("permanent upstream status %d", resp.StatusCode)}
+		}
+		raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+		if err != nil {
+			return fmt.Errorf("read upstream profile: %w", err)
+		}
+		payload = strings.TrimSpace(string(raw))
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return payload, nil
 }
 
 // GenerateReport builds a snapshot report and stores it; it is the body of

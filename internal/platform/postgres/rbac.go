@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	_ service.OrgsRepo  = (*Store)(nil)
-	_ service.RolesRepo = (*Store)(nil)
+	_ service.OrgsRepo     = (*Store)(nil)
+	_ service.RolesRepo    = (*Store)(nil)
 	_ repository.RuleStore = (*Store)(nil)
 )
 
