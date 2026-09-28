@@ -43,7 +43,7 @@ func (a *App) apiListTickets(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": tickets, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(tickets), "next_cursor": next})
 }
 
 // apiTicketCounts serves the per-status counts for the page's chips, scoped
@@ -146,7 +146,7 @@ func (a *App) apiTicketComments(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": comments})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(comments)})
 }
 
 func (a *App) apiAddTicketComment(c *gin.Context) {
@@ -172,7 +172,7 @@ func (a *App) apiTicketEvents(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": events})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(events)})
 }
 
 // apiApprovals serves the approver's two views: state=pending is the inbox
@@ -186,7 +186,7 @@ func (a *App) apiApprovals(c *gin.Context) {
 			a.fail(c, err)
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": decisions})
+		c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(decisions)})
 		return
 	}
 	tickets, next, err := a.services.Tickets.Inbox(c.Request.Context(), actor, listOptions(c))
@@ -194,7 +194,7 @@ func (a *App) apiApprovals(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": tickets, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(tickets), "next_cursor": next})
 }
 
 // --- Ticket types -------------------------------------------------------
@@ -205,7 +205,7 @@ func (a *App) apiTicketTypes(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": types})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(types)})
 }
 
 func (a *App) apiCreateTicketType(c *gin.Context) {

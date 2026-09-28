@@ -30,7 +30,9 @@ export function IconActionButton({
         <Button
           variant="ghost"
           size="icon"
-          className={`size-7 ${destructive ? "text-destructive" : ""}`}
+          // 36px touch target on phones (28px on desktop): row actions stay
+          // thumb-accurate without inflating desktop row density.
+          className={`size-9 md:size-7 ${destructive ? "text-destructive" : ""}`}
           onClick={onClick}
           disabled={disabled}
           aria-label={label}

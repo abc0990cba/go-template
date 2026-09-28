@@ -117,6 +117,7 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized.GET("/users/:id", app.requirePermission("users", "read"), app.apiGetUser)
 	authorized.PUT("/users/:id", app.requirePermission("users", "update"), app.apiUpdateUser)
 	authorized.DELETE("/users/:id", app.requirePermission("users", "delete"), app.apiDeleteUser)
+	authorized.GET("/users/:id/activity", app.requirePermission("audit", "read"), app.apiUserActivity)
 	authorized.GET("/jobs", app.requirePermission("jobs", "read"), app.apiJobs)
 	authorized.GET("/jobs/:id", app.requirePermission("jobs", "read"), app.apiGetJob)
 	authorized.POST("/jobs/process", app.requirePermission("jobs", "execute"), app.apiProcessJob)

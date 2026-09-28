@@ -158,7 +158,7 @@ function DashboardPage() {
         </CardHeader>
         <CardContent>
           <ul className="divide-y text-sm">
-            {jobs.data.map((job) => (
+            {(jobs.data ?? []).map((job) => (
               <li key={job.id} className="flex items-center justify-between gap-3 py-2">
                 <div className="min-w-0">
                   <p className="truncate font-mono text-xs">{job.id}</p>

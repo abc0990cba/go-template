@@ -2,7 +2,6 @@ import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { useState } from "react";
 import { Building2, Globe, Search } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +14,7 @@ import { IdentityChip } from "@/components/identity-chip";
 import { LiveBadge } from "@/components/live-badge";
 import { NotificationBell } from "@/components/notification-bell";
 import { ThemeMenu } from "@/components/theme-menu";
+import { UserAvatar } from "@/components/user-avatar";
 import { setActiveOrg } from "@/lib/api";
 import { meQuery } from "@/lib/auth";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -34,7 +34,8 @@ export function HeaderWidgets({ onOpenSearch }: { onOpenSearch?: () => void }) {
       {onOpenSearch ? <SearchButton onClick={onOpenSearch} /> : null}
       <OrgSwitcher />
       <NotificationBell />
-      <LiveBadge />
+      {/* The stream status is chrome, not content: phones get the space back. */}
+      <LiveBadge className="hidden md:inline-flex" />
       <LanguageToggle locale={locale} setLocale={setLocale} />
       <ThemeMenu />
     </>
@@ -158,9 +159,7 @@ export function AccountAvatar({
       aria-label="Account menu"
       {...props}
     >
-      <Avatar className="size-8">
-        <AvatarFallback>{initials(name || email)}</AvatarFallback>
-      </Avatar>
+      <UserAvatar name={name} email={email} className="size-8" fallbackClassName="text-xs" />
     </Button>
   );
 }

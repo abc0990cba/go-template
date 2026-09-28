@@ -1,15 +1,8 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserAvatar } from "@/components/user-avatar";
 import { meQuery } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
-
-function initials(nameOrEmail: string) {
-  const parts = nameOrEmail.split(/[\s@.]+/).filter(Boolean);
-  const first = parts.at(0)?.charAt(0) ?? "?";
-  const second = parts.at(1)?.charAt(0) ?? "";
-  return (first + second).toUpperCase();
-}
 
 /**
  * IdentityChip answers "on whose behalf am I looking at the service":
@@ -28,9 +21,12 @@ export function IdentityChip() {
 
   return (
     <div className="hidden items-center gap-2 rounded-full border py-1 pl-1 pr-2 xl:flex">
-      <Avatar className="size-7">
-        <AvatarFallback className="text-xs">{initials(me.name || me.email)}</AvatarFallback>
-      </Avatar>
+      <UserAvatar
+        name={me.name}
+        email={me.email}
+        className="size-7"
+        fallbackClassName="text-xs"
+      />
       <div className="hidden leading-tight xl:block">
         <p className="max-w-36 truncate text-xs font-medium">{me.name || me.email}</p>
         <p className="max-w-36 truncate text-[10px] text-muted-foreground">{scope}</p>

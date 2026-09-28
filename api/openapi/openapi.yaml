@@ -876,9 +876,39 @@ paths:
         - { name: actor, in: query, schema: { type: string } }
         - { name: action, in: query, schema: { type: string } }
         - { name: resource, in: query, schema: { type: string } }
+        - { name: resource_id, in: query, schema: { type: string } }
       responses:
         "200":
           description: Newest audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/AuditEntry" }
+                  next_cursor: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/{id}/activity:
+    get:
+      tags: [audit]
+      summary: One user's audit history
+      description: >-
+        Every audit record where the user is the actor or the subject
+        (resource_type 'user' entries about the account) — the feed behind the
+        user card's history timeline. next_cursor carries the next offset while
+        more records exist.
+      operationId: getUserActivity
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/userId"
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+      responses:
+        "200":
+          description: Newest entries first
           content:
             application/json:
               schema:

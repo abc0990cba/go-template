@@ -18,7 +18,7 @@ func (a *App) apiNotifications(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": notifications, "next_cursor": ""})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(notifications), "next_cursor": ""})
 }
 
 func (a *App) apiUnreadCount(c *gin.Context) {

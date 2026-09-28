@@ -279,16 +279,27 @@ export const api = {
   markAllNotificationsRead: () => post<void>("/api/notifications/read-all"),
 
   listAudit: (
-    params: Partial<ListParams> & { actor?: string; action?: string; resource?: string },
+    params: Partial<ListParams> & {
+      actor?: string;
+      action?: string;
+      resource?: string;
+      resource_id?: string;
+    },
   ) => {
     const base = buildListQuery(params);
     const extra = new URLSearchParams();
     if (params.actor) extra.set("actor", params.actor);
     if (params.action) extra.set("action", params.action);
     if (params.resource) extra.set("resource", params.resource);
+    if (params.resource_id) extra.set("resource_id", params.resource_id);
     const suffix = extra.toString();
     return get<Paged<AuditEntry>>(`/api/audit?${suffix ? base + "&" + suffix : base}`);
   },
+  /** One user's history: audit records where they are actor or subject. */
+  userActivity: (id: string, limit = 25, offset = 0) =>
+    get<Paged<AuditEntry>>(
+      `/api/users/${encodeURIComponent(id)}/activity?limit=${limit}&offset=${offset}`,
+    ),
   listRoles: () => get<Paged<Role>>("/api/roles").then((p) => p.data),
   createRole: (key: string, name: string, description: string) =>
     post<Role>("/api/roles", { key, name, description }),

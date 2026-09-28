@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import { z } from "zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, KeySquare, Loader2, ScrollText, ShieldCheck, Users } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -79,107 +79,131 @@ function LoginPage() {
     staleTime: 5 * 60_000,
   });
   const demoMode = demo.data?.demo_mode === "true";
-  const containerClass = demoMode
-    ? "grid w-full max-w-5xl items-start gap-6 lg:grid-cols-[360px_1fr]"
-    : "w-full max-w-sm space-y-4";
 
   return (
-    <div className="flex min-h-svh items-center justify-center p-4 md:p-6">
-      <div className={containerClass}>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-xl">Go Template Admin</CardTitle>
-            <CardDescription>Sign in to manage users, jobs, and analytics.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form
-                onSubmit={form.handleSubmit((values) => login.mutate(values))}
-                className="space-y-4"
-              >
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="email"
-                          autoComplete="email"
-                          placeholder="you@example.com"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <div className="relative">
+    <div className="relative flex min-h-svh items-center justify-center overflow-hidden p-4 sm:p-6 md:p-8">
+      {/* Decorative background washes — subtle on purpose, they only tint
+          the corners so the cards stay the focus. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(48rem_32rem_at_115%_-10%,rgba(139,92,246,0.13),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(42rem_30rem_at_-15%_110%,rgba(14,165,233,0.12),transparent)]" />
+      </div>
+
+      <div className="grid w-full max-w-6xl grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]">
+        <div className="space-y-4">
+          <Card className="shadow-xl shadow-primary/5">
+            <CardHeader className="gap-4">
+              <div className="flex items-center gap-3">
+                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-sky-500 to-violet-600 text-lg font-bold text-white shadow-md">
+                  G
+                </span>
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="text-xl">Go Template Admin</CardTitle>
+                  <CardDescription>
+                    Sign in to manage users, jobs, and analytics.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Form {...form}>
+                <form
+                  onSubmit={form.handleSubmit((values) => login.mutate(values))}
+                  className="space-y-4"
+                >
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
                           <Input
-                            type={showPassword ? "text" : "password"}
-                            autoComplete="current-password"
-                            placeholder="••••••••"
-                            className="pr-10"
+                            type="email"
+                            inputMode="email"
+                            autoComplete="email"
+                            placeholder="you@example.com"
                             {...field}
                           />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword((previous) => !previous)}
-                            className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground"
-                            aria-label={showPassword ? "Hide password" : "Show password"}
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between">
+                          <FormLabel>Password</FormLabel>
+                          <Link
+                            to="/forgot-password"
+                            className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                           >
-                            {showPassword ? (
-                              <EyeOff className="size-4" />
-                            ) : (
-                              <Eye className="size-4" />
-                            )}
-                          </button>
+                            Forgot password?
+                          </Link>
                         </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={login.isPending}>
-                  {login.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Sign in
-                </Button>
-              </form>
-            </Form>
-            <Link
-              to="/forgot-password"
-              className="text-center text-sm text-muted-foreground hover:text-foreground"
-            >
-              Forgot your password?
-            </Link>
-            <p className="mt-4 text-center text-sm text-muted-foreground">
-              No account?{" "}
-              <a href="/register" className="font-medium underline underline-offset-4">
-                Register
-              </a>
-            </p>
-          </CardContent>
-        </Card>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              autoComplete="current-password"
+                              placeholder="••••••••"
+                              className="pr-10"
+                              {...field}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword((previous) => !previous)}
+                              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground"
+                              aria-label={showPassword ? "Hide password" : "Show password"}
+                            >
+                              {showPassword ? (
+                                <EyeOff className="size-4" />
+                              ) : (
+                                <Eye className="size-4" />
+                              )}
+                            </button>
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button
+                    type="submit"
+                    className="w-full bg-linear-to-r from-sky-600 to-violet-600 text-white hover:from-sky-500 hover:to-violet-500"
+                    disabled={login.isPending}
+                  >
+                    {login.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+                    Sign in
+                  </Button>
+                </form>
+              </Form>
+              <p className="mt-4 text-center text-sm text-muted-foreground">
+                No account?{" "}
+                <a href="/register" className="font-medium underline underline-offset-4">
+                  Register
+                </a>
+              </p>
+            </CardContent>
+          </Card>
 
-        {!demoMode && (
-          <Alert>
-            <AlertTitle>Demo credentials</AlertTitle>
-            <AlertDescription>
-              The pre-filled <code>demo@go-template.local</code> / <code>demo-password-123</code>{" "}
-              account comes from the demo seed (APP_DEMO_EMAIL / APP_DEMO_PASSWORD).
-            </AlertDescription>
-          </Alert>
-        )}
+          {!demoMode && (
+            <Alert>
+              <KeySquare />
+              <AlertTitle>Demo credentials</AlertTitle>
+              <AlertDescription>
+                The pre-filled <code className="whitespace-nowrap">demo@go-template.local</code> /{" "}
+                <code className="whitespace-nowrap">demo-password-123</code> account comes from the
+                demo seed (APP_DEMO_EMAIL / APP_DEMO_PASSWORD).
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
 
-        {demoMode && (
+        {demoMode ? (
           <I18nProvider>
             <div className="min-w-0 space-y-3">
               <div>
@@ -192,8 +216,56 @@ function LoginPage() {
               <DemoAccountPicker />
             </div>
           </I18nProvider>
+        ) : (
+          <BrandPanel />
         )}
       </div>
+    </div>
+  );
+}
+
+/** Feature panel filling the right column when the demo picker is off. */
+function BrandPanel() {
+  const features = [
+    {
+      icon: Users,
+      title: "Users, roles & permissions",
+      text: "Full RBAC with Casbin, per-tenant grants, and a complete audit trail of every change.",
+    },
+    {
+      icon: ScrollText,
+      title: "Background jobs & event streams",
+      text: "Queued work with live status, Kafka/NATS enrichment, and a dead-letter console.",
+    },
+    {
+      icon: ShieldCheck,
+      title: "Production shape",
+      text: "OpenAPI contract, metrics, traces, and resilience tooling — all in one binary.",
+    },
+  ];
+  return (
+    <div className="hidden min-w-0 space-y-6 self-center lg:block">
+      <div>
+        <h2 className="text-2xl font-semibold tracking-tight">
+          One service, the whole platform shape
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          A deliberately small Go + React playground that behaves like a real product.
+        </p>
+      </div>
+      <ul className="space-y-4">
+        {features.map((feature) => (
+          <li key={feature.title} className="flex gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-card shadow-xs">
+              <feature.icon className="size-4.5 text-primary" />
+            </span>
+            <div>
+              <p className="text-sm font-medium">{feature.title}</p>
+              <p className="text-sm text-muted-foreground">{feature.text}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

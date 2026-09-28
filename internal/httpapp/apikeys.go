@@ -16,7 +16,7 @@ func (a *App) apiListAPIKeys(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": keys})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(keys)})
 }
 
 // apiCreateAPIKey issues a key; the raw secret appears exactly once.

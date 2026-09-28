@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +23,8 @@ import { DataTable } from "@/components/data-table/data-table";
 import { IconActionButton } from "@/components/icon-action-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { ExplainerBanner } from "@/components/explainer-banner";
+import { UserAvatar } from "@/components/user-avatar";
+import { UserRolesDialog } from "@/components/user-roles-dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -45,7 +47,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { listSearchSchema, type ListSearch } from "@/lib/search";
-import type { PolicyRule, User } from "@/lib/types";
+import type { User } from "@/lib/types";
 import {
   Form,
   FormControl,
@@ -94,15 +96,35 @@ function UsersPage() {
     {
       accessorKey: "name",
       header: "Name",
-      cell: ({ row }) => <span className="font-medium">{row.original.name || "—"}</span>,
+      cell: ({ row }) => (
+        <div className="flex min-w-0 items-center gap-2.5">
+          <UserAvatar
+            name={row.original.name}
+            email={row.original.email}
+            className="size-9 shrink-0 md:size-8"
+          />
+          {/* Floor width: on phones the panel pans horizontally (actions are
+              pinned) instead of squeezing the name into a sliver. */}
+          <div className="min-w-36 flex-1 sm:min-w-0">
+            <span className="block max-w-40 truncate font-medium sm:max-w-56">
+              {row.original.name || "—"}
+            </span>
+            <span className="block max-w-40 truncate font-mono text-xs text-muted-foreground md:hidden">
+              {row.original.email}
+            </span>
+          </div>
+        </div>
+      ),
     },
     {
       accessorKey: "email",
       header: "Email",
+      meta: { cellClass: "hidden md:table-cell", headerClass: "hidden md:table-cell" },
     },
     {
       accessorKey: "created_at",
       header: "Created",
+      meta: { cellClass: "hidden lg:table-cell", headerClass: "hidden lg:table-cell" },
       cell: ({ row }) => (
         <span className="text-muted-foreground">
           {format(new Date(row.original.created_at), "MMM d, yyyy HH:mm")}
@@ -113,6 +135,12 @@ function UsersPage() {
       id: "actions",
       header: "",
       enableSorting: false,
+      // Pinned to the panel edge: when the table pans horizontally on a
+      // phone, row actions stay one thumb-tap away.
+      meta: {
+        headerClass: "sticky right-0 bg-card",
+        cellClass: "sticky right-0 bg-card border-l border-border/60",
+      },
       cell: ({ row }) => (
         <div className="flex items-center justify-end gap-1">
           <Tooltip>
@@ -470,102 +498,7 @@ function DeleteDialog({
 }
 
 /**
- * UserRolesDialog manages the account's role assignments in the caller's
- * active scope (or the platform). Grants map to Casbin g rules.
+ * UserRolesDialog (shared with the user card) manages the account's role
+ * assignments in the caller's active scope (or the platform). Grants map
+ * to Casbin g rules.
  */
-function UserRolesDialog({
-  user,
-  onOpenChange,
-}: {
-  user: User | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const queryClient = useQueryClient();
-  const [role, setRole] = useState("");
-  const roles = useQuery({ queryKey: ["roles"], queryFn: api.listRoles, enabled: user !== null });
-  const assignments = useQuery({
-    queryKey: ["users", user?.id ?? "", "roles"],
-    queryFn: () => api.userRoles(user?.id ?? ""),
-    enabled: user !== null,
-  });
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["users", user?.id ?? "", "roles"] });
-    void queryClient.invalidateQueries({ queryKey: ["me"] });
-  };
-
-  const assign = useMutation({
-    mutationFn: () => api.assignUserRole(user?.id ?? "", role, ""),
-    onSuccess: () => {
-      toast.success("Role assigned");
-      setRole("");
-      invalidate();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  const unassign = useMutation({
-    mutationFn: (rule: PolicyRule) =>
-      api.unassignUserRole(rule.subject, rule.object ?? "", rule.domain),
-    onSuccess: () => {
-      toast.success("Role revoked");
-      invalidate();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-
-  return (
-    <Dialog open={user !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Roles — {user?.email}</DialogTitle>
-          <DialogDescription>
-            Assignments in the platform scope; tenant roles come from the active scope selector.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex gap-2">
-          <select
-            className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-            value={role}
-            onChange={(event) => setRole(event.target.value)}
-          >
-            <option value="">Choose a role…</option>
-            {(roles.data ?? []).map((r) => (
-              <option key={r.key} value={r.key}>
-                {r.name} ({r.key})
-              </option>
-            ))}
-          </select>
-          <Button size="sm" onClick={() => assign.mutate()} disabled={!role || assign.isPending}>
-            Assign
-          </Button>
-        </div>
-        <div className="space-y-1">
-          {(assignments.data ?? []).map((rule) => (
-            <div
-              key={`${rule.subject}|${rule.object}|${rule.domain}`}
-              className="flex items-center gap-2 rounded border px-2 py-1.5 text-sm"
-            >
-              <code className="text-xs">{rule.object}</code>
-              <span className="text-muted-foreground">
-                @ {rule.domain === "*" ? "platform" : rule.domain.slice(0, 8)}
-              </span>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="ml-auto size-6 text-destructive"
-                onClick={() => unassign.mutate(rule)}
-                aria-label={`Revoke ${rule.object}`}
-              >
-                <Trash2 />
-              </Button>
-            </div>
-          ))}
-          {!assignments.isPending && (assignments.data ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground">No roles assigned.</p>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}

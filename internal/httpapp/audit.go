@@ -5,6 +5,7 @@ package httpapp
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -49,11 +50,36 @@ func (a *App) apiAudit(c *gin.Context) {
 		Actor:       c.Query("actor"),
 		Action:      c.Query("action"),
 		Resource:    c.Query("resource"),
+		ResourceID:  c.Query("resource_id"),
 	}
 	entries, err := a.services.Audit.List(c.Request.Context(), opts)
 	if err != nil {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": entries, "next_cursor": ""})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(entries), "next_cursor": ""})
+}
+
+// apiUserActivity serves one account's history card: audit records where the
+// user is the actor or the subject, newest first. next_cursor carries the
+// next offset, so the card's feed can keep loading while more records exist.
+func (a *App) apiUserActivity(c *gin.Context) {
+	limit := intQuery(c, "limit", 25)
+	if limit <= 0 || limit > 100 {
+		limit = 25
+	}
+	offset := max(intQuery(c, "offset", 0), 0)
+	entries, err := a.services.Audit.List(c.Request.Context(), repository.AuditOptions{
+		ListOptions: repository.ListOptions{Limit: limit, Offset: offset},
+		Subject:     c.Param("id"),
+	})
+	if err != nil {
+		a.fail(c, err)
+		return
+	}
+	next := ""
+	if len(entries) == limit {
+		next = strconv.Itoa(offset + len(entries))
+	}
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(entries), "next_cursor": next})
 }

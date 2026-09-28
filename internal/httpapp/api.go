@@ -98,7 +98,9 @@ func (a *App) apiMe(c *gin.Context) {
 		User: user, ActiveOrg: domain,
 		Orgs: []model.Organization{}, Roles: []string{}, Permissions: []string{},
 	}
-	if orgs, err := a.services.RBAC.OrgsForUser(c.Request.Context(), user.ID); err == nil {
+	// Nil slices from the stores must stay [] on the wire: the SPA reads
+	// me.orgs unconditionally, and JSON null breaks that contract.
+	if orgs, err := a.services.RBAC.OrgsForUser(c.Request.Context(), user.ID); err == nil && len(orgs) > 0 {
 		resp.Orgs = orgs
 	}
 	if roleRules, err := a.services.RBAC.UserRoles(user.ID, domain); err == nil {
@@ -107,6 +109,9 @@ func (a *App) apiMe(c *gin.Context) {
 		}
 	}
 	resp.Permissions = a.services.RBAC.EffectivePermissions(user.ID, domain)
+	if resp.Permissions == nil {
+		resp.Permissions = []string{}
+	}
 	if session, err := a.services.Auth.CurrentSession(c.Request.Context(), a.sessionToken(c)); err == nil && session.ImpersonatedBy != "" {
 		resp.Impersonated = true
 		resp.ImpersonatorID = session.ImpersonatedBy
@@ -124,7 +129,7 @@ func (a *App) apiOAuthProviders(c *gin.Context) {
 		{Name: "google", Configured: a.oauth.IsConfigured("google")},
 		{Name: "github", Configured: a.oauth.IsConfigured("github")},
 	}
-	c.JSON(http.StatusOK, gin.H{"data": providers})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(providers)})
 }
 
 // apiUsers pages through accounts in the requested pagination mode.
@@ -134,7 +139,7 @@ func (a *App) apiUsers(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": users, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(users), "next_cursor": next})
 }
 
 func (a *App) apiCreateUser(c *gin.Context) {
@@ -193,7 +198,7 @@ func (a *App) apiJobs(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": jobs, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(jobs), "next_cursor": next})
 }
 
 func (a *App) apiGetJob(c *gin.Context) {
@@ -245,7 +250,7 @@ func (a *App) apiEnrichmentProfiles(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": profiles, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(profiles), "next_cursor": next})
 }
 
 func (a *App) apiGenerateReport(c *gin.Context) {
@@ -263,7 +268,7 @@ func (a *App) apiReports(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": reports, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(reports), "next_cursor": next})
 }
 
 func (a *App) apiGetReport(c *gin.Context) {
@@ -286,7 +291,7 @@ func (a *App) apiTimeseries(c *gin.Context) {
 	days = max(min(days, 90), 1)
 	c.JSON(http.StatusOK, gin.H{
 		"days": days,
-		"data": a.services.Analytics.Timeseries(c.Request.Context(), days),
+		"data": listOrEmpty(a.services.Analytics.Timeseries(c.Request.Context(), days)),
 	})
 }
 
@@ -294,7 +299,7 @@ func (a *App) apiTimeseries(c *gin.Context) {
 func (a *App) apiRecentEvents(c *gin.Context) {
 	limit := intQuery(c, "limit", 50)
 	limit = max(min(limit, 200), 1)
-	c.JSON(http.StatusOK, gin.H{"data": a.services.Analytics.RecentEvents(c.Request.Context(), limit)})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(a.services.Analytics.RecentEvents(c.Request.Context(), limit))})
 }
 
 // apiAnalyticsBreakdown groups events by a properties dimension.
@@ -305,7 +310,7 @@ func (a *App) apiAnalyticsBreakdown(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"days": days, "data": rows})
+	c.JSON(http.StatusOK, gin.H{"days": days, "data": listOrEmpty(rows)})
 }
 
 // apiAnalyticsDAU serves distinct active users per day.
@@ -316,7 +321,7 @@ func (a *App) apiAnalyticsDAU(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"days": days, "data": rows})
+	c.JSON(http.StatusOK, gin.H{"days": days, "data": listOrEmpty(rows)})
 }
 
 // apiIdentities lists the OAuth identities linked to the caller.
@@ -327,7 +332,7 @@ func (a *App) apiIdentities(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": identities})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(identities)})
 }
 
 // apiSessions lists the caller's active sessions; the current session is
@@ -346,7 +351,7 @@ func (a *App) apiSessions(c *gin.Context) {
 			"id": s.ID, "created_at": s.CreatedAt, "expires_at": s.ExpiresAt, "current": s.ID == current,
 		})
 	}
-	c.JSON(http.StatusOK, gin.H{"data": flagged})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(flagged)})
 }
 
 // apiLogoutAll revokes every session of the caller, including this one.

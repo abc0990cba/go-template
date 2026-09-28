@@ -29,7 +29,7 @@ func (a *App) apiListOutbox(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": events, "next_cursor": next, "pending": pending})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(events), "next_cursor": next, "pending": pending})
 }
 
 // apiListDeadLetters pages parked messages; pending=true filters to ones
@@ -46,7 +46,7 @@ func (a *App) apiListDeadLetters(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": letters, "next_cursor": next, "pending": pending})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(letters), "next_cursor": next, "pending": pending})
 }
 
 // apiReplayDeadLetter re-runs a parked message through its live handler.

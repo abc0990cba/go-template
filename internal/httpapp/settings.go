@@ -14,7 +14,7 @@ func (a *App) apiSettings(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": catalog})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(catalog)})
 }
 
 // apiUpdateSetting stores one setting; changes are audited.

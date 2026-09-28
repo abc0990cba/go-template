@@ -56,12 +56,23 @@ export function PaginationBar({ pagination }: { pagination: ModeTarget }) {
 }
 
 /**
- * InfiniteSentinel watches the space just below the table; when the user
+ * InfiniteSentinel watches the space just below the rows; when the user
  * scrolls within 240px of it, the next page loads automatically. A manual
  * "Load more" button stays available in the footer for keyboards and for
  * environments without IntersectionObserver.
+ *
+ * rootRef names the table's scroll panel when the table scrolls inside a
+ * fixed-height container: with the panel as the intersection root, the
+ * sentinel fires as the reader approaches the bottom of the PANEL — page
+ * scrolling around the table never triggers loads.
  */
-export function InfiniteSentinel({ onLoadMore }: { onLoadMore: () => void }) {
+export function InfiniteSentinel({
+  onLoadMore,
+  rootRef,
+}: {
+  onLoadMore: () => void;
+  rootRef?: React.RefObject<HTMLDivElement | null>;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   // Keep the observer stable across renders: the callback identity changes
   // every render, but the observation target does not.
@@ -77,11 +88,11 @@ export function InfiniteSentinel({ onLoadMore }: { onLoadMore: () => void }) {
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) callbackRef.current();
       },
-      { rootMargin: "240px 0px" },
+      { root: rootRef?.current ?? null, rootMargin: "240px 0px" },
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [rootRef]);
 
   return <div ref={ref} aria-hidden className="h-px w-full" />;
 }

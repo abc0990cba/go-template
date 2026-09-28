@@ -74,17 +74,19 @@ FROM audit_log
 WHERE ($1::text = '' OR actor_id = $1::text)
   AND ($2::text = '' OR action = $2::text)
   AND ($3::text = '' OR resource_type = $3::text)
+  AND ($4::text = '' OR resource_id = $4::text)
 ORDER BY created_at DESC, id DESC
-LIMIT $5
-OFFSET $4
+LIMIT $6
+OFFSET $5
 `
 
 type ListAuditOffsetParams struct {
-	Actor    string
-	Action   string
-	Resource string
-	Off      int32
-	Lim      int32
+	Actor      string
+	Action     string
+	Resource   string
+	ResourceID string
+	Off        int32
+	Lim        int32
 }
 
 func (q *Queries) ListAuditOffset(ctx context.Context, arg ListAuditOffsetParams) ([]AuditLog, error) {
@@ -92,9 +94,60 @@ func (q *Queries) ListAuditOffset(ctx context.Context, arg ListAuditOffsetParams
 		arg.Actor,
 		arg.Action,
 		arg.Resource,
+		arg.ResourceID,
 		arg.Off,
 		arg.Lim,
 	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AuditLog
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ActorID,
+			&i.ActorEmail,
+			&i.Action,
+			&i.ResourceType,
+			&i.ResourceID,
+			&i.Domain,
+			&i.Diff,
+			&i.Ip,
+			&i.RequestID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditSubject = `-- name: ListAuditSubject :many
+SELECT id, actor_id, actor_email, action, resource_type, resource_id, domain, diff, ip, request_id, created_at
+FROM audit_log
+WHERE actor_id = $1::text
+   OR (resource_type = 'user' AND resource_id = $1::text)
+ORDER BY created_at DESC, id DESC
+LIMIT $3
+OFFSET $2
+`
+
+type ListAuditSubjectParams struct {
+	Subject string
+	Off     int32
+	Lim     int32
+}
+
+// One user's history: everything they did (as actor) plus everything that
+// happened to their account (resource_type 'user' entries pointing at it).
+func (q *Queries) ListAuditSubject(ctx context.Context, arg ListAuditSubjectParams) ([]AuditLog, error) {
+	rows, err := q.db.Query(ctx, listAuditSubject, arg.Subject, arg.Off, arg.Lim)
 	if err != nil {
 		return nil, err
 	}

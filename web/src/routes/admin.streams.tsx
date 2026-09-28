@@ -110,12 +110,12 @@ function StreamsPage() {
           <CardContent className="space-y-2">
             {outbox.isPending ? (
               <Skeleton className="h-16 w-full" />
-            ) : (outbox.data?.data.length ?? 0) === 0 ? (
+            ) : (outbox.data?.data?.length ?? 0) === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Nothing pending — the relay has published everything.
               </p>
             ) : (
-              outbox.data?.data.map((event) => <OutboxRow key={event.id} event={event} />)
+              outbox.data?.data?.map((event) => <OutboxRow key={event.id} event={event} />)
             )}
           </CardContent>
         </Card>
@@ -130,13 +130,13 @@ function StreamsPage() {
           <CardContent className="space-y-2">
             {dead.isPending ? (
               <Skeleton className="h-16 w-full" />
-            ) : (dead.data?.data.length ?? 0) === 0 ? (
+            ) : (dead.data?.data?.length ?? 0) === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No dead letters. Publish a poison message with <code>make demo-dlq</code> to see one
                 here.
               </p>
             ) : (
-              dead.data?.data.map((letter) => (
+              dead.data?.data?.map((letter) => (
                 <DeadLetterRow
                   key={letter.id}
                   letter={letter}

@@ -94,7 +94,7 @@ func (a *App) apiRoles(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": roles})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(roles)})
 }
 
 func (a *App) apiCreateRole(c *gin.Context) {
@@ -148,7 +148,7 @@ func (a *App) apiRolePermissions(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rules})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(rules)})
 }
 
 func (a *App) apiSetRolePermissions(c *gin.Context) {
@@ -175,7 +175,7 @@ func (a *App) apiPolicies(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rules})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(rules)})
 }
 
 func (a *App) apiAddPolicy(c *gin.Context) {
@@ -213,7 +213,7 @@ func (a *App) apiUserRoles(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": rules})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(rules)})
 }
 
 func (a *App) apiAssignUserRole(c *gin.Context) {
@@ -264,7 +264,7 @@ func (a *App) apiOrgs(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": orgs, "next_cursor": next})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(orgs), "next_cursor": next})
 }
 
 func (a *App) apiCreateOrg(c *gin.Context) {
@@ -326,7 +326,7 @@ func (a *App) apiOrgMembers(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": members})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(members)})
 }
 
 func (a *App) apiAddOrgMember(c *gin.Context) {

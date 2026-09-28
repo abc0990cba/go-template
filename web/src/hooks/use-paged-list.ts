@@ -10,6 +10,7 @@ export type PagedListParams = Partial<ListParams> & {
   actor?: string;
   action?: string;
   resource?: string;
+  resource_id?: string;
 };
 
 /** Resources whose endpoints speak the shared offset/cursor/keyset vocabulary. */
@@ -87,7 +88,8 @@ export function useInfiniteList<T>(
 export function infiniteRows<T>(result: {
   data?: { pages: Paged<T>[] };
 }): T[] {
-  return result.data ? result.data.pages.flatMap((page) => page.data) : [];
+  // A nil slice on the wire arrives as null; treat it as an empty page.
+  return result.data ? result.data.pages.flatMap((page) => page.data ?? []) : [];
 }
 
 /**
@@ -128,7 +130,7 @@ export function useTableView<T>(
     isPlaceholderData: paged.isPlaceholderData,
     hasMore: (paged.data?.next_cursor ?? "") !== "",
     nextCursor: paged.data?.next_cursor ?? "",
-    loadedCount: paged.data?.data.length ?? 0,
+    loadedCount: paged.data?.data?.length ?? 0,
     isFetchingMore: false,
     loadMore: () => {},
   };

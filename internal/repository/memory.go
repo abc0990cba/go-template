@@ -59,12 +59,16 @@ type ListOptions struct {
 type ListUsersOptions = ListOptions
 
 // AuditOptions filters audit listings: ListOptions carries pagination, the
-// extra fields narrow by actor, action, or resource type.
+// extra fields narrow by actor, action, resource type, or exact resource id.
+// Subject (set by the per-user activity listing) matches everything the user
+// did as actor plus every 'user' record about them.
 type AuditOptions struct {
 	ListOptions
-	Actor    string
-	Action   string
-	Resource string
+	Actor      string
+	Action     string
+	Resource   string
+	ResourceID string
+	Subject    string
 }
 
 // TicketOptions narrows ticket listings: ListOptions carries pagination and
@@ -1881,6 +1885,13 @@ func (s *MemoryStore) ListAudit(ctx context.Context, opts AuditOptions) ([]model
 	defer s.mu.RUnlock()
 	rows := make([]model.AuditEntry, 0, len(s.auditLog))
 	for _, entry := range s.auditLog {
+		if opts.Subject != "" {
+			isActor := entry.ActorID == opts.Subject
+			isSubject := entry.ResourceType == "user" && entry.ResourceID == opts.Subject
+			if !isActor && !isSubject {
+				continue
+			}
+		}
 		if opts.Actor != "" && entry.ActorID != opts.Actor {
 			continue
 		}
@@ -1888,6 +1899,9 @@ func (s *MemoryStore) ListAudit(ctx context.Context, opts AuditOptions) ([]model
 			continue
 		}
 		if opts.Resource != "" && entry.ResourceType != opts.Resource {
+			continue
+		}
+		if opts.ResourceID != "" && entry.ResourceID != opts.ResourceID {
 			continue
 		}
 		rows = append(rows, entry)

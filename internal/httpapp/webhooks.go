@@ -16,7 +16,7 @@ func (a *App) apiListWebhooks(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": endpoints, "next_cursor": ""})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(endpoints), "next_cursor": ""})
 }
 
 func (a *App) apiCreateWebhook(c *gin.Context) {
@@ -67,7 +67,7 @@ func (a *App) apiWebhookDeliveries(c *gin.Context) {
 		a.fail(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": deliveries, "next_cursor": ""})
+	c.JSON(http.StatusOK, gin.H{"data": listOrEmpty(deliveries), "next_cursor": ""})
 }
 
 // apiTestWebhook fires one synthetic event through the normal fan-out so

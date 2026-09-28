@@ -17,6 +17,7 @@ import { api } from "@/lib/api";
 import { meQuery } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n";
 import { demoAccounts, type DemoAccount } from "@/lib/demo-accounts";
+import { UserAvatar } from "@/components/user-avatar";
 
 /**
  * DemoAccountPicker is the interactive accounts table: every seeded account
@@ -57,17 +58,29 @@ export function DemoAccountPicker() {
           <TableRow>
             <TableHead>{t("demo.account")}</TableHead>
             <TableHead>{t("demo.roles")}</TableHead>
-            <TableHead className="hidden md:table-cell">{t("demo.password")}</TableHead>
-            <TableHead className="hidden md:table-cell">{t("demo.whatToCheck")}</TableHead>
-            <TableHead className="text-right">{t("demo.area")}</TableHead>
+            <TableHead className="hidden xl:table-cell">{t("demo.password")}</TableHead>
+            <TableHead className="hidden xl:table-cell">{t("demo.whatToCheck")}</TableHead>
+            <TableHead className="sticky right-0 bg-card text-right">{t("demo.area")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {demoAccounts.map((account) => (
             <TableRow key={account.email}>
               <TableCell>
-                <p className="font-medium">{account.name}</p>
-                <p className="font-mono text-xs text-muted-foreground">{account.email}</p>
+                <div className="flex items-center gap-2.5">
+                  <UserAvatar
+                    name={account.name}
+                    email={account.email}
+                    className="size-9 shrink-0"
+                    fallbackClassName="text-xs"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{account.name}</p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                      {account.email}
+                    </p>
+                  </div>
+                </div>
               </TableCell>
               <TableCell>
                 <div className="flex flex-wrap gap-1">
@@ -78,14 +91,19 @@ export function DemoAccountPicker() {
                   ))}
                 </div>
               </TableCell>
-              <TableCell className="hidden md:table-cell">
+              <TableCell className="hidden xl:table-cell">
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{account.password}</code>
               </TableCell>
-              <TableCell className="hidden max-w-72 text-xs text-muted-foreground md:table-cell">
-                {locale === "ru" ? account.whatToCheckRu : account.whatToCheck}
+              <TableCell className="hidden max-w-80 text-xs text-muted-foreground xl:table-cell">
+                <div className="truncate" title={locale === "ru" ? account.whatToCheckRu : account.whatToCheck}>
+                  {locale === "ru" ? account.whatToCheckRu : account.whatToCheck}
+                </div>
               </TableCell>
-              <TableCell className="text-right">
-                <Badge variant={account.area === "admin" ? "default" : "outline"} className="mr-2">
+              <TableCell className="sticky right-0 bg-card text-right">
+                <Badge
+                  variant={account.area === "admin" ? "default" : "outline"}
+                  className="mr-2 hidden md:inline-flex"
+                >
                   {account.area === "admin" ? t("demo.areaAdmin") : t("demo.areaClient")}
                 </Badge>
                 <Button

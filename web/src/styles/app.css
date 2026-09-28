@@ -284,5 +284,44 @@
   html {
     font-size: 17px;
   }
+
+  /*
+   * Native-app feel on touch screens: no gray tap flash, no double-tap
+   * zoom fighting with quick taps on controls, and every text-entry
+   * surface raised to the 44px touch height the iOS/Material guidelines
+   * call comfortable (buttons already ship h-11 on mobile).
+   */
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button,
+  [role="button"],
+  select,
+  summary {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  [data-slot="input"],
+  [data-slot="select-trigger"],
+  [data-slot="textarea"] {
+    min-height: 2.75rem;
+  }
+}
+
+/* Slim, unobtrusive scrollbars inside fixed-height data panels. */
+.overflow-y-auto,
+.overflow-auto {
+  scrollbar-width: thin;
+}
+.overflow-y-auto::-webkit-scrollbar,
+.overflow-auto::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb,
+.overflow-auto::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
 }
 

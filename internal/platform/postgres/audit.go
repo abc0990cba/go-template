@@ -26,7 +26,9 @@ func (s *Store) RecordAudit(ctx context.Context, entry model.AuditEntry) error {
 	}))
 }
 
-// ListAudit pages the trail newest first with the optional filters.
+// ListAudit pages the trail newest first with the optional filters. A
+// Subject filter switches to the per-user listing: everything the user did
+// plus everything recorded about their account.
 func (s *Store) ListAudit(ctx context.Context, opts repository.AuditOptions) ([]model.AuditEntry, error) {
 	limit := int32(25)
 	if opts.Limit > 0 && opts.Limit <= 100 {
@@ -36,9 +38,16 @@ func (s *Store) ListAudit(ctx context.Context, opts repository.AuditOptions) ([]
 	if opts.Offset > 0 {
 		off = int32(min(opts.Offset, 1<<31-1)) // #nosec G115 -- clamped to int32 range
 	}
-	rows, err := s.q.ListAuditOffset(ctx, db.ListAuditOffsetParams{
-		Actor: opts.Actor, Action: opts.Action, Resource: opts.Resource, Lim: limit, Off: off,
-	})
+	var rows []db.AuditLog
+	var err error
+	if opts.Subject != "" {
+		rows, err = s.q.ListAuditSubject(ctx, db.ListAuditSubjectParams{Subject: opts.Subject, Lim: limit, Off: off})
+	} else {
+		rows, err = s.q.ListAuditOffset(ctx, db.ListAuditOffsetParams{
+			Actor: opts.Actor, Action: opts.Action, Resource: opts.Resource,
+			ResourceID: opts.ResourceID, Lim: limit, Off: off,
+		})
+	}
 	if err != nil {
 		return nil, mapErr(err)
 	}

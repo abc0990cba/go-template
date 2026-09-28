@@ -27,6 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { UserAvatar } from "@/components/user-avatar";
 import { api } from "@/lib/api";
 import { ensurePermission } from "@/lib/auth";
 import type { Organization } from "@/lib/types";
@@ -80,35 +82,10 @@ function OrgsPage() {
         can be an admin of one tenant and a viewer of another.
       </ExplainerBanner>
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {orgs.isPending && <Loader2 className="size-5 animate-spin" />}
         {(orgs.data?.data ?? []).map((org) => (
-          <Card key={org.id}>
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center justify-between text-base">
-                {org.name}
-                <code className="text-xs font-normal text-muted-foreground">{org.slug}</code>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <p className="text-xs text-muted-foreground">
-                Created {format(new Date(org.created_at), "MMM d, yyyy")}
-              </p>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setManaging(org)}>
-                  <UserPlus /> Members
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-destructive"
-                  onClick={() => setDeleting(org)}
-                >
-                  <Trash2 />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          <OrgCard key={org.id} org={org} onManage={() => setManaging(org)} onDelete={() => setDeleting(org)} />
         ))}
       </div>
 
@@ -145,6 +122,82 @@ function OrgsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/**
+ * OrgCard shows the tenant with its seat roster: avatar faces for the first
+ * members, a "+N" counter for the rest, and a seats line. The roster comes
+ * from the same members endpoint the dialog manages.
+ */
+function OrgCard({
+  org,
+  onManage,
+  onDelete,
+}: {
+  org: Organization;
+  onManage: () => void;
+  onDelete: () => void;
+}) {
+  const members = useQuery({
+    queryKey: ["orgs", org.id, "members"],
+    queryFn: () => api.orgMembers(org.id),
+  });
+  const roster = (members.data ?? []).slice(0, 4);
+  const extra = Math.max((members.data?.length ?? 0) - roster.length, 0);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between text-base">
+          {org.name}
+          <code className="text-xs font-normal text-muted-foreground">{org.slug}</code>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center">
+            {members.isPending ? (
+              <Skeleton className="h-7 w-24 rounded-full" />
+            ) : (
+              roster.map((member) => (
+                <UserAvatar
+                  key={member.user_id}
+                  name={member.name}
+                  email={member.email}
+                  className="size-7 ring-2 ring-card [&:not(:first-child)]:-ml-2"
+                  fallbackClassName="text-[10px]"
+                />
+              ))
+            )}
+            {extra > 0 ? (
+              <span className="-ml-2 flex size-7 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-card">
+                +{extra}
+              </span>
+            ) : null}
+            {roster.length === 0 && !members.isPending ? (
+              <span className="text-xs text-muted-foreground">No members yet</span>
+            ) : null}
+          </div>
+          {!members.isPending && (members.data?.length ?? 0) > 0 ? (
+            <Badge variant="secondary" className="rounded-full">
+              {(members.data?.length ?? 0)} seat{(members.data?.length ?? 0) === 1 ? "" : "s"}
+            </Badge>
+          ) : null}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Created {format(new Date(org.created_at), "MMM d, yyyy")}
+        </p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onManage}>
+            <UserPlus /> Seats
+          </Button>
+          <Button size="sm" variant="outline" className="text-destructive" onClick={onDelete}>
+            <Trash2 />
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -239,14 +292,16 @@ function MembersDialog({
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Members — {org.name}</DialogTitle>
+          <DialogTitle>Seats — {org.name}</DialogTitle>
           <DialogDescription>
-            Paste a user id to add them; assign their tenant role afterwards on the Users page.
+            {(members.data?.length ?? 0)} member{(members.data?.length ?? 0) === 1 ? "" : "s"}{" "}
+            occupy this tenant. Paste a user id to add them; assign their tenant role afterwards on
+            the Users page.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <Input placeholder="user id" value={userId} onChange={(e) => setUserId(e.target.value)} />
-          <Button size="sm" onClick={() => add.mutate()} disabled={!userId.trim() || add.isPending}>
+          <Button onClick={() => add.mutate()} disabled={!userId.trim() || add.isPending}>
             <UserPlus /> Add
           </Button>
         </div>
@@ -256,15 +311,23 @@ function MembersDialog({
               key={member.user_id}
               className="flex items-center gap-2 rounded border px-2 py-1.5 text-sm"
             >
-              <Badge variant="outline" className="font-mono text-[10px]">
+              <UserAvatar
+                name={member.name}
+                email={member.email}
+                className="size-7 shrink-0"
+                fallbackClassName="text-[10px]"
+              />
+              <div className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{member.name || "—"}</span>
+                <span className="block truncate text-xs text-muted-foreground">{member.email}</span>
+              </div>
+              <Badge variant="outline" className="hidden font-mono text-[10px] sm:inline-flex">
                 {member.user_id.slice(0, 8)}
               </Badge>
-              <span className="font-medium">{member.name || "—"}</span>
-              <span className="text-muted-foreground">{member.email}</span>
               <Button
                 variant="ghost"
                 size="icon"
-                className="ml-auto size-6 text-destructive"
+                className="text-destructive"
                 onClick={() => remove.mutate(member.user_id)}
                 aria-label={`Remove ${member.email}`}
               >
