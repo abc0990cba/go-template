@@ -230,6 +230,27 @@ func (e TicketApprovalStatus) Valid() bool {
 	}
 }
 
+// Defines values for TokenGrantRequestGrantType.
+const (
+	TokenGrantRequestGrantTypeMfaChallenge TokenGrantRequestGrantType = "mfa_challenge"
+	TokenGrantRequestGrantTypePassword     TokenGrantRequestGrantType = "password"
+	TokenGrantRequestGrantTypeRefreshToken TokenGrantRequestGrantType = "refresh_token"
+)
+
+// Valid indicates whether the value is a known member of the TokenGrantRequestGrantType enum.
+func (e TokenGrantRequestGrantType) Valid() bool {
+	switch e {
+	case TokenGrantRequestGrantTypeMfaChallenge:
+		return true
+	case TokenGrantRequestGrantTypePassword:
+		return true
+	case TokenGrantRequestGrantTypeRefreshToken:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WebhookDeliveryStatus.
 const (
 	WebhookDeliveryStatusFailed  WebhookDeliveryStatus = "failed"
@@ -1172,6 +1193,29 @@ type TicketTypeList struct {
 	Data []TicketType `json:"data"`
 }
 
+// TokenGrant defines model for TokenGrant.
+type TokenGrant struct {
+	AccessToken string `json:"access_token"`
+
+	// ExpiresIn Access token TTL in seconds
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+}
+
+// TokenGrantRequest defines model for TokenGrantRequest.
+type TokenGrantRequest struct {
+	Challenge    *string                    `json:"challenge,omitempty"`
+	Code         *string                    `json:"code,omitempty"`
+	Email        *string                    `json:"email,omitempty"`
+	GrantType    TokenGrantRequestGrantType `json:"grant_type"`
+	Password     *string                    `json:"password,omitempty"`
+	RefreshToken *string                    `json:"refresh_token,omitempty"`
+}
+
+// TokenGrantRequestGrantType defines model for TokenGrantRequest.GrantType.
+type TokenGrantRequestGrantType string
+
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
 	Email openapi_types.Email `json:"email"`
@@ -1394,6 +1438,11 @@ type ForgotPasswordJSONBody struct {
 type ResetPasswordJSONBody struct {
 	Password string `json:"password"`
 	Token    string `json:"token"`
+}
+
+// RevokeTokenJSONBody defines parameters for RevokeToken.
+type RevokeTokenJSONBody struct {
+	RefreshToken string `json:"refresh_token"`
 }
 
 // VerifyEmailJSONBody defines parameters for VerifyEmail.
@@ -1727,6 +1776,12 @@ type RegisterJSONRequestBody = RegisterRequest
 
 // ResetPasswordJSONRequestBody defines body for ResetPassword for application/json ContentType.
 type ResetPasswordJSONRequestBody ResetPasswordJSONBody
+
+// TokenJSONRequestBody defines body for Token for application/json ContentType.
+type TokenJSONRequestBody = TokenGrantRequest
+
+// RevokeTokenJSONRequestBody defines body for RevokeToken for application/json ContentType.
+type RevokeTokenJSONRequestBody RevokeTokenJSONBody
 
 // VerifyEmailJSONRequestBody defines body for VerifyEmail for application/json ContentType.
 type VerifyEmailJSONRequestBody VerifyEmailJSONBody

@@ -16,6 +16,7 @@ sql:
       - migrations/postgres/000012_tickets.up.sql
       - migrations/postgres/000013_streams.up.sql
       - migrations/postgres/000014_mfa.up.sql
+      - migrations/postgres/000015_refresh_tokens.up.sql
     queries: queries
     gen:
       go:

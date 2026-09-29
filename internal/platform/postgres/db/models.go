@@ -191,6 +191,19 @@ type ProcessedEvent struct {
 	ProcessedAt time.Time
 }
 
+type RefreshToken struct {
+	ID         string
+	UserID     string
+	FamilyID   string
+	TokenHash  string
+	ExpiresAt  time.Time
+	RevokedAt  pgtype.Timestamptz
+	ReplacedBy string
+	UserAgent  string
+	Ip         string
+	CreatedAt  time.Time
+}
+
 type Report struct {
 	ID        string
 	Status    string

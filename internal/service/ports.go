@@ -246,6 +246,16 @@ type MFARepo interface {
 	DeleteExpiredMFAChallenges(ctx context.Context) error
 }
 
+// TokenRepo persists refresh-token families for the JWT grant.
+type TokenRepo interface {
+	CreateRefreshToken(ctx context.Context, token model.RefreshToken) error
+	GetRefreshTokenByHash(ctx context.Context, tokenHash string) (model.RefreshToken, error)
+	RevokeRefreshToken(ctx context.Context, id string) error
+	RevokeRefreshFamily(ctx context.Context, familyID string) error
+	RevokeRefreshTokensForUser(ctx context.Context, userID string) error
+	DeleteExpiredRefreshTokens(ctx context.Context) error
+}
+
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (
@@ -266,4 +276,5 @@ var (
 	_ StreamsRepo       = (*repository.MemoryStore)(nil)
 	_ IdempotencyRepo   = (*repository.MemoryStore)(nil)
 	_ MFARepo           = (*repository.MemoryStore)(nil)
+	_ TokenRepo         = (*repository.MemoryStore)(nil)
 )

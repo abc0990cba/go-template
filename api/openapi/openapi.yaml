@@ -125,6 +125,46 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserWithToken" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/auth/token:
+    post:
+      tags: [auth]
+      summary: OAuth-style token grant (password | mfa_challenge | refresh_token)
+      description: >-
+        Issues a short-lived HS256 access JWT plus a rotating refresh token
+        for non-browser clients. Requires APP_JWT_SECRET; otherwise 501.
+        Enrolled accounts answer 401 mfa_required with a challenge to finish
+        via grant_type mfa_challenge. Presenting a rotated refresh token
+        revokes its whole family (reuse detection).
+      operationId: token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/TokenGrantRequest" }
+      responses:
+        "200":
+          description: Access + refresh tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenGrant" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/token/revoke:
+    post:
+      tags: [auth]
+      summary: Revoke a refresh token (idempotent)
+      operationId: revokeToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        "204": { description: Token revoked or unknown }
+        default: { $ref: "#/components/responses/Problem" }
   /api/auth/mfa/status:
     get:
       tags: [auth]
@@ -1716,7 +1756,14 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: Opaque session token from register/login.
+      description: >-
+        Opaque session token from register/login, a `gtpl_` API key, or a JWT
+        access token from the token grant (when APP_JWT_SECRET is configured).
+    bearerJWT:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HS256 access token from POST /api/auth/token (identity claims only).
   parameters:
     userId:
       name: id
@@ -1877,6 +1924,26 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    TokenGrantRequest:
+      type: object
+      required: [grant_type]
+      properties:
+        grant_type:
+          type: string
+          enum: [password, mfa_challenge, refresh_token]
+        email: { type: string }
+        password: { type: string }
+        refresh_token: { type: string }
+        challenge: { type: string }
+        code: { type: string }
+    TokenGrant:
+      type: object
+      required: [access_token, token_type, expires_in, refresh_token]
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer, description: Access token TTL in seconds }
+        refresh_token: { type: string }
     MFAChallengeRequest:
       type: object
       required: [challenge, code]

@@ -280,6 +280,22 @@ type MFAChallenge struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// RefreshToken is one link in a rotation chain (family). Only the sha256 of
+// the token is stored; RevokedAt is set on rotation, and a *presented*
+// revoked token proves the family leaked.
+type RefreshToken struct {
+	ID         string     `json:"id"`
+	UserID     string     `json:"user_id"`
+	FamilyID   string     `json:"family_id"`
+	TokenHash  string     `json:"-"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	ReplacedBy string     `json:"replaced_by,omitempty"`
+	UserAgent  string     `json:"user_agent,omitempty"`
+	IP         string     `json:"ip,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
 // APIKey is a personal key for programmatic access. The raw secret exists
 // only at creation; Prefix is safe to display, KeyHash stays in the store.
 type APIKey struct {

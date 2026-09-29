@@ -238,6 +238,22 @@ func (s *MFAService) PruneChallenges(ctx context.Context) error {
 	return s.store.DeleteExpiredMFAChallenges(ctx)
 }
 
+// BeginChallenge mints a login challenge for the token grant (exported form
+// of createChallenge).
+func (s *MFAService) BeginChallenge(ctx context.Context, userID string) (string, error) {
+	return s.createChallenge(ctx, userID)
+}
+
+// RequiredAndMissing reports whether the mfa.required policy demands a
+// factor the account does not have confirmed yet.
+func (s *MFAService) RequiredAndMissing(ctx context.Context, userID string) bool {
+	if s.settings == nil || !s.settings.Bool(ctx, "mfa.required") {
+		return false
+	}
+	factor, err := s.store.GetMFAFactor(ctx, userID)
+	return !(err == nil && factor.Confirmed)
+}
+
 // verifyCode accepts either a current TOTP or an unused recovery code.
 func (s *MFAService) verifyCode(ctx context.Context, userID string, factor model.MFAFactor, code string) bool {
 	normalized := normalizeCode(code)

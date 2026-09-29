@@ -102,6 +102,10 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	api.POST("/auth/register", app.authRateLimit(), app.apiRegister)
 	api.POST("/auth/login", app.authRateLimit(), app.apiLogin)
 	api.POST("/auth/mfa/challenge", app.authRateLimit(), app.apiMFAChallenge)
+	// OAuth-style token grants for non-browser clients; opt-in per
+	// deployment via APP_JWT_SECRET (otherwise 501).
+	api.POST("/auth/token", app.authRateLimit(), app.apiToken)
+	api.POST("/auth/token/revoke", app.authRateLimit(), app.apiTokenRevoke)
 	api.POST("/auth/logout", app.apiLogout)
 	api.GET("/oauth/providers", app.apiOAuthProviders)
 	api.GET("/settings/public", app.apiPublicSettings)
@@ -279,8 +283,10 @@ func (a *App) sessionToken(c *gin.Context) string {
 // apiAuthRequired resolves the caller for JSON endpoints; failures are 401,
 // never a redirect: browsers talking to the SPA read the status, not
 // Location. Bearer values with the API-key prefix resolve through the key
-// store instead of the session store and carry their scopes in the context.
-// Used as group middleware on the authorized API subgroup.
+// store instead of the session store and carry their scopes in the context;
+// JWT-shaped bearers (two dots) verify through the token grant when that
+// feature is configured. Used as group middleware on the authorized API
+// subgroup.
 func (a *App) apiAuthRequired(c *gin.Context) {
 	token := a.sessionToken(c)
 	if strings.HasPrefix(token, service.APIKeyPrefix) {
@@ -302,7 +308,30 @@ func (a *App) apiAuthRequired(c *gin.Context) {
 		c.Set("auth_scopes", key.Scopes)
 		return
 	}
+	if strings.Count(token, ".") == 2 {
+		a.jwtAuth(c, token)
+		return
+	}
 	user, err := a.services.Auth.CurrentUser(c.Request.Context(), token)
+	if err != nil {
+		a.problem(c, http.StatusUnauthorized, "unauthorized", nil)
+		c.Abort()
+		return
+	}
+	c.Set("user_id", user.ID)
+	c.Set("user", user)
+}
+
+// jwtAuth resolves an access JWT to its user. The token carries identity
+// only; permissions are still resolved server-side per request.
+func (a *App) jwtAuth(c *gin.Context, token string) {
+	userID, err := a.services.Tokens.VerifyAccess(token)
+	if err != nil {
+		a.problem(c, http.StatusUnauthorized, "unauthorized", nil)
+		c.Abort()
+		return
+	}
+	user, err := a.services.Users.Get(c.Request.Context(), userID)
 	if err != nil {
 		a.problem(c, http.StatusUnauthorized, "unauthorized", nil)
 		c.Abort()

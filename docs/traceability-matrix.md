@@ -26,3 +26,8 @@
 | MFA-002 | `mfa` | `internal/service/mfa.go` (challenge) | `/api/auth/login` + `/api/auth/mfa/challenge` | `mfa_test.go` (challenge flow, attempts cap, recovery single-use) | Planned |
 | MFA-003 | `mfa` | `internal/service/mfa.go` (policy) | `mfa.required` setting, 403 marker | `mfa_test.go` (required gate) | Planned |
 | MFA-004 | `mfa` | `internal/httpapp/mfa.go` (admin reset) | `DELETE /api/users/{id}/mfa` | `mfa_test.go` (permission guard) | Planned |
+| TOK-001 | `token-auth` | `internal/service/tokens.go` (grants) | `/api/auth/token` | `tokens_test.go` (grant/lifecycle) | Planned |
+| TOK-002 | `token-auth` | `internal/service/tokens.go` (rotation) | refresh_token grant | `tokens_test.go` (rotation + reuse family) | Planned |
+| TOK-003 | `token-auth` | `internal/service/tokens.go` (JWT) | bearerJWT on all routes | `tokens_test.go` (verify/tamper), `httpapp/tokens_test.go` (bearer) | Planned |
+| TOK-004 | `token-auth` | `internal/service/tokens.go` (MFA bridge) | mfa_challenge grant | `tokens_test.go` (challenge bridge) | Planned |
+| TOK-005 | `token-auth` | `internal/httpapp/tokens.go` (opt-in) | 501 without secret | `httpapp/tokens_test.go` (disabled) | Planned |

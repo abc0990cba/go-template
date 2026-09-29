@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-29
+goal: Add JWT access tokens with rotating refresh tokens (reuse-detection families) for mobile and third-party API clients, alongside cookie sessions and API keys.

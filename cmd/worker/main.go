@@ -63,8 +63,8 @@ func main() {
 	services := service.NewContainer(service.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
-		Streams:  repos.Streams,
-		MFA:      repos.MFA,
+		Streams: repos.Streams,
+		MFA:     repos.MFA, Tokens: repos.Tokens,
 		Breakers: breakers,
 		Events:   repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
 		StreamsObserver: observ.NewStreamsObserver(),
@@ -81,9 +81,13 @@ func main() {
 		go pruneLoop(ctx, repos.Idempotency, logger)
 	}
 
-	// Expired MFA login challenges are swept here too.
+	// Expired MFA login challenges and rotated-out refresh tokens are
+	// swept here too.
 	if services.MFA != nil {
 		go mfaChallengePruneLoop(ctx, services.MFA, logger)
+	}
+	if services.Tokens != nil {
+		go refreshTokenPruneLoop(ctx, services.Tokens, logger)
 	}
 
 	// Stream and relay metrics live in this process; expose them for
@@ -223,6 +227,22 @@ func mfaChallengePruneLoop(ctx context.Context, mfa *service.MFAService, logger 
 		case <-ticker.C:
 			if err := mfa.PruneChallenges(ctx); err != nil {
 				logger.Debug("mfa challenge prune failed", "err", err)
+			}
+		}
+	}
+}
+
+// refreshTokenPruneLoop drops long-expired refresh tokens hourly.
+func refreshTokenPruneLoop(ctx context.Context, tokens *service.TokenService, logger *slog.Logger) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := tokens.Prune(ctx); err != nil {
+				logger.Debug("refresh token prune failed", "err", err)
 			}
 		}
 	}

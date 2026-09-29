@@ -95,6 +95,12 @@ type Config struct {
 	// default". StatementTimeout and IdleTxTimeout are applied server-side
 	// as statement_timeout / idle_in_transaction_session_timeout.
 	Pool PoolTuning
+
+	// JWT token grants (opt-in): an empty secret disables the token
+	// endpoints entirely.
+	JWTSecret     string
+	JWTAccessTTL  time.Duration
+	JWTRefreshTTL time.Duration
 }
 
 // PoolTuning carries the pgxpool knobs; all fields optional.
@@ -269,6 +275,24 @@ func Load() (Config, error) {
 	}
 	if cfg.Pool, err = poolTuningEnv(); err != nil {
 		return Config{}, err
+	}
+	if cfg.JWTSecret, err = secretValue("APP_JWT_SECRET"); err != nil {
+		return Config{}, err
+	}
+	if cfg.JWTSecret != "" && len(cfg.JWTSecret) < 32 {
+		return Config{}, fmt.Errorf("APP_JWT_SECRET must be at least 32 bytes, got %d", len(cfg.JWTSecret))
+	}
+	if cfg.JWTAccessTTL, err = durationEnv("APP_JWT_ACCESS_TTL", 15*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.JWTRefreshTTL, err = durationEnv("APP_JWT_REFRESH_TTL", 30*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.JWTAccessTTL <= 0 || cfg.JWTRefreshTTL <= 0 {
+		return Config{}, fmt.Errorf("JWT TTLs must be positive")
+	}
+	if cfg.JWTRefreshTTL < cfg.JWTAccessTTL {
+		return Config{}, fmt.Errorf("APP_JWT_REFRESH_TTL must not be shorter than APP_JWT_ACCESS_TTL")
 	}
 	return cfg, nil
 }
