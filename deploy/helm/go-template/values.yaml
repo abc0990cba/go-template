@@ -1,0 +1,93 @@
+# Default production-shaped values; override per environment.
+
+image:
+  repository: ghcr.io/your-org/go-template
+  tag: "" # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# External dependencies (defaults match docker-compose; point at managed
+# services in production). The chart intentionally does NOT ship Postgres/
+# Redis/ClickHouse — bring your own StatefulSet or managed instance.
+config:
+  databaseURL: postgres://app:app@postgres:5432/app?sslmode=disable
+  redisAddr: redis:6379
+  clickhouseAddr: ""
+  otlpEndpoint: "" # e.g. jaeger-collector.observability:4318
+  logFormat: json
+  cookieSecure: "1"
+  # Free-form extra APP_* env: key -> value.
+  extraEnv: {}
+    # APP_KAFKA_BROKERS: redpanda:9092
+    # APP_S3_BUCKET: app-files
+
+# Sensitive values become a Secret; keys ending in _file are mounted as
+# files and wired through the <VAR>_FILE pattern (see docs/reliability.md).
+secrets:
+  # stringData-style entries; prefer `existingSecret` in real deployments.
+  data: {}
+    # APP_DATABASE_URL_FILE: ...
+  existingSecret: ""
+
+api:
+  replicaCount: 2
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { cpu: "1", memory: 512Mi }
+  # Tuned for the documented p95 targets; scale horizontally via HPA.
+  env:
+    APP_PG_MAX_CONNS: "20"
+    APP_API_RATE_RPS: "50"
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+worker:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { cpu: 500m, memory: 256Mi }
+  env:
+    APP_OUTBOX_INTERVAL: 1s
+  # Worker metrics (stream/outbox/DLQ gauges) on a private listener.
+  metricsAddr: ":9091"
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: go-template.local
+      paths: ["/"]
+  tls: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+probe:
+  startupSeconds: 10
+  periodSeconds: 10
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]

@@ -1,4 +1,4 @@
-.PHONY: run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency openspec-validate
+.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency openspec-validate
 run:
 	go run ./cmd/api
 
@@ -129,6 +129,12 @@ demo-ratelimit:
 # Idempotency: POST the same ticket twice with one key; the retry replays.
 demo-idempotency:
 	./scripts/demo-idempotency.sh
+
+helm-lint:
+	helm lint deploy/helm/go-template
+
+helm-template:
+	helm template go-template deploy/helm/go-template
 
 openspec-validate:
 	@command -v openspec >/dev/null 2>&1 && openspec validate || echo "openspec CLI is not installed; see docs/openspec.md"

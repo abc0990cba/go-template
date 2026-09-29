@@ -9,8 +9,8 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5a9
         with:
           node-version: 22
           cache: npm
@@ -27,8 +27,8 @@ jobs:
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
         with:
           go-version-file: go.mod
       - name: Vet
@@ -41,20 +41,20 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
         with:
           go-version-file: go.mod
       - name: Lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@971e284b6050e8a5849b72094c50ab08edb04283 # v6.1.0
         with:
-          version: latest
+          version: v2.1.6
 
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
         with:
           go-version-file: go.mod
       - name: Store contract tests
@@ -63,7 +63,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Build production image
         uses: docker/build-push-action@v6
         with:

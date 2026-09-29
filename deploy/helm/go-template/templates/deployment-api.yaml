@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "go-template.fullname" . }}-api
+  labels:
+    {{- include "go-template.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.api.hpa.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "go-template.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        {{- include "go-template.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      serviceAccountName: {{ include "go-template.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+      containers:
+        - name: api
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                {{- toYaml .Values.securityContext.capabilities.drop | nindent 16 }}
+          args: ["/app/api"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            {{- include "go-template.env" . | nindent 12 }}
+            {{- range $key, $value := .Values.api.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          startupProbe:
+            httpGet: { path: /health/startup, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: {{ .Values.probe.periodSeconds }}
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: {{ .Values.probe.periodSeconds }}
+          {{- with .Values.api.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.secrets.data }}
+          volumeMounts:
+            - name: secrets
+              mountPath: /etc/go-template-secrets
+              readOnly: true
+          {{- end }}
+      {{- if .Values.secrets.data }}
+      volumes:
+        - name: secrets
+          secret:
+            secretName: {{ .Values.secrets.existingSecret | default (include "go-template.fullname" .) }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      {{- end }}

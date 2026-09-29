@@ -1,0 +1,12 @@
+apiVersion: v2
+name: go-template
+description: Production-shaped Go application template — Gin API + asynq worker
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - go
+  - template
+  - highload
+maintainers:
+  - name: go-template maintainers

@@ -1,0 +1,10 @@
+go-template {{ .Chart.Version }} deployed.
+
+  API:  {{ include "go-template.fullname" . }} ({{ .Values.service.type }}, port {{ .Values.service.port }})
+  Health: /health/live /health/ready /health/startup — wired as probes
+  Metrics: /metrics (api), {{ default "disabled" .Values.worker.metricsAddr }} (worker)
+
+Next steps:
+  1. Point config.databaseURL / config.redisAddr at managed services.
+  2. Move secrets into `secrets.existingSecret` (file-carried via *_FILE).
+  3. Enable the ingress and TLS.
