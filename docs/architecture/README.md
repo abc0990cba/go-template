@@ -53,6 +53,9 @@ The set follows **world-standard documentation conventions**:
 | 13 | [Deployment & Operations](13-deployment-and-operations.md) | How is it built, shipped, configured, scaled? |
 | 14 | [Testing & Quality](14-testing-and-quality.md) | How is correctness proven at every level? |
 | 15 | [Template Guide](15-template-guide.md) | How do I turn this into *my* application and add feature #1? |
+| 16 | [Current Architecture Assessment](16-current-architecture-assessment.md) | How is the code organized *today* — folders, layers, real dependency directions, file sizes? |
+| 17 | [Architecture Options](17-architecture-options.md) | DDD, modular monolith, vertical slices, Clean Architecture — which fits best and why? |
+| 18 | [Migration Roadmap](18-migration-roadmap.md) | How do we get to the target structure step by step, and what does "add a feature" look like after? |
 
 ### Decisions
 

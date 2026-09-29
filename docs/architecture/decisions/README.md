@@ -25,6 +25,7 @@ change a decision, write a new ADR that supersedes it and link both ways.
 | [0018](0018-distroless-supply-chain.md) | Distroless images + Trivy/SBOM/cosign supply chain | Accepted |
 | [0019](0019-openspec-workflow.md) | OpenSpec change-first workflow with traceability matrices | Accepted |
 | [0020](0020-fulltext-search-simple.md) | Postgres tsvector with the 'simple' config for full-text search | Accepted |
+| [0021](0021-package-by-feature.md) | Reorganize to package-by-feature (vertical slices) — see [16–18](../) | Accepted |
 
 ## Format
 
