@@ -27,6 +27,7 @@ The project is intentionally small enough to understand, but it includes the pat
 - **Caching & search** — read-through cache (memory/Redis, singleflight) for hot reads, ETag/304 on heavy lists, permission-scoped full-text search — see [docs/caching-search.md](docs/caching-search.md)
 - **Transport hardening** — inbound server spans, pgx pool tuning, chunked-safe body caps, HSTS, `_FILE` secrets, per-identity rate limits, maintenance mode — see [docs/reliability.md](docs/reliability.md)
 - **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) and a signed, scanned, SBOM'd release pipeline — see [docs/deployment.md](docs/deployment.md)
+- **Application map** — every component with file paths and a hand-check per piece: [docs/application-overview.md](docs/application-overview.md)
 - **Regression** — `scripts/regression-walkthrough.sh` drives every feature against a live stack; the full gauntlet is documented in [docs/regression-checklist.md](docs/regression-checklist.md)
 - **Rich demo data** — 500 users, 3 organizations, 120 tickets across the whole approval lifecycle, 90 days of events (12 types with property dimensions), audit entries, notifications, keys, and webhook history on first launch
 - Gin HTTP API
