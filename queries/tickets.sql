@@ -37,7 +37,7 @@ VALUES ($1, (SELECT COALESCE(MAX(number), 0) + 1 FROM tickets WHERE org_id = $2)
 RETURNING number;
 
 -- name: GetTicket :one
-SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at
+SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at, search_vec
 FROM tickets
 WHERE id = $1;
 
@@ -51,7 +51,7 @@ WHERE id = $1;
 DELETE FROM tickets WHERE id = $1;
 
 -- name: ListTicketsOffset :many
-SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at
+SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at, search_vec
 FROM tickets
 WHERE (sqlc.arg('query')::text = '' OR (title || ' ' || description) ILIKE '%' || sqlc.arg('query')::text || '%')
   AND (sqlc.arg('org')::text = '' OR org_id = sqlc.arg('org')::text)
@@ -64,7 +64,7 @@ LIMIT sqlc.arg('lim')
 OFFSET sqlc.arg('off');
 
 -- name: ListTicketsKeyset :many
-SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at
+SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at, search_vec
 FROM tickets
 WHERE (sqlc.arg('query')::text = '' OR (title || ' ' || description) ILIKE '%' || sqlc.arg('query')::text || '%')
   AND (sqlc.arg('org')::text = '' OR org_id = sqlc.arg('org')::text)
@@ -118,7 +118,7 @@ WHERE ticket_id = $1
 ORDER BY step_index ASC;
 
 -- name: ListTicketsForApproverOffset :many
-SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at
+SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at, t.search_vec
 FROM tickets t
 JOIN ticket_approvals a ON a.ticket_id = t.id AND a.step_index = t.current_step AND a.status = 'pending'
 WHERE t.status = 'in_review'
@@ -130,7 +130,7 @@ LIMIT sqlc.arg('lim')
 OFFSET sqlc.arg('off');
 
 -- name: ListTicketsForApproverKeyset :many
-SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at
+SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at, t.search_vec
 FROM tickets t
 JOIN ticket_approvals a ON a.ticket_id = t.id AND a.step_index = t.current_step AND a.status = 'pending'
 WHERE t.status = 'in_review'

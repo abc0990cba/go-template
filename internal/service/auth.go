@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/argon2"
+	"golang.org/x/sync/singleflight"
 
 	"github.com/your-org/go-template/internal/model"
 )
@@ -25,7 +26,15 @@ type AuthService struct {
 	store      AuthRepo
 	events     EventSink
 	sessionTTL time.Duration
+	// cache is optional: the user record behind a live session is the
+	// hottest read in the app (every request resolves it). Invalidated by
+	// the user service on writes — both share the same keys.
+	cache Cache
+	group singleflight.Group
 }
+
+// WithCache attaches the read-through user cache.
+func (s *AuthService) WithCache(cache Cache) *AuthService { s.cache = cache; return s }
 
 // emit records an analytics event attributed to the acting user when a sink
 // is configured.
@@ -75,13 +84,16 @@ func (s *AuthService) Logout(ctx context.Context, token string) error {
 }
 
 // CurrentUser resolves the session token to its user; reading also slides
-// the session expiry.
+// the session expiry. The user record itself is served through the shared
+// user cache (sessions stay uncached: they slide and revoke).
 func (s *AuthService) CurrentUser(ctx context.Context, token string) (model.User, error) {
 	session, err := s.store.GetSession(ctx, token, s.sessionTTL)
 	if err != nil {
 		return model.User{}, err
 	}
-	return s.store.GetUser(ctx, session.UserID)
+	return CachedGetOrLoad(ctx, s.cache, nil, &s.group, UserCacheKey(session.UserID), CacheTTLUser, func(ctx context.Context) (model.User, error) {
+		return s.store.GetUser(ctx, session.UserID)
+	})
 }
 
 // CurrentSession resolves the token with its impersonation context.

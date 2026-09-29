@@ -31,3 +31,7 @@
 | TOK-003 | `token-auth` | `internal/service/tokens.go` (JWT) | bearerJWT on all routes | `tokens_test.go` (verify/tamper), `httpapp/tokens_test.go` (bearer) | Planned |
 | TOK-004 | `token-auth` | `internal/service/tokens.go` (MFA bridge) | mfa_challenge grant | `tokens_test.go` (challenge bridge) | Planned |
 | TOK-005 | `token-auth` | `internal/httpapp/tokens.go` (opt-in) | 501 without secret | `httpapp/tokens_test.go` (disabled) | Planned |
+| CACHE-001 | `caching-search` | `internal/service/cache.go` + platform/cache | user/perms hot reads | `search_cache_test.go` (hit/singleflight), `caching_search_test.go` (invalidation) | Planned |
+| CACHE-002 | `caching-search` | `internal/httpapp/etag.go` | users/jobs/tickets/analytics GETs | `caching_search_test.go` (304 + fresh tag) | Planned |
+| SRCH-001 | `caching-search` | `internal/service/search.go` | `/api/search` | `search_cache_test.go`, `caching_search_test.go` (scoping) | Planned |
+| SRCH-002 | `caching-search` | `internal/platform/postgres/search.go` | tsvector + GIN (migration 000016) | store contract (regression phase) | Planned |

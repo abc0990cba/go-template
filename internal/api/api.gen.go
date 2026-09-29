@@ -1584,6 +1584,13 @@ type SetRolePermissionsJSONBody struct {
 	Permissions *[]Permission `json:"permissions,omitempty"`
 }
 
+// SearchParams defines parameters for Search.
+type SearchParams struct {
+	// Q Websearch-style query ("invoices approved")
+	Q     string `form:"q" json:"q"`
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // UpdateSettingJSONBody defines parameters for UpdateSetting.
 type UpdateSettingJSONBody struct {
 	Value string `json:"value"`

@@ -254,6 +254,7 @@ type Ticket struct {
 	DecidedAt   pgtype.Timestamptz
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	SearchVec   interface{}
 }
 
 type TicketApproval struct {
@@ -311,6 +312,7 @@ type User struct {
 	EnrichProfileSeq int64
 	EnrichContactSeq int64
 	EnrichedAt       pgtype.Timestamptz
+	SearchVec        interface{}
 }
 
 type UserEnrichmentProfile struct {

@@ -121,14 +121,15 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	// the whole /api group already paid.
 	authorized := api.Group("", app.apiAuthRequired, app.identityRateLimit(), app.orgDomain)
 	authorized.GET("/me", app.apiMe)
-	authorized.GET("/users", app.requirePermission("users", "read"), app.apiUsers)
+	authorized.GET("/search", app.apiSearch)
+	authorized.GET("/users", app.requirePermission("users", "read"), app.etag(), app.apiUsers)
 	authorized.POST("/users", app.requirePermission("users", "create"), app.apiCreateUser)
-	authorized.GET("/users/:id", app.requirePermission("users", "read"), app.apiGetUser)
+	authorized.GET("/users/:id", app.requirePermission("users", "read"), app.etag(), app.apiGetUser)
 	authorized.PUT("/users/:id", app.requirePermission("users", "update"), app.apiUpdateUser)
 	authorized.DELETE("/users/:id", app.requirePermission("users", "delete"), app.apiDeleteUser)
 	authorized.GET("/users/:id/activity", app.requirePermission("audit", "read"), app.apiUserActivity)
 	authorized.DELETE("/users/:id/mfa", app.requirePermission("users", "update"), app.apiMFAReset)
-	authorized.GET("/jobs", app.requirePermission("jobs", "read"), app.apiJobs)
+	authorized.GET("/jobs", app.requirePermission("jobs", "read"), app.etag(), app.apiJobs)
 	authorized.GET("/jobs/:id", app.requirePermission("jobs", "read"), app.apiGetJob)
 	authorized.POST("/jobs/process", app.requirePermission("jobs", "execute"), app.apiProcessJob)
 	authorized.POST("/jobs/enrichment", app.requirePermission("jobs", "execute"), app.apiEnrichEnrichment)
@@ -136,7 +137,7 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized.GET("/reports", app.requirePermission("reports", "read"), app.apiReports)
 	authorized.POST("/reports", app.requirePermission("reports", "create"), app.apiGenerateReport)
 	authorized.GET("/reports/:id", app.requirePermission("reports", "read"), app.apiGetReport)
-	authorized.GET("/analytics/summary", app.requirePermission("analytics", "read"), app.apiAnalytics)
+	authorized.GET("/analytics/summary", app.requirePermission("analytics", "read"), app.etag(), app.apiAnalytics)
 	authorized.GET("/analytics/timeseries", app.requirePermission("analytics", "read"), app.apiTimeseries)
 	authorized.GET("/analytics/events", app.requirePermission("analytics", "read"), app.apiRecentEvents)
 	authorized.GET("/analytics/breakdown", app.requirePermission("analytics", "read"), app.apiAnalyticsBreakdown)
@@ -181,7 +182,7 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	// service; these guards keep the catalog permissions. Filing a ticket
 	// accepts an Idempotency-Key so client retries replay instead of
 	// double-filing.
-	authorized.GET("/tickets", app.requirePermission("tickets", "read"), app.apiListTickets)
+	authorized.GET("/tickets", app.requirePermission("tickets", "read"), app.etag(), app.apiListTickets)
 	authorized.GET("/tickets/counts", app.requirePermission("tickets", "read"), app.apiTicketCounts)
 	authorized.POST("/tickets", app.idempotency(), app.requirePermission("tickets", "create"), app.apiCreateTicket)
 	authorized.GET("/tickets/:id", app.requirePermission("tickets", "read"), app.apiGetTicket)

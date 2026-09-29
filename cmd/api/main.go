@@ -16,6 +16,8 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	platformcache "github.com/your-org/go-template/internal/platform/cache"
+
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/httpapp"
@@ -100,6 +102,15 @@ func main() {
 	// processes; single-process mode keeps token buckets in memory.
 	redisClient := openRedis(cfg)
 
+	// Read-through cache: shared via Redis when configured, in-process
+	// otherwise. Users + expanded permissions are the hot reads.
+	var appCache service.Cache
+	if redisClient != nil {
+		appCache = platformcache.NewRedis(redisClient)
+	} else {
+		appCache = platformcache.NewMemory()
+	}
+
 	// Circuit breakers wrap outbound calls; transitions land in Prometheus.
 	breakers := reliability.NewBreakers(cfg.CBFailureThreshold, cfg.CBOpenTimeout)
 	breakers.SetOnChange(func(name string, from, to reliability.CircuitState) {
@@ -121,6 +132,7 @@ func main() {
 		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
 		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
 		MFA:               repos.MFA,
+		Cache:             appCache,
 		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers,
 		StreamsObserver: observ.NewStreamsObserver(),
 		Realtime: func(n model.Notification) {

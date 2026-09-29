@@ -256,6 +256,14 @@ type TokenRepo interface {
 	DeleteExpiredRefreshTokens(ctx context.Context) error
 }
 
+// SearchRepo serves ranked full-text search over the primary entities. The
+// Postgres adapter uses tsvector + websearch_to_tsquery; the memory fake
+// does case-insensitive substring matching with the same call shape.
+type SearchRepo interface {
+	SearchUsers(ctx context.Context, query string, limit int) ([]model.User, error)
+	SearchTickets(ctx context.Context, domain, query string, limit int) ([]model.Ticket, error)
+}
+
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (
@@ -277,4 +285,5 @@ var (
 	_ IdempotencyRepo   = (*repository.MemoryStore)(nil)
 	_ MFARepo           = (*repository.MemoryStore)(nil)
 	_ TokenRepo         = (*repository.MemoryStore)(nil)
+	_ SearchRepo        = (*repository.MemoryStore)(nil)
 )

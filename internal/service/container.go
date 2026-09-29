@@ -36,6 +36,10 @@ type Deps struct {
 	Streams           StreamsRepo
 	MFA               MFARepo
 	Tokens            TokenRepo
+	Search            SearchRepo
+	// Cache is the optional read-through cache (memory or Redis); nil keeps
+	// every read on the store.
+	Cache             Cache
 	WebhookDispatcher WebhookDispatcher
 	// Breakers wraps outbound HTTP and broker calls; nil disables breakers.
 	Breakers *reliability.Breakers
@@ -70,6 +74,7 @@ type Container struct {
 	Streams       *StreamsService
 	MFA           *MFAService
 	Tokens        *TokenService
+	Search        *SearchService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -89,15 +94,20 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 		},
 		Reports:   &ReportService{store: deps.Reports},
 		Analytics: &AnalyticsService{store: deps.Analytics, events: deps.EventStats, logger: logger},
-		RBAC:      &RBACService{enforcer: deps.RBACEnforcer, roles: deps.Roles, orgs: deps.Orgs, logger: logger},
+		RBAC:      (&RBACService{enforcer: deps.RBACEnforcer, roles: deps.Roles, orgs: deps.Orgs, logger: logger}).WithCache(deps.Cache),
 		Audit:     &AuditService{store: deps.Audit, logger: logger},
 		Settings:  &SettingsService{store: deps.Settings},
 	}
 	services.Streams = NewStreamsService(deps.Streams, deps.StreamsObserver, logger)
+	services.Search = NewSearchService(deps.Search, services.RBAC)
 	services.Jobs.breakers = deps.Breakers
 	notifications := &NotificationsService{store: deps.Notifications, publish: deps.Realtime}
 	services.Notifications = notifications
 	services.Jobs.WithNotifications(notifications)
+	if deps.Cache != nil {
+		services.Users.WithCache(deps.Cache).WithLogger(logger)
+		services.Auth.WithCache(deps.Cache)
+	}
 	services.MFA = NewMFAService(deps.MFA, deps.Auth, services.Settings, deps.Events, cfg.SessionTTL)
 	services.Tokens = NewTokenService(deps.Tokens, deps.Auth, services.MFA, deps.Events, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	services.Tickets = &TicketsService{store: deps.Tickets, rbac: services.RBAC, events: deps.Events, logger: logger}

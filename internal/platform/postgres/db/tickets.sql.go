@@ -143,7 +143,7 @@ func (q *Queries) DeleteTicketsReferencingDemoTypes(ctx context.Context) (int64,
 }
 
 const getTicket = `-- name: GetTicket :one
-SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at
+SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at, search_vec
 FROM tickets
 WHERE id = $1
 `
@@ -167,6 +167,7 @@ func (q *Queries) GetTicket(ctx context.Context, id string) (Ticket, error) {
 		&i.DecidedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.SearchVec,
 	)
 	return i, err
 }
@@ -645,7 +646,7 @@ func (q *Queries) ListTicketTypes(ctx context.Context, org string) ([]TicketType
 }
 
 const listTicketsForApproverKeyset = `-- name: ListTicketsForApproverKeyset :many
-SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at
+SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at, t.search_vec
 FROM tickets t
 JOIN ticket_approvals a ON a.ticket_id = t.id AND a.step_index = t.current_step AND a.status = 'pending'
 WHERE t.status = 'in_review'
@@ -699,6 +700,7 @@ func (q *Queries) ListTicketsForApproverKeyset(ctx context.Context, arg ListTick
 			&i.DecidedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVec,
 		); err != nil {
 			return nil, err
 		}
@@ -711,7 +713,7 @@ func (q *Queries) ListTicketsForApproverKeyset(ctx context.Context, arg ListTick
 }
 
 const listTicketsForApproverOffset = `-- name: ListTicketsForApproverOffset :many
-SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at
+SELECT t.id, t.number, t.org_id, t.type_id, t.type_key, t.title, t.description, t.priority, t.status, t.current_step, t.created_by, t.decided_by, t.decided_at, t.created_at, t.updated_at, t.search_vec
 FROM tickets t
 JOIN ticket_approvals a ON a.ticket_id = t.id AND a.step_index = t.current_step AND a.status = 'pending'
 WHERE t.status = 'in_review'
@@ -762,6 +764,7 @@ func (q *Queries) ListTicketsForApproverOffset(ctx context.Context, arg ListTick
 			&i.DecidedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVec,
 		); err != nil {
 			return nil, err
 		}
@@ -774,7 +777,7 @@ func (q *Queries) ListTicketsForApproverOffset(ctx context.Context, arg ListTick
 }
 
 const listTicketsKeyset = `-- name: ListTicketsKeyset :many
-SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at
+SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at, search_vec
 FROM tickets
 WHERE ($1::text = '' OR (title || ' ' || description) ILIKE '%' || $1::text || '%')
   AND ($2::text = '' OR org_id = $2::text)
@@ -835,6 +838,7 @@ func (q *Queries) ListTicketsKeyset(ctx context.Context, arg ListTicketsKeysetPa
 			&i.DecidedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVec,
 		); err != nil {
 			return nil, err
 		}
@@ -847,7 +851,7 @@ func (q *Queries) ListTicketsKeyset(ctx context.Context, arg ListTicketsKeysetPa
 }
 
 const listTicketsOffset = `-- name: ListTicketsOffset :many
-SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at
+SELECT id, number, org_id, type_id, type_key, title, description, priority, status, current_step, created_by, decided_by, decided_at, created_at, updated_at, search_vec
 FROM tickets
 WHERE ($1::text = '' OR (title || ' ' || description) ILIKE '%' || $1::text || '%')
   AND ($2::text = '' OR org_id = $2::text)
@@ -905,6 +909,7 @@ func (q *Queries) ListTicketsOffset(ctx context.Context, arg ListTicketsOffsetPa
 			&i.DecidedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SearchVec,
 		); err != nil {
 			return nil, err
 		}

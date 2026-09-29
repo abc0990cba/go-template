@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"sort"
@@ -134,6 +135,10 @@ var systemPolicies = [][]string{
 // management, and the seed used at startup. A nil enforcer denies
 // everything, which keeps non-HTTP processes safe.
 type RBACService struct {
+	permsCache struct {
+		cache Cache
+		ttl   time.Duration
+	}
 	enforcer *casbin.SyncedEnforcer
 	roles    RolesRepo
 	orgs     OrgsRepo
@@ -148,6 +153,14 @@ type Permission struct {
 
 // Catalog returns the resource/action matrix the roles page renders.
 func (s *RBACService) Catalog() []Resource { return Resources }
+
+// WithCache attaches the expanded-permissions cache (30s, invalidated on
+// every policy mutation).
+func (s *RBACService) WithCache(cache Cache) *RBACService {
+	s.permsCache.cache = cache
+	s.permsCache.ttl = CacheTTLPerms
+	return s
+}
 
 // Enforce answers whether the subject may perform act on obj in dom.
 func (s *RBACService) Enforce(sub, dom, obj, act string) bool {
@@ -247,6 +260,7 @@ func (s *RBACService) UpdateRole(ctx context.Context, key, name, description str
 // DeleteRole removes a custom role together with its policies and
 // assignments. System roles are protected.
 func (s *RBACService) DeleteRole(ctx context.Context, key string) error {
+	defer s.cacheInvalidateAll()
 	role, err := s.roles.GetRole(ctx, key)
 	if err != nil {
 		return err
@@ -275,6 +289,7 @@ func (s *RBACService) RolePermissions(key string) ([]model.PolicyRule, error) {
 
 // SetRolePermissions replaces the role's permission set in one domain.
 func (s *RBACService) SetRolePermissions(key, domain string, perms []Permission) error {
+	defer s.cacheInvalidateAll()
 	if domain == "" {
 		domain = PlatformDomain
 	}
@@ -316,6 +331,7 @@ func (s *RBACService) UserRoles(userID, domain string) ([]model.PolicyRule, erro
 
 // AssignRole grants the role to the user in the domain.
 func (s *RBACService) AssignRole(userID, key, domain string) error {
+	s.cacheInvalidateUser(domain, userID)
 	if domain == "" {
 		domain = PlatformDomain
 	}
@@ -328,6 +344,7 @@ func (s *RBACService) AssignRole(userID, key, domain string) error {
 
 // UnassignRole revokes the role from the user in the domain.
 func (s *RBACService) UnassignRole(userID, key, domain string) error {
+	s.cacheInvalidateUser(domain, userID)
 	if domain == "" {
 		domain = PlatformDomain
 	}
@@ -365,6 +382,7 @@ func (s *RBACService) ListPolicies(ctx context.Context, ptype string) ([]model.P
 
 // AddPolicyRule appends one raw rule (p or g).
 func (s *RBACService) AddPolicyRule(rule model.PolicyRule) error {
+	defer s.cacheInvalidateAll()
 	if rule.Domain == "" {
 		rule.Domain = PlatformDomain
 	}
@@ -381,6 +399,7 @@ func (s *RBACService) AddPolicyRule(rule model.PolicyRule) error {
 
 // RemovePolicyRule deletes one raw rule.
 func (s *RBACService) RemovePolicyRule(rule model.PolicyRule) error {
+	defer s.cacheInvalidateAll()
 	if rule.Domain == "" {
 		rule.Domain = PlatformDomain
 	}
@@ -398,6 +417,12 @@ func (s *RBACService) RemovePolicyRule(rule model.PolicyRule) error {
 func (s *RBACService) EffectivePermissions(userID, domain string) []string {
 	if s.enforcer == nil || userID == "" {
 		return nil
+	}
+	// The expanded set is pure policy math: cacheable for a bounded window.
+	// Every mutation below invalidates the affected keys explicitly, so the
+	// TTL is only the cross-replica backstop.
+	if perms, ok := s.cacheGet(PermsCacheKey(domain, userID)); ok {
+		return perms
 	}
 	domains := []string{domain, PlatformDomain}
 	if domain == "" || domain == PlatformDomain {
@@ -419,7 +444,44 @@ func (s *RBACService) EffectivePermissions(userID, domain string) []string {
 		out = append(out, perm)
 	}
 	sort.Strings(out)
+	s.cacheSet(PermsCacheKey(domain, userID), out)
 	return out
+}
+
+func (s *RBACService) cacheGet(key string) ([]string, bool) {
+	if s.permsCache.cache == nil {
+		return nil, false
+	}
+	raw, ok := s.permsCache.cache.Get(context.Background(), key)
+	if !ok {
+		return nil, false
+	}
+	var perms []string
+	if err := json.Unmarshal(raw, &perms); err != nil {
+		return nil, false
+	}
+	return perms, true
+}
+
+func (s *RBACService) cacheSet(key string, perms []string) {
+	if s.permsCache.cache == nil {
+		return
+	}
+	if raw, err := json.Marshal(perms); err == nil {
+		s.permsCache.cache.Set(context.Background(), key, raw, s.permsCache.ttl)
+	}
+}
+
+func (s *RBACService) cacheInvalidateUser(domain, userID string) {
+	if s.permsCache.cache != nil {
+		s.permsCache.cache.Delete(context.Background(), PermsCacheKey(domain, userID), PermsCacheKey(PlatformDomain, userID))
+	}
+}
+
+func (s *RBACService) cacheInvalidateAll() {
+	if s.permsCache.cache != nil {
+		s.permsCache.cache.DeletePrefix(context.Background(), CacheKeyPerms)
+	}
 }
 
 // expandPermission turns one policy rule into concrete "obj:act" entries,

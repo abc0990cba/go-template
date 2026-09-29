@@ -125,6 +125,40 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserWithToken" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/search:
+    get:
+      tags: [search]
+      summary: Combined full-text search over users and tickets
+      description: >-
+        Permission-scoped: the users section requires users:read, the tickets
+        section tickets:read — and without tickets:read_all only the caller's
+        own tickets come back. Postgres ranks by tsvector relevance; the
+        in-memory store substring-matches.
+      operationId: search
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Websearch-style query ("invoices approved")
+          schema: { type: string }
+        - $ref: "#/components/parameters/limit"
+      responses:
+        "200":
+          description: Matching entities the caller may see
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [users, tickets]
+                properties:
+                  users:
+                    type: array
+                    items: { $ref: "#/components/schemas/User" }
+                  tickets:
+                    type: array
+                    items: { $ref: "#/components/schemas/Ticket" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/auth/token:
     post:
       tags: [auth]
