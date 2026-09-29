@@ -41,7 +41,7 @@ SELECT id, number, org_id, type_id, type_key, title, description, priority, stat
 FROM tickets
 WHERE id = $1;
 
--- name: UpdateTicket :exec
+-- name: UpdateTicket :execrows
 UPDATE tickets
 SET title = $2, description = $3, priority = $4, status = $5, current_step = $6,
     decided_by = $7, decided_at = $8, updated_at = now()

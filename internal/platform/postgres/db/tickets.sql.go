@@ -921,7 +921,7 @@ func (q *Queries) ListTicketsOffset(ctx context.Context, arg ListTicketsOffsetPa
 	return items, nil
 }
 
-const updateTicket = `-- name: UpdateTicket :exec
+const updateTicket = `-- name: UpdateTicket :execrows
 UPDATE tickets
 SET title = $2, description = $3, priority = $4, status = $5, current_step = $6,
     decided_by = $7, decided_at = $8, updated_at = now()
@@ -939,8 +939,8 @@ type UpdateTicketParams struct {
 	DecidedAt   pgtype.Timestamptz
 }
 
-func (q *Queries) UpdateTicket(ctx context.Context, arg UpdateTicketParams) error {
-	_, err := q.db.Exec(ctx, updateTicket,
+func (q *Queries) UpdateTicket(ctx context.Context, arg UpdateTicketParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTicket,
 		arg.ID,
 		arg.Title,
 		arg.Description,
@@ -950,7 +950,10 @@ func (q *Queries) UpdateTicket(ctx context.Context, arg UpdateTicketParams) erro
 		arg.DecidedBy,
 		arg.DecidedAt,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateTicketApproval = `-- name: UpdateTicketApproval :exec

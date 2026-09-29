@@ -101,7 +101,7 @@ services:
       - "1025:1025" # SMTP
 
   minio:
-    image: minio/minio:RELEASE.2024-10-13T13-34-11Z
+    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
     profiles: ["files"] # start with: docker compose --profile files up
     command: server /data --console-address ":9001"
     environment:

@@ -6,6 +6,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -157,12 +158,19 @@ func (s *Store) GetTicket(ctx context.Context, id string) (model.Ticket, error) 
 
 // UpdateTicket rewrites the mutable columns.
 func (s *Store) UpdateTicket(ctx context.Context, ticket model.Ticket) error {
-	return mapErr(s.q.UpdateTicket(ctx, db.UpdateTicketParams{
+	n, err := s.q.UpdateTicket(ctx, db.UpdateTicketParams{
 		ID: ticket.ID, Title: ticket.Title, Description: ticket.Description,
 		Priority: ticket.Priority, Status: ticket.Status,
 		CurrentStep: int32(ticket.CurrentStep), // #nosec G115 -- step index is a small counter
 		DecidedBy:   ticket.DecidedBy, DecidedAt: ts(ticket.DecidedAt),
-	}))
+	})
+	if err != nil {
+		return mapErr(err)
+	}
+	if n == 0 {
+		return fmt.Errorf("%w: ticket not found", repository.ErrNotFound)
+	}
+	return nil
 }
 
 // DeleteTicket removes the ticket (steps, comments, and events cascade).
