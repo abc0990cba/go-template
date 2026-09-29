@@ -19,6 +19,22 @@ func TestRBACEnforcement(t *testing.T) {
 	adminToken := registerUnique(t, client)
 	targetToken, targetID := registerUniqueWithID(t, client)
 
+	// The suite's "admin" is only a superadmin on a fresh database: the
+	// register flow grants superadmin to the first account. Seeded stacks
+	// (make docker-up with APP_DEMO_SEED) ship their own users, so skip
+	// instead of failing on an environment property.
+	_, me := call(t, client, http.MethodGet, "/api/me", "", adminToken)
+	roles, _ := me["roles"].([]any)
+	isSuper := false
+	for _, role := range roles {
+		if role == "superadmin" {
+			isSuper = true
+		}
+	}
+	if !isSuper {
+		t.Skip("registered account is not superadmin — the stack database is seeded; run against a fresh database")
+	}
+
 	// The fresh account has viewer rights only: reads pass, writes fail.
 	status, _ := call(t, client, http.MethodGet, "/api/users?limit=1", "", targetToken)
 	if status != http.StatusForbidden {
@@ -74,7 +90,7 @@ func TestRBACEnforcement(t *testing.T) {
 
 func registerUnique(t *testing.T, client *http.Client) string {
 	t.Helper()
-	_, token := registerUniqueWithID(t, client)
+	token, _ := registerUniqueWithID(t, client)
 	return token
 }
 
