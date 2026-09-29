@@ -132,7 +132,12 @@ export function UserRoleChip({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border bg-background px-2 py-0.5 text-xs font-medium">
       {user ? (
-        <UserAvatar name={user.name} email={user.email} className="size-4" fallbackClassName="text-[8px]" />
+        <UserAvatar
+          name={user.name}
+          email={user.email}
+          className="size-4"
+          fallbackClassName="text-[8px]"
+        />
       ) : null}
       {roleName || roleKey}
       {domain && domain !== "*" ? (

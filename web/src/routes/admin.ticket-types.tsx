@@ -64,9 +64,11 @@ function TicketTypesPage() {
   });
 
   const columns: ColumnDef<TicketType>[] = [
-    { accessorKey: "key", header: "Key", cell: ({ row }) => (
-      <span className="font-mono text-xs">{row.original.key}</span>
-    ) },
+    {
+      accessorKey: "key",
+      header: "Key",
+      cell: ({ row }) => <span className="font-mono text-xs">{row.original.key}</span>,
+    },
     { accessorKey: "name", header: "Name" },
     {
       id: "chain",
@@ -91,9 +93,7 @@ function TicketTypesPage() {
       cell: ({ row }) => (
         <Switch
           checked={row.original.active}
-          onCheckedChange={(checked) =>
-            update.mutate({ id: row.original.id, active: checked })
-          }
+          onCheckedChange={(checked) => update.mutate({ id: row.original.id, active: checked })}
           aria-label="Toggle ticket type"
         />
       ),
@@ -112,7 +112,12 @@ function TicketTypesPage() {
       header: "",
       cell: ({ row }) => (
         <div className="flex justify-end gap-1">
-          <Button size="sm" variant="outline" className="h-8 md:h-7" onClick={() => setEditing(row.original)}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 md:h-7"
+            onClick={() => setEditing(row.original)}
+          >
             Edit
           </Button>
           <Button
@@ -139,7 +144,11 @@ function TicketTypesPage() {
           </p>
         </div>
         <div className="ml-auto flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => void queryClient.invalidateQueries({ queryKey: ["ticket-types"] })}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void queryClient.invalidateQueries({ queryKey: ["ticket-types"] })}
+          >
             <RefreshCw /> Refresh
           </Button>
           <Button size="sm" onClick={() => setCreateOpen(true)}>
@@ -227,7 +236,12 @@ function TypeDialog({
           {!existing && (
             <div className="grid gap-1.5">
               <Label htmlFor="type-key">Key</Label>
-              <Input id="type-key" value={key} onChange={(e) => setKey(e.target.value)} placeholder="expense" />
+              <Input
+                id="type-key"
+                value={key}
+                onChange={(e) => setKey(e.target.value)}
+                placeholder="expense"
+              />
             </div>
           )}
           <div className="grid gap-1.5">
@@ -236,7 +250,11 @@ function TypeDialog({
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="type-description">Description</Label>
-            <Input id="type-description" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Input
+              id="type-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
           </div>
           <div className="grid gap-1.5">
             <Label>Approval steps (in order)</Label>
@@ -245,14 +263,20 @@ function TypeDialog({
                 <Input
                   value={step.name}
                   onChange={(e) =>
-                    setSteps(steps.map((s, i) => (i === index ? { ...s, name: e.target.value } : s)))
+                    setSteps(
+                      steps.map((s, i) => (i === index ? { ...s, name: e.target.value } : s)),
+                    )
                   }
                   placeholder={`Step ${index + 1} name`}
                 />
                 <Input
                   value={step.approver_role}
                   onChange={(e) =>
-                    setSteps(steps.map((s, i) => (i === index ? { ...s, approver_role: e.target.value } : s)))
+                    setSteps(
+                      steps.map((s, i) =>
+                        i === index ? { ...s, approver_role: e.target.value } : s,
+                      ),
+                    )
                   }
                   placeholder="role"
                   className="w-40"
@@ -282,7 +306,11 @@ function TypeDialog({
             Cancel
           </Button>
           <Button
-            disabled={!name.trim() || steps.some((s) => !s.name.trim() || !s.approver_role.trim()) || save.isPending}
+            disabled={
+              !name.trim() ||
+              steps.some((s) => !s.name.trim() || !s.approver_role.trim()) ||
+              save.isPending
+            }
             onClick={() => save.mutate()}
           >
             {existing ? "Save changes" : "Create type"}

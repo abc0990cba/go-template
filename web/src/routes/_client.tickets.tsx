@@ -11,7 +11,13 @@ import { useLive } from "@/hooks/use-event-stream";
 import { useTableView } from "@/hooks/use-paged-list";
 import { useCan } from "@/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -114,7 +120,8 @@ function TicketsPage() {
 
   const chip = (key: string) => (
     <span key={key} className="rounded-md border px-2 py-1 text-xs text-muted-foreground">
-      {key.replace("_", " ")}: <span className="font-semibold text-foreground">{counts.data?.[key] ?? 0}</span>
+      {key.replace("_", " ")}:{" "}
+      <span className="font-semibold text-foreground">{counts.data?.[key] ?? 0}</span>
     </span>
   );
 
@@ -150,7 +157,12 @@ function TicketsPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         {canReadAll && (
-          <Tabs value={scope} onValueChange={(value) => setSearch({ scope: value as "my" | "all", page: 1, after: undefined })}>
+          <Tabs
+            value={scope}
+            onValueChange={(value) =>
+              setSearch({ scope: value as "my" | "all", page: 1, after: undefined })
+            }
+          >
             <TabsList>
               <TabsTrigger value="my">My tickets</TabsTrigger>
               <TabsTrigger value="all">All (org)</TabsTrigger>
@@ -189,7 +201,11 @@ function TicketsPage() {
             <Select
               value={search.status ?? "all"}
               onValueChange={(value) =>
-                setSearch({ status: value === "all" ? undefined : value, page: 1, after: undefined })
+                setSearch({
+                  status: value === "all" ? undefined : value,
+                  page: 1,
+                  after: undefined,
+                })
               }
             >
               <SelectTrigger className="w-44" aria-label="Filter by status">
@@ -310,7 +326,10 @@ function CreateTicketDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={() => create.mutate()} disabled={!typeId || !title.trim() || create.isPending}>
+          <Button
+            onClick={() => create.mutate()}
+            disabled={!typeId || !title.trim() || create.isPending}
+          >
             Create draft
           </Button>
         </DialogFooter>

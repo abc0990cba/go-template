@@ -76,18 +76,22 @@ export function useInfiniteList<T>(
     initialPageParam: (mode === "offset" ? 0 : "") as InfinitePageParam,
     // Every strategy answers "is there more" via next_cursor; the page
     // parameter only decides how the next request addresses it.
-    getNextPageParam: (lastPage: Paged<T>, _allPages, lastPageParam): InfinitePageParam | undefined => {
+    getNextPageParam: (
+      lastPage: Paged<T>,
+      _allPages,
+      lastPageParam,
+    ): InfinitePageParam | undefined => {
       if (!lastPage.next_cursor) return undefined;
-      return mode === "offset" ? Number(lastPageParam) + (params.limit ?? 10) : lastPage.next_cursor;
+      return mode === "offset"
+        ? Number(lastPageParam) + (params.limit ?? 10)
+        : lastPage.next_cursor;
     },
     enabled: options?.enabled,
   });
 }
 
 /** Flattens the accumulated pages of an infinite query into table rows. */
-export function infiniteRows<T>(result: {
-  data?: { pages: Paged<T>[] };
-}): T[] {
+export function infiniteRows<T>(result: { data?: { pages: Paged<T>[] } }): T[] {
   // A nil slice on the wire arrives as null; treat it as an empty page.
   return result.data ? result.data.pages.flatMap((page) => page.data ?? []) : [];
 }
@@ -108,9 +112,13 @@ export function useTableView<T>(
   const isInfinite = view === "infinite";
   const paged = usePagedList<T>(resource, params, { enabled: !isInfinite });
   // The feed ignores the URL's page/after position: offset 0 / no cursor.
-  const infinite = useInfiniteList<T>(resource, { ...params, offset: 0, after: "" }, {
-    enabled: isInfinite,
-  });
+  const infinite = useInfiniteList<T>(
+    resource,
+    { ...params, offset: 0, after: "" },
+    {
+      enabled: isInfinite,
+    },
+  );
 
   if (isInfinite) {
     return {

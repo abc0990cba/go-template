@@ -228,7 +228,9 @@ function MFACard() {
   const status = useQuery({ queryKey: ["mfa", "status"], queryFn: api.mfaStatus });
 
   // Enrollment state machine: idle → qr (secret shown) → recovery codes.
-  const [enrollment, setEnrollment] = useState<{ secret: string; otpauth_url: string } | null>(null);
+  const [enrollment, setEnrollment] = useState<{ secret: string; otpauth_url: string } | null>(
+    null,
+  );
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
@@ -301,7 +303,12 @@ function MFACard() {
                 <code key={recovery}>{recovery}</code>
               ))}
             </div>
-            <Button variant="ghost" size="sm" className="mt-2" onClick={() => setRecoveryCodes(null)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2"
+              onClick={() => setRecoveryCodes(null)}
+            >
               I saved them
             </Button>
           </div>
@@ -362,11 +369,22 @@ function MFACard() {
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
               />
-              <Button size="sm" disabled={!code.trim() || verify.isPending} onClick={() => verify.mutate()}>
+              <Button
+                size="sm"
+                disabled={!code.trim() || verify.isPending}
+                onClick={() => verify.mutate()}
+              >
                 {verify.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
                 Confirm
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => { setEnrollment(null); setQrDataUrl(null); }}>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setEnrollment(null);
+                  setQrDataUrl(null);
+                }}
+              >
                 Cancel
               </Button>
             </div>

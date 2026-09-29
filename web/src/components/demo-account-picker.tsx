@@ -95,7 +95,10 @@ export function DemoAccountPicker() {
                 <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{account.password}</code>
               </TableCell>
               <TableCell className="hidden max-w-80 text-xs text-muted-foreground xl:table-cell">
-                <div className="truncate" title={locale === "ru" ? account.whatToCheckRu : account.whatToCheck}>
+                <div
+                  className="truncate"
+                  title={locale === "ru" ? account.whatToCheckRu : account.whatToCheck}
+                >
                   {locale === "ru" ? account.whatToCheckRu : account.whatToCheck}
                 </div>
               </TableCell>

@@ -39,25 +39,101 @@ interface ActionStyle {
 }
 
 const ACTION_STYLES: Record<string, ActionStyle> = {
-  "user.created": { icon: UserPlus, bubble: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400", label: "Account created" },
-  "user.registered": { icon: UserPlus, bubble: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400", label: "Self-registered" },
-  "user.updated": { icon: Pencil, bubble: "bg-sky-500/12 text-sky-600 dark:text-sky-400", label: "Profile updated" },
-  "user.deleted": { icon: Trash2, bubble: "bg-red-500/12 text-red-600 dark:text-red-400", label: "Account deleted" },
-  "user.logged_in": { icon: LogIn, bubble: "bg-teal-500/12 text-teal-600 dark:text-teal-400", label: "Signed in" },
-  "user.logged_out": { icon: LogOut, bubble: "bg-slate-500/12 text-slate-600 dark:text-slate-400", label: "Signed out" },
-  "user.password_reset": { icon: KeyRound, bubble: "bg-amber-500/12 text-amber-600 dark:text-amber-400", label: "Password reset" },
-  "user.role_assigned": { icon: ShieldCheck, bubble: "bg-violet-500/12 text-violet-600 dark:text-violet-400", label: "Role assigned" },
-  "user.role_revoked": { icon: ShieldOff, bubble: "bg-orange-500/12 text-orange-600 dark:text-orange-400", label: "Role revoked" },
-  "impersonation.started": { icon: VenetianMask, bubble: "bg-amber-500/12 text-amber-600 dark:text-amber-400", label: "Impersonation started" },
-  "impersonation.stopped": { icon: VenetianMask, bubble: "bg-slate-500/12 text-slate-600 dark:text-slate-400", label: "Impersonation stopped" },
-  "streams.demo_published": { icon: Radio, bubble: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-400", label: "Stream event published" },
-  "ticket.created": { icon: Ticket, bubble: "bg-blue-500/12 text-blue-600 dark:text-blue-400", label: "Ticket created" },
-  "role.created": { icon: KeySquare, bubble: "bg-violet-500/12 text-violet-600 dark:text-violet-400", label: "Role created" },
-  "org.created": { icon: Building2, bubble: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400", label: "Organization created" },
-  "org.member_added": { icon: Building2, bubble: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400", label: "Member added to org" },
-  "org.member_removed": { icon: Building2, bubble: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400", label: "Member removed from org" },
-  "webhook.created": { icon: Webhook, bubble: "bg-fuchsia-500/12 text-fuchsia-600 dark:text-fuchsia-400", label: "Webhook created" },
-  "settings.updated": { icon: Settings, bubble: "bg-slate-500/12 text-slate-600 dark:text-slate-400", label: "Setting changed" },
+  "user.created": {
+    icon: UserPlus,
+    bubble: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
+    label: "Account created",
+  },
+  "user.registered": {
+    icon: UserPlus,
+    bubble: "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400",
+    label: "Self-registered",
+  },
+  "user.updated": {
+    icon: Pencil,
+    bubble: "bg-sky-500/12 text-sky-600 dark:text-sky-400",
+    label: "Profile updated",
+  },
+  "user.deleted": {
+    icon: Trash2,
+    bubble: "bg-red-500/12 text-red-600 dark:text-red-400",
+    label: "Account deleted",
+  },
+  "user.logged_in": {
+    icon: LogIn,
+    bubble: "bg-teal-500/12 text-teal-600 dark:text-teal-400",
+    label: "Signed in",
+  },
+  "user.logged_out": {
+    icon: LogOut,
+    bubble: "bg-slate-500/12 text-slate-600 dark:text-slate-400",
+    label: "Signed out",
+  },
+  "user.password_reset": {
+    icon: KeyRound,
+    bubble: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
+    label: "Password reset",
+  },
+  "user.role_assigned": {
+    icon: ShieldCheck,
+    bubble: "bg-violet-500/12 text-violet-600 dark:text-violet-400",
+    label: "Role assigned",
+  },
+  "user.role_revoked": {
+    icon: ShieldOff,
+    bubble: "bg-orange-500/12 text-orange-600 dark:text-orange-400",
+    label: "Role revoked",
+  },
+  "impersonation.started": {
+    icon: VenetianMask,
+    bubble: "bg-amber-500/12 text-amber-600 dark:text-amber-400",
+    label: "Impersonation started",
+  },
+  "impersonation.stopped": {
+    icon: VenetianMask,
+    bubble: "bg-slate-500/12 text-slate-600 dark:text-slate-400",
+    label: "Impersonation stopped",
+  },
+  "streams.demo_published": {
+    icon: Radio,
+    bubble: "bg-cyan-500/12 text-cyan-600 dark:text-cyan-400",
+    label: "Stream event published",
+  },
+  "ticket.created": {
+    icon: Ticket,
+    bubble: "bg-blue-500/12 text-blue-600 dark:text-blue-400",
+    label: "Ticket created",
+  },
+  "role.created": {
+    icon: KeySquare,
+    bubble: "bg-violet-500/12 text-violet-600 dark:text-violet-400",
+    label: "Role created",
+  },
+  "org.created": {
+    icon: Building2,
+    bubble: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400",
+    label: "Organization created",
+  },
+  "org.member_added": {
+    icon: Building2,
+    bubble: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400",
+    label: "Member added to org",
+  },
+  "org.member_removed": {
+    icon: Building2,
+    bubble: "bg-indigo-500/12 text-indigo-600 dark:text-indigo-400",
+    label: "Member removed from org",
+  },
+  "webhook.created": {
+    icon: Webhook,
+    bubble: "bg-fuchsia-500/12 text-fuchsia-600 dark:text-fuchsia-400",
+    label: "Webhook created",
+  },
+  "settings.updated": {
+    icon: Settings,
+    bubble: "bg-slate-500/12 text-slate-600 dark:text-slate-400",
+    label: "Setting changed",
+  },
 };
 
 const FALLBACK_STYLE: ActionStyle = {
@@ -69,13 +145,20 @@ const FALLBACK_STYLE: ActionStyle = {
 function actionStyle(action: string): ActionStyle {
   const exact = ACTION_STYLES[action];
   if (exact) return exact;
-  if (action.startsWith("ticket.")) return { ...FALLBACK_STYLE, icon: Ticket, label: titleize(action) };
-  if (action.startsWith("role.")) return { ...FALLBACK_STYLE, icon: KeySquare, label: titleize(action) };
-  if (action.startsWith("org.")) return { ...FALLBACK_STYLE, icon: Building2, label: titleize(action) };
-  if (action.startsWith("webhook.")) return { ...FALLBACK_STYLE, icon: Webhook, label: titleize(action) };
-  if (action.startsWith("api_key.")) return { ...FALLBACK_STYLE, icon: KeyRound, label: titleize(action) };
-  if (action.startsWith("streams.")) return { ...FALLBACK_STYLE, icon: Radio, label: titleize(action) };
-  if (action.startsWith("policy.")) return { ...FALLBACK_STYLE, icon: ShieldCheck, label: titleize(action) };
+  if (action.startsWith("ticket."))
+    return { ...FALLBACK_STYLE, icon: Ticket, label: titleize(action) };
+  if (action.startsWith("role."))
+    return { ...FALLBACK_STYLE, icon: KeySquare, label: titleize(action) };
+  if (action.startsWith("org."))
+    return { ...FALLBACK_STYLE, icon: Building2, label: titleize(action) };
+  if (action.startsWith("webhook."))
+    return { ...FALLBACK_STYLE, icon: Webhook, label: titleize(action) };
+  if (action.startsWith("api_key."))
+    return { ...FALLBACK_STYLE, icon: KeyRound, label: titleize(action) };
+  if (action.startsWith("streams."))
+    return { ...FALLBACK_STYLE, icon: Radio, label: titleize(action) };
+  if (action.startsWith("policy."))
+    return { ...FALLBACK_STYLE, icon: ShieldCheck, label: titleize(action) };
   return { ...FALLBACK_STYLE, label: titleize(action) };
 }
 
@@ -335,7 +418,9 @@ function DiffView({ diff }: { diff: string }) {
     before = parsed.before;
     after = parsed.after;
   } catch {
-    return <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{diff}</pre>;
+    return (
+      <pre className="mt-1 overflow-x-auto rounded-md bg-muted p-2 font-mono text-xs">{diff}</pre>
+    );
   }
 
   const changed = changedKeys(before, after);

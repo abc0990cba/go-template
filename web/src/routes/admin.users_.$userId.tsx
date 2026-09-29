@@ -26,13 +26,7 @@ import { UserRolesDialog } from "@/components/user-roles-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -145,11 +139,7 @@ function UserDetailPage() {
               onClick={() => impersonate.mutate()}
               disabled={impersonate.isPending}
             >
-              {impersonate.isPending ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <VenetianMask />
-              )}
+              {impersonate.isPending ? <Loader2 className="animate-spin" /> : <VenetianMask />}
               <span className="hidden sm:inline">Sign in as</span>
             </Button>
           ) : null}
@@ -159,7 +149,11 @@ function UserDetailPage() {
         </div>
       </div>
 
-      <UserHeroCard user={u} roleRules={roles.data ?? []} onManageRoles={() => setManagingRoles(true)} />
+      <UserHeroCard
+        user={u}
+        roleRules={roles.data ?? []}
+        onManageRoles={() => setManagingRoles(true)}
+      />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
         {can("audit", "read") ? (
@@ -333,15 +327,15 @@ function UserHeroCard({
               className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => copy(user.id, "User id")}
             >
-              {copied === "User id" ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {copied === "User id" ? (
+                <Check className="size-3.5" />
+              ) : (
+                <Copy className="size-3.5" />
+              )}
             </button>
           </Fact>
-          <Fact label="Created">
-            {format(new Date(user.created_at), "MMM d, yyyy HH:mm")}
-          </Fact>
-          <Fact label="Updated">
-            {format(new Date(user.updated_at), "MMM d, yyyy HH:mm")}
-          </Fact>
+          <Fact label="Created">{format(new Date(user.created_at), "MMM d, yyyy HH:mm")}</Fact>
+          <Fact label="Updated">{format(new Date(user.updated_at), "MMM d, yyyy HH:mm")}</Fact>
           <Fact label="External ref" mono>
             {user.external_ref ? (
               <>
@@ -440,9 +434,7 @@ function RolesPermissionsCard({
             No roles assigned — this account has no explicit grants in this scope.
           </p>
         ) : (
-          roleKeys.map((key) => (
-            <RoleBlock key={key} roleKey={key} catalog={catalog.data ?? []} />
-          ))
+          roleKeys.map((key) => <RoleBlock key={key} roleKey={key} catalog={catalog.data ?? []} />)
         )}
       </CardContent>
     </Card>
@@ -475,7 +467,9 @@ function RoleBlock({
         {permissions.isPending ? (
           <Skeleton className="h-5 w-40" />
         ) : (permissions.data?.length ?? 0) === 0 ? (
-          <span className="text-xs text-muted-foreground">No permissions granted to this role.</span>
+          <span className="text-xs text-muted-foreground">
+            No permissions granted to this role.
+          </span>
         ) : (
           permissions.data?.map((rule) => (
             <span
@@ -509,7 +503,8 @@ function EditUserDialog({
   const [externalRef, setExternalRef] = useState(user.external_ref ?? "");
 
   const update = useMutation({
-    mutationFn: () => api.updateUser(user.id, email.trim(), name.trim(), externalRef.trim() || undefined),
+    mutationFn: () =>
+      api.updateUser(user.id, email.trim(), name.trim(), externalRef.trim() || undefined),
     onSuccess: () => {
       toast.success("User updated");
       onOpenChange(false);

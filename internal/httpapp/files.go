@@ -130,4 +130,3 @@ func (a *App) apiTicketAttachments(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"data": files})
 }
-

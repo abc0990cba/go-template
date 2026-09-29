@@ -19,29 +19,29 @@ import (
 // nil in the single-process development mode (jobs run inline; RBAC then
 // denies everything, which keeps non-HTTP processes safe).
 type Deps struct {
-	Auth              AuthRepo
-	Users             UsersRepo
-	Jobs              JobsRepo
-	Reports           ReportsRepo
-	Analytics         AnalyticsRepo
-	Orgs              OrgsRepo
-	Roles             RolesRepo
-	Audit             AuditRepo
-	Settings          SettingsRepo
-	Notifications     NotificationsRepo
-	EmailTokens       EmailTokensRepo
-	APIKeys           APIKeysRepo
-	Webhooks          WebhooksRepo
-	Tickets           TicketsRepo
-	Streams           StreamsRepo
-	MFA               MFARepo
-	Tokens            TokenRepo
-	Search            SearchRepo
-	Invitations       InvitationsRepo
+	Auth          AuthRepo
+	Users         UsersRepo
+	Jobs          JobsRepo
+	Reports       ReportsRepo
+	Analytics     AnalyticsRepo
+	Orgs          OrgsRepo
+	Roles         RolesRepo
+	Audit         AuditRepo
+	Settings      SettingsRepo
+	Notifications NotificationsRepo
+	EmailTokens   EmailTokensRepo
+	APIKeys       APIKeysRepo
+	Webhooks      WebhooksRepo
+	Tickets       TicketsRepo
+	Streams       StreamsRepo
+	MFA           MFARepo
+	Tokens        TokenRepo
+	Search        SearchRepo
+	Invitations   InvitationsRepo
 	// Files stores file metadata; Blobs is the backing file store. Both may
 	// be nil in processes that do not serve uploads.
-	Files             FilesRepo
-	Blobs             FileStore
+	Files FilesRepo
+	Blobs FileStore
 	// Cache is the optional read-through cache (memory or Redis); nil keeps
 	// every read on the store.
 	Cache             Cache

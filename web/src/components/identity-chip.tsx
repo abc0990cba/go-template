@@ -21,12 +21,7 @@ export function IdentityChip() {
 
   return (
     <div className="hidden items-center gap-2 rounded-full border py-1 pl-1 pr-2 xl:flex">
-      <UserAvatar
-        name={me.name}
-        email={me.email}
-        className="size-7"
-        fallbackClassName="text-xs"
-      />
+      <UserAvatar name={me.name} email={me.email} className="size-7" fallbackClassName="text-xs" />
       <div className="hidden leading-tight xl:block">
         <p className="max-w-36 truncate text-xs font-medium">{me.name || me.email}</p>
         <p className="max-w-36 truncate text-[10px] text-muted-foreground">{scope}</p>

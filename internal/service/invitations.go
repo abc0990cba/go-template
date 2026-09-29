@@ -16,8 +16,8 @@ import (
 
 // Invitation tuning.
 const (
-	InvitationTTL       = 7 * 24 * time.Hour
-	InvitationsPageMax  = 100
+	InvitationTTL      = 7 * 24 * time.Hour
+	InvitationsPageMax = 100
 )
 
 // InvitationsService runs the org membership invitation flow: admins invite
@@ -167,5 +167,3 @@ func (s *InvitationsService) sendInviteEmail(ctx context.Context, invitation mod
 		s.logger.Error("invitation email failed", "err", err, "invitee", invitation.Email)
 	}
 }
-
-

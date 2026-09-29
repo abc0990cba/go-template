@@ -48,7 +48,10 @@ function AcceptInvitationPage() {
   });
 
   const signInFirst = async () => {
-    void navigate({ to: "/login", search: { redirect: `/accept-invitation?token=${token ?? ""}` } });
+    void navigate({
+      to: "/login",
+      search: { redirect: `/accept-invitation?token=${token ?? ""}` },
+    });
   };
 
   return (
@@ -67,7 +70,8 @@ function AcceptInvitationPage() {
         </CardHeader>
         <CardFooter className="flex gap-2">
           <Button onClick={() => accept.mutate()} disabled={!token || accept.isPending}>
-            {accept.isPending ? <Loader2 className="size-4 animate-spin" /> : null} Accept invitation
+            {accept.isPending ? <Loader2 className="size-4 animate-spin" /> : null} Accept
+            invitation
           </Button>
           <Button variant="outline" onClick={() => void signInFirst()}>
             Sign in first

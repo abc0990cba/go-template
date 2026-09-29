@@ -86,7 +86,12 @@ function OrgsPage() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {orgs.isPending && <Loader2 className="size-5 animate-spin" />}
         {(orgs.data?.data ?? []).map((org) => (
-          <OrgCard key={org.id} org={org} onManage={() => setManaging(org)} onDelete={() => setDeleting(org)} />
+          <OrgCard
+            key={org.id}
+            org={org}
+            onManage={() => setManaging(org)}
+            onDelete={() => setDeleting(org)}
+          />
         ))}
       </div>
 
@@ -182,7 +187,7 @@ function OrgCard({
           </div>
           {!members.isPending && (members.data?.length ?? 0) > 0 ? (
             <Badge variant="secondary" className="rounded-full">
-              {(members.data?.length ?? 0)} seat{(members.data?.length ?? 0) === 1 ? "" : "s"}
+              {members.data?.length ?? 0} seat{(members.data?.length ?? 0) === 1 ? "" : "s"}
             </Badge>
           ) : null}
         </div>
@@ -321,9 +326,9 @@ function MembersDialog({
         <DialogHeader>
           <DialogTitle>Seats — {org.name}</DialogTitle>
           <DialogDescription>
-            {(members.data?.length ?? 0)} member{(members.data?.length ?? 0) === 1 ? "" : "s"}{" "}
-            occupy this tenant. Paste a user id to add them; assign their tenant role afterwards on
-            the Users page.
+            {members.data?.length ?? 0} member{(members.data?.length ?? 0) === 1 ? "" : "s"} occupy
+            this tenant. Paste a user id to add them; assign their tenant role afterwards on the
+            Users page.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 sm:flex-row">

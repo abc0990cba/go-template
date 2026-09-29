@@ -9,7 +9,13 @@ import { ExplainerBanner } from "@/components/explainer-banner";
 import { TicketStatusBadge, ticketLabel } from "@/components/ticket-status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,13 +57,24 @@ function ApprovalsPage() {
     queryFn: () => api.decidedApprovals(50),
   });
 
-  const [decision, setDecision] = useState<{ ticket: Ticket; action: "approve" | "reject" } | null>(null);
+  const [decision, setDecision] = useState<{ ticket: Ticket; action: "approve" | "reject" } | null>(
+    null,
+  );
 
   const act = useMutation({
-    mutationFn: ({ id, action, comment }: { id: string; action: "approve" | "reject"; comment: string }) =>
-      api.ticketAction(id, action, comment),
+    mutationFn: ({
+      id,
+      action,
+      comment,
+    }: {
+      id: string;
+      action: "approve" | "reject";
+      comment: string;
+    }) => api.ticketAction(id, action, comment),
     onSuccess: (ticket, { action }) => {
-      toast.success(`Ticket ${ticketLabel(ticket.number)} ${action === "approve" ? "approved" : "rejected"}`);
+      toast.success(
+        `Ticket ${ticketLabel(ticket.number)} ${action === "approve" ? "approved" : "rejected"}`,
+      );
       setDecision(null);
       void queryClient.invalidateQueries({ queryKey: ["approvals"] });
       void queryClient.invalidateQueries({ queryKey: ["tickets"] });
@@ -141,7 +158,10 @@ function ApprovalsPage() {
       accessorKey: "ticket",
       header: "Ticket",
       cell: ({ row }) => (
-        <a href={`/tickets/${row.original.ticket.id}`} className="underline-offset-4 hover:underline">
+        <a
+          href={`/tickets/${row.original.ticket.id}`}
+          className="underline-offset-4 hover:underline"
+        >
           <span className="font-mono text-xs">{ticketLabel(row.original.ticket.number)}</span>{" "}
           {row.original.ticket.title}
         </a>
@@ -180,7 +200,9 @@ function ApprovalsPage() {
       header: "Comment",
       enableSorting: false,
       cell: ({ row }) => (
-        <span className="text-xs text-muted-foreground">{row.original.approval.comment || "—"}</span>
+        <span className="text-xs text-muted-foreground">
+          {row.original.approval.comment || "—"}
+        </span>
       ),
     },
     {
@@ -307,7 +329,9 @@ function DecisionDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {decision ? `${rejecting ? "Reject" : "Approve"} ${ticketLabel(decision.ticket.number)}` : ""}
+            {decision
+              ? `${rejecting ? "Reject" : "Approve"} ${ticketLabel(decision.ticket.number)}`
+              : ""}
           </DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">{decision?.ticket.title}</p>
@@ -320,7 +344,11 @@ function DecisionDialog({
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             rows={3}
-            placeholder={rejecting ? "Why is this rejected? The requester sees it." : "Add context for the requester…"}
+            placeholder={
+              rejecting
+                ? "Why is this rejected? The requester sees it."
+                : "Add context for the requester…"
+            }
           />
         </div>
         <DialogFooter>

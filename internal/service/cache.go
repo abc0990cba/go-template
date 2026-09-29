@@ -21,10 +21,10 @@ type Cache interface {
 
 // Cache keys live in one place so invalidation stays greppable.
 const (
-	CacheKeyUser    = "user:"    // + user id
-	CacheKeyPerms   = "perms:"   // + domain + ":" + user id
-	CacheTTLUser    = 30 * time.Second
-	CacheTTLPerms   = 30 * time.Second
+	CacheKeyUser  = "user:"  // + user id
+	CacheKeyPerms = "perms:" // + domain + ":" + user id
+	CacheTTLUser  = 30 * time.Second
+	CacheTTLPerms = 30 * time.Second
 )
 
 // UserCacheKey is the canonical cache key for a user record.

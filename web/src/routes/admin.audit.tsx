@@ -4,10 +4,7 @@ import { format } from "date-fns";
 import { useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
 import { ExplainerBanner } from "@/components/explainer-banner";
-import {
-  InfiniteSentinel,
-  PaginationBar,
-} from "@/components/data-table/pagination-bar";
+import { InfiniteSentinel, PaginationBar } from "@/components/data-table/pagination-bar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -144,7 +141,9 @@ function AuditPage() {
                     key={entry.id}
                     entry={entry}
                     expanded={expanded === entry.id}
-                    onToggle={() => setExpanded((current) => (current === entry.id ? null : entry.id))}
+                    onToggle={() =>
+                      setExpanded((current) => (current === entry.id ? null : entry.id))
+                    }
                   />
                 ))
               )}

@@ -30,14 +30,14 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
@@ -79,8 +79,13 @@ function TicketDetailPage() {
   };
 
   const act = useMutation({
-    mutationFn: ({ action, comment }: { action: "submit" | "approve" | "reject" | "withdraw" | "complete" | "reopen"; comment?: string }) =>
-      api.ticketAction(ticketId, action, comment ?? ""),
+    mutationFn: ({
+      action,
+      comment,
+    }: {
+      action: "submit" | "approve" | "reject" | "withdraw" | "complete" | "reopen";
+      comment?: string;
+    }) => api.ticketAction(ticketId, action, comment ?? ""),
     onSuccess: (ticket, { action }) => {
       toast.success(`Ticket ${ticketLabel(ticket.number)}: ${action} done`);
       invalidate();
@@ -146,7 +151,9 @@ function TicketDetailPage() {
       <div className="flex flex-wrap items-start gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
-            <span className="font-mono text-sm text-muted-foreground">{ticketLabel(ticket.number)}</span>
+            <span className="font-mono text-sm text-muted-foreground">
+              {ticketLabel(ticket.number)}
+            </span>
             {ticket.title}
           </h1>
           <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
@@ -161,37 +168,62 @@ function TicketDetailPage() {
         <div className="ml-auto flex flex-wrap gap-2">
           {mine && ticket.status === "draft" && (
             <>
-              <Button size="sm" onClick={() => act.mutate({ action: "submit" })} disabled={act.isPending}>
+              <Button
+                size="sm"
+                onClick={() => act.mutate({ action: "submit" })}
+                disabled={act.isPending}
+              >
                 <CheckCheck /> Submit for approval
               </Button>
-              <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDeleteOpen(true)}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
                 Delete
               </Button>
             </>
           )}
-          {mine && (ticket.status === "draft" || ticket.status === "in_review" || ticket.status === "approved") && (
+          {mine &&
+            (ticket.status === "draft" ||
+              ticket.status === "in_review" ||
+              ticket.status === "approved") && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => act.mutate({ action: "withdraw" })}
+                disabled={act.isPending}
+              >
+                <Undo2 /> Withdraw
+              </Button>
+            )}
+          {mine && ticket.status === "approved" && (
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => act.mutate({ action: "withdraw" })}
+              onClick={() => act.mutate({ action: "complete" })}
               disabled={act.isPending}
             >
-              <Undo2 /> Withdraw
-            </Button>
-          )}
-          {mine && ticket.status === "approved" && (
-            <Button size="sm" onClick={() => act.mutate({ action: "complete" })} disabled={act.isPending}>
               <CheckCheck /> Deliver result
             </Button>
           )}
           {mine && ticket.status === "rejected" && (
-            <Button size="sm" variant="outline" onClick={() => act.mutate({ action: "reopen" })} disabled={act.isPending}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => act.mutate({ action: "reopen" })}
+              disabled={act.isPending}
+            >
               <Undo2 /> Rework
             </Button>
           )}
           {canDecideCurrent && (
             <>
-              <Button size="sm" onClick={() => act.mutate({ action: "approve" })} disabled={act.isPending}>
+              <Button
+                size="sm"
+                onClick={() => act.mutate({ action: "approve" })}
+                disabled={act.isPending}
+              >
                 <Check /> Approve
               </Button>
               <Button size="sm" variant="destructive" onClick={() => setRejectOpen(true)}>
@@ -202,7 +234,12 @@ function TicketDetailPage() {
         </div>
       </div>
 
-      <TerminalOutcome status={ticket.status} decidedBy={ticket.decided_by} decidedAt={ticket.decided_at} approvals={approvals} />
+      <TerminalOutcome
+        status={ticket.status}
+        decidedBy={ticket.decided_by}
+        decidedAt={ticket.decided_at}
+        approvals={approvals}
+      />
 
       <ExplainerBanner
         title="Who can act, and when"
@@ -222,13 +259,16 @@ function TicketDetailPage() {
             <CardTitle className="text-base">Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <p className="whitespace-pre-wrap">{ticket.description || "No description provided."}</p>
+            <p className="whitespace-pre-wrap">
+              {ticket.description || "No description provided."}
+            </p>
             <p className="text-xs text-muted-foreground">
               Requester <span className="font-mono">{ticket.created_by}</span>
               {ticket.decided_by && (
                 <>
                   {" · "}decided by <span className="font-mono">{ticket.decided_by}</span>
-                  {ticket.decided_at && ` at ${format(new Date(ticket.decided_at), "MMM d, HH:mm")}`}
+                  {ticket.decided_at &&
+                    ` at ${format(new Date(ticket.decided_at), "MMM d, HH:mm")}`}
                 </>
               )}
             </p>
@@ -238,7 +278,9 @@ function TicketDetailPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Approval chain</CardTitle>
-            <CardDescription>Steps run in order; later steps wait for earlier ones.</CardDescription>
+            <CardDescription>
+              Steps run in order; later steps wait for earlier ones.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {approvals.length === 0 && (
@@ -247,7 +289,11 @@ function TicketDetailPage() {
               </p>
             )}
             {approvals.map((step) => (
-              <ApprovalStep key={step.id} step={step} current={step.step_index === ticket.current_step} />
+              <ApprovalStep
+                key={step.id}
+                step={step}
+                current={step.step_index === ticket.current_step}
+              />
             ))}
           </CardContent>
         </Card>
@@ -257,7 +303,9 @@ function TicketDetailPage() {
             <CardTitle className="text-base">Timeline</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {(events.data ?? []).length === 0 && <p className="text-sm text-muted-foreground">No events yet.</p>}
+            {(events.data ?? []).length === 0 && (
+              <p className="text-sm text-muted-foreground">No events yet.</p>
+            )}
             {(events.data ?? []).map((event) => (
               <div key={event.id} className="flex items-start gap-2 text-sm">
                 <span className="mt-1 size-1.5 shrink-0 rounded-full bg-muted-foreground" />
@@ -354,14 +402,19 @@ function TerminalOutcome({
   const rejected = status === "rejected";
   const rejection = approvals.find((step) => step.status === "rejected");
   return (
-    <Alert variant={rejected ? "destructive" : undefined} className={rejected ? "" : "border-amber-500/50 text-amber-600 dark:text-amber-400"}>
+    <Alert
+      variant={rejected ? "destructive" : undefined}
+      className={rejected ? "" : "border-amber-500/50 text-amber-600 dark:text-amber-400"}
+    >
       {rejected ? <Ban /> : <Undo2 />}
-      <AlertTitle>{rejected ? "Rejected by the approver" : "Withdrawn by the requester"}</AlertTitle>
+      <AlertTitle>
+        {rejected ? "Rejected by the approver" : "Withdrawn by the requester"}
+      </AlertTitle>
       <AlertDescription>
         {rejected ? (
           <>
-            <span className="font-mono">{decidedBy}</span> rejected this ticket at the step
-            “{rejection?.name ?? "review"}”
+            <span className="font-mono">{decidedBy}</span> rejected this ticket at the step “
+            {rejection?.name ?? "review"}”
             {decidedAt && ` on ${format(new Date(decidedAt), "MMM d, yyyy HH:mm")}`}. The requester
             can rework it and submit again.
             {rejection?.comment && (
@@ -405,7 +458,10 @@ function ApprovalStep({ step, current }: { step: TicketApproval; current: boolea
             role: {step.approver_role}
           </Badge>
           {current && step.status === "pending" && (
-            <Badge className="ml-1 bg-blue-500/15 text-blue-600 dark:text-blue-400" variant="outline">
+            <Badge
+              className="ml-1 bg-blue-500/15 text-blue-600 dark:text-blue-400"
+              variant="outline"
+            >
               waiting now
             </Badge>
           )}
@@ -422,7 +478,13 @@ function ApprovalStep({ step, current }: { step: TicketApproval; current: boolea
   );
 }
 
-function CommentForm({ onSubmit, pending }: { onSubmit: (body: string) => void; pending: boolean }) {
+function CommentForm({
+  onSubmit,
+  pending,
+}: {
+  onSubmit: (body: string) => void;
+  pending: boolean;
+}) {
   const [body, setBody] = useState("");
   return (
     <div className="grid gap-1.5">

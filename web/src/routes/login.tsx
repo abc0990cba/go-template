@@ -129,9 +129,7 @@ function LoginPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <CardTitle className="text-xl">Go Template Admin</CardTitle>
-                  <CardDescription>
-                    Sign in to manage users, jobs, and analytics.
-                  </CardDescription>
+                  <CardDescription>Sign in to manage users, jobs, and analytics.</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -161,8 +159,8 @@ function LoginPage() {
                       onChange={(event) => setCode(event.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Enter the 6-digit code from your authenticator app, or one of your
-                      recovery codes.
+                      Enter the 6-digit code from your authenticator app, or one of your recovery
+                      codes.
                     </p>
                   </div>
                   <Button
@@ -193,76 +191,76 @@ function LoginPage() {
                     onSubmit={form.handleSubmit((values) => login.mutate(values))}
                     className="space-y-4"
                   >
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="email"
-                            inputMode="email"
-                            autoComplete="email"
-                            placeholder="you@example.com"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex items-center justify-between">
-                          <FormLabel>Password</FormLabel>
-                          <Link
-                            to="/forgot-password"
-                            className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-                          >
-                            Forgot password?
-                          </Link>
-                        </div>
-                        <FormControl>
-                          <div className="relative">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Email</FormLabel>
+                          <FormControl>
                             <Input
-                              type={showPassword ? "text" : "password"}
-                              autoComplete="current-password"
-                              placeholder="••••••••"
-                              className="pr-10"
+                              type="email"
+                              inputMode="email"
+                              autoComplete="email"
+                              placeholder="you@example.com"
                               {...field}
                             />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword((previous) => !previous)}
-                              className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground"
-                              aria-label={showPassword ? "Hide password" : "Show password"}
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="password"
+                      render={({ field }) => (
+                        <FormItem>
+                          <div className="flex items-center justify-between">
+                            <FormLabel>Password</FormLabel>
+                            <Link
+                              to="/forgot-password"
+                              className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                             >
-                              {showPassword ? (
-                                <EyeOff className="size-4" />
-                              ) : (
-                                <Eye className="size-4" />
-                              )}
-                            </button>
+                              Forgot password?
+                            </Link>
                           </div>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    className="w-full bg-linear-to-r from-sky-600 to-violet-600 text-white hover:from-sky-500 hover:to-violet-500"
-                    disabled={login.isPending}
-                  >
-                    {login.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
-                    Sign in
-                  </Button>
-                </form>
-              </Form>
+                          <FormControl>
+                            <div className="relative">
+                              <Input
+                                type={showPassword ? "text" : "password"}
+                                autoComplete="current-password"
+                                placeholder="••••••••"
+                                className="pr-10"
+                                {...field}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((previous) => !previous)}
+                                className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground"
+                                aria-label={showPassword ? "Hide password" : "Show password"}
+                              >
+                                {showPassword ? (
+                                  <EyeOff className="size-4" />
+                                ) : (
+                                  <Eye className="size-4" />
+                                )}
+                              </button>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button
+                      type="submit"
+                      className="w-full bg-linear-to-r from-sky-600 to-violet-600 text-white hover:from-sky-500 hover:to-violet-500"
+                      disabled={login.isPending}
+                    >
+                      {login.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+                      Sign in
+                    </Button>
+                  </form>
+                </Form>
               )}
               <p className="mt-4 text-center text-sm text-muted-foreground">
                 No account?{" "}

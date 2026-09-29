@@ -28,8 +28,8 @@ const (
 // FilesRepo. Attachments carry their entity reference and are permission-
 // checked against it (ticket attachments reuse the ticket visibility rules).
 type FilesService struct {
-	store  FilesRepo
-	blobs  FileStore
+	store   FilesRepo
+	blobs   FileStore
 	tickets *TicketsService
 	logger  *slog.Logger
 	maxSize int64

@@ -6,13 +6,7 @@ import { ExplainerBanner } from "@/components/explainer-banner";
 import { TicketStatusBadge, ticketLabel } from "@/components/ticket-status-badge";
 import { useCan, useMe } from "@/hooks/use-permissions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 
 export const Route = createFileRoute("/_client/")({
@@ -83,8 +77,8 @@ function ClientHomePage() {
           "If an approver rejects (with a comment), rework and resubmit; once approved, deliver the result to finish.",
         ]}
       >
-        Your tickets live only in your list; nobody else's. The Approvals page appears in the
-        navbar when you hold a role that signs off chains.
+        Your tickets live only in your list; nobody else's. The Approvals page appears in the navbar
+        when you hold a role that signs off chains.
       </ExplainerBanner>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -118,7 +112,8 @@ function ClientHomePage() {
                       <span className="truncate font-medium">{ticket.title}</span>
                     </Link>
                     <p className="text-xs text-muted-foreground">
-                      {ticket.type_key} · filed {format(new Date(ticket.created_at), "MMM d, HH:mm")}
+                      {ticket.type_key} · filed{" "}
+                      {format(new Date(ticket.created_at), "MMM d, HH:mm")}
                     </p>
                   </div>
                   <TicketStatusBadge status={ticket.status} />
@@ -126,7 +121,11 @@ function ClientHomePage() {
               ))}
               {(recent.data?.data ?? []).length === 0 && (
                 <li className="py-2 text-muted-foreground">
-                  No tickets yet — <Link to="/tickets" className="underline">file the first one</Link>.
+                  No tickets yet —{" "}
+                  <Link to="/tickets" className="underline">
+                    file the first one
+                  </Link>
+                  .
                 </li>
               )}
             </ul>

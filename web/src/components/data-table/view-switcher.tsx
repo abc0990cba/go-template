@@ -26,10 +26,7 @@ interface ViewSwitcherProps {
 export function ViewSwitcher({ view, onViewChange, disabled = false }: ViewSwitcherProps) {
   return (
     <div className="flex items-center gap-1.5">
-      <div
-        className="inline-flex rounded-lg border bg-muted p-0.5"
-        aria-label="Table view"
-      >
+      <div className="inline-flex rounded-lg border bg-muted p-0.5" aria-label="Table view">
         {VIEWS.map((candidate) => (
           <button
             key={candidate.value}
