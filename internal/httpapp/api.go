@@ -2,6 +2,7 @@ package httpapp
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +10,7 @@ import (
 	"github.com/oapi-codegen/runtime/types"
 	api "github.com/your-org/go-template/internal/api"
 	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/service"
 )
 
 // derefString normalizes the generated optional fields; Email is a string
@@ -46,15 +48,28 @@ func (a *App) apiRegister(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"user": user, "token": token})
 }
 
-// apiLogin verifies credentials, opens a session, and sets the cookie.
+// apiLogin verifies credentials and opens a session. Accounts with a
+// confirmed TOTP factor instead receive a short-lived challenge token and
+// complete the login at /api/auth/mfa/challenge.
 func (a *App) apiLogin(c *gin.Context) {
 	var req api.LoginRequest
 	if !a.bind(c, &req) {
 		return
 	}
-	user, token, err := a.services.Auth.Login(c.Request.Context(), string(req.Email), req.Password)
+	user, token, challenge, err := a.services.MFA.Authenticate(c.Request.Context(), string(req.Email), req.Password)
 	if err != nil {
+		if errors.Is(err, service.ErrMFAEnrollmentRequired) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"type": "about:blank", "title": "two-factor enrollment required", "status": http.StatusForbidden,
+				"mfa_enrollment_required": true,
+			})
+			return
+		}
 		a.fail(c, err)
+		return
+	}
+	if challenge != "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"mfa_required": true, "challenge": challenge})
 		return
 	}
 	a.setSession(c, token)

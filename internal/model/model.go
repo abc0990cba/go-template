@@ -248,6 +248,38 @@ type EmailToken struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+// MFAFactor is the user's TOTP enrollment. The secret stays server-side;
+// confirmed flips once the user proved they can generate valid codes.
+type MFAFactor struct {
+	UserID      string     `json:"user_id"`
+	Secret      string     `json:"-"`
+	Confirmed   bool       `json:"confirmed"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ConfirmedAt *time.Time `json:"confirmed_at,omitempty"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// MFARecoveryCode is one hashed single-use backup code. The raw code is
+// shown exactly once at enrollment.
+type MFARecoveryCode struct {
+	ID        string     `json:"id"`
+	UserID    string     `json:"user_id"`
+	CodeHash  string     `json:"-"`
+	UsedAt    *time.Time `json:"used_at"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+// MFAChallenge bridges the password step and the TOTP step of a login. The
+// token is handed to the client once; only its hash is stored.
+type MFAChallenge struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	TokenHash string    `json:"-"`
+	Attempts  int       `json:"attempts"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
 // APIKey is a personal key for programmatic access. The raw secret exists
 // only at creation; Prefix is safe to display, KeyHash stays in the store.
 type APIKey struct {

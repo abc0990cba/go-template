@@ -120,6 +120,7 @@ func main() {
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
 		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
 		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
+		MFA:               repos.MFA,
 		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers,
 		StreamsObserver: observ.NewStreamsObserver(),
 		Realtime: func(n model.Notification) {

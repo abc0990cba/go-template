@@ -106,11 +106,15 @@ func (a *App) rateLimitScope(scope string, key func(*gin.Context) string) gin.Ha
 
 // apiRateLimit sheds excess traffic across the whole /api surface, per
 // client IP, with the general API budget.
-func (a *App) apiRateLimit() gin.HandlerFunc { return a.rateLimitScope("api", func(c *gin.Context) string { return c.ClientIP() }) }
+func (a *App) apiRateLimit() gin.HandlerFunc {
+	return a.rateLimitScope("api", func(c *gin.Context) string { return c.ClientIP() })
+}
 
 // authRateLimit throttles login, register, and password-reset attempts per
 // client IP with a much tighter budget than the general API limit.
-func (a *App) authRateLimit() gin.HandlerFunc { return a.rateLimitScope("auth", func(c *gin.Context) string { return c.ClientIP() }) }
+func (a *App) authRateLimit() gin.HandlerFunc {
+	return a.rateLimitScope("auth", func(c *gin.Context) string { return c.ClientIP() })
+}
 
 // identityRateLimit runs after authentication and throttles each principal
 // (user id, or the API-key owner) with its own budget, so one hot account

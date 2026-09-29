@@ -108,6 +108,84 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         "204": { description: Session revoked }
+  /api/auth/mfa/challenge:
+    post:
+      tags: [auth]
+      summary: Complete an MFA login with a TOTP or recovery code
+      operationId: mfaChallenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MFAChallengeRequest" }
+      responses:
+        "200":
+          description: User with session token
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserWithToken" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/mfa/status:
+    get:
+      tags: [auth]
+      summary: Two-factor enrollment status for the current user
+      operationId: mfaStatus
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Enrollment state and the mfa.required policy flag
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MFAStatus" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/mfa/enroll:
+    post:
+      tags: [auth]
+      summary: Start TOTP enrollment (secret + otpauth URI for the QR code)
+      operationId: mfaEnroll
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Base32 secret and provisioning URI
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/MFAEnrollment" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/mfa/verify:
+    post:
+      tags: [auth]
+      summary: Confirm enrollment with a code; returns recovery codes once
+      operationId: mfaVerify
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MFACodeRequest" }
+      responses:
+        "200":
+          description: Single-use recovery codes (shown only now)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  recovery_codes: { type: array, items: { type: string } }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/auth/mfa/disable:
+    post:
+      tags: [auth]
+      summary: Disable two-factor authentication (password + current code)
+      operationId: mfaDisable
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MFADisableRequest" }
+      responses:
+        "204": { description: Two-factor disabled }
+        default: { $ref: "#/components/responses/Problem" }
   /api/me:
     get:
       tags: [auth]
@@ -890,6 +968,20 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/AuditEntry" }
                   next_cursor: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/{id}/mfa:
+    delete:
+      tags: [auth]
+      summary: Reset a user's two-factor authentication (admin)
+      description: >-
+        Wipes the TOTP factor, recovery codes, and pending challenges so the
+        user can re-enroll. Audited; the user is notified in-app.
+      operationId: resetUserMFA
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/userId"
+      responses:
+        "204": { description: Factor and recovery codes removed }
         default: { $ref: "#/components/responses/Problem" }
   /api/users/{id}/activity:
     get:
@@ -1785,6 +1877,36 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    MFAChallengeRequest:
+      type: object
+      required: [challenge, code]
+      properties:
+        challenge: { type: string, description: Token from the 401 mfa_required login response }
+        code: { type: string, description: TOTP or recovery code }
+    MFACodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string }
+    MFADisableRequest:
+      type: object
+      required: [password, code]
+      properties:
+        password: { type: string }
+        code: { type: string }
+    MFAEnrollment:
+      type: object
+      required: [secret, otpauth_url]
+      properties:
+        secret: { type: string, description: Base32 secret to enter manually }
+        otpauth_url: { type: string, description: Provisioning URI to render as a QR code }
+    MFAStatus:
+      type: object
+      required: [enabled, pending, required]
+      properties:
+        enabled: { type: boolean }
+        pending: { type: boolean, description: Enrollment started but not confirmed }
+        required: { type: boolean, description: The mfa.required policy flag }
     RbacResource:
       type: object
       required: [key, description, actions]

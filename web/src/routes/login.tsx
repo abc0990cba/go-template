@@ -47,24 +47,54 @@ function LoginPage() {
   const queryClient = useQueryClient();
   const search = Route.useSearch();
   const [showPassword, setShowPassword] = useState(false);
+  // When the password step answers mfa_required, the card switches to the
+  // code step: the same form asks for the 6-digit TOTP or a recovery code.
+  const [challenge, setChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   const form = useForm<LoginForm>({
     resolver: zodResolver(loginForm),
     defaultValues: { email: "demo@go-template.local", password: "demo-password-123" },
   });
 
+  const finishLogin = async () => {
+    // The login response carries no RBAC context; drop everything cached
+    // under the previous identity and resolve the real session probe
+    // (roles, permissions, orgs) before the redirect, so the route guards
+    // judge the new account by its actual permissions.
+    queryClient.clear();
+    await queryClient.fetchQuery(meQuery());
+    const fallback: FileRouteTypes["to"] = "/";
+    const target = (search.redirect ?? fallback) as FileRouteTypes["to"];
+    void navigate({ to: target.startsWith("/_") || target.includes("?") ? fallback : target });
+  };
+
   const login = useMutation({
-    mutationFn: (values: LoginForm) => api.login(values.email, values.password),
+    mutationFn: (values: LoginForm) => api.loginStep(values.email, values.password),
+    onSuccess: async (outcome) => {
+      if (outcome.kind === "mfa_required") {
+        setChallenge(outcome.challenge);
+        setCode("");
+        return;
+      }
+      if (outcome.kind === "enrollment_required") {
+        toast.error(
+          "Two-factor authentication is required for your account. Sign in is blocked until you set it up — ask an administrator to reset your enrollment.",
+        );
+        return;
+      }
+      await finishLogin();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+    },
+  });
+
+  const challengeMutation = useMutation({
+    mutationFn: () => api.mfaChallenge(challenge ?? "", code.trim()),
     onSuccess: async () => {
-      // The login response carries no RBAC context; drop everything cached
-      // under the previous identity and resolve the real session probe
-      // (roles, permissions, orgs) before the redirect, so the route guards
-      // judge the new account by its actual permissions.
-      queryClient.clear();
-      await queryClient.fetchQuery(meQuery());
-      const fallback: FileRouteTypes["to"] = "/";
-      const target = (search.redirect ?? fallback) as FileRouteTypes["to"];
-      void navigate({ to: target.startsWith("/_") || target.includes("?") ? fallback : target });
+      setChallenge(null);
+      await finishLogin();
     },
     onError: (error) => {
       toast.error(error.message);
@@ -106,11 +136,63 @@ function LoginPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <Form {...form}>
+              {challenge ? (
                 <form
-                  onSubmit={form.handleSubmit((values) => login.mutate(values))}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    challengeMutation.mutate();
+                  }}
                   className="space-y-4"
                 >
+                  <div className="flex items-center gap-2 text-sm">
+                    <ShieldCheck className="size-4 text-primary" />
+                    <span>Two-factor authentication is on for this account.</span>
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="mfa-code" className="text-sm font-medium">
+                      Authentication code
+                    </label>
+                    <Input
+                      id="mfa-code"
+                      inputMode="text"
+                      autoComplete="one-time-code"
+                      placeholder="123456 or recovery code"
+                      value={code}
+                      onChange={(event) => setCode(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Enter the 6-digit code from your authenticator app, or one of your
+                      recovery codes.
+                    </p>
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-linear-to-r from-sky-600 to-violet-600 text-white hover:from-sky-500 hover:to-violet-500"
+                    disabled={code.trim().length === 0 || challengeMutation.isPending}
+                  >
+                    {challengeMutation.isPending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : null}
+                    Verify and sign in
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    onClick={() => {
+                      setChallenge(null);
+                      setCode("");
+                    }}
+                  >
+                    Back
+                  </Button>
+                </form>
+              ) : (
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit((values) => login.mutate(values))}
+                    className="space-y-4"
+                  >
                   <FormField
                     control={form.control}
                     name="email"
@@ -181,6 +263,7 @@ function LoginPage() {
                   </Button>
                 </form>
               </Form>
+              )}
               <p className="mt-4 text-center text-sm text-muted-foreground">
                 No account?{" "}
                 <a href="/register" className="font-medium underline underline-offset-4">

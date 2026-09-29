@@ -34,6 +34,7 @@ type Deps struct {
 	Webhooks          WebhooksRepo
 	Tickets           TicketsRepo
 	Streams           StreamsRepo
+	MFA               MFARepo
 	WebhookDispatcher WebhookDispatcher
 	// Breakers wraps outbound HTTP and broker calls; nil disables breakers.
 	Breakers *reliability.Breakers
@@ -66,6 +67,7 @@ type Container struct {
 	Webhooks      *WebhooksService
 	Tickets       *TicketsService
 	Streams       *StreamsService
+	MFA           *MFAService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -94,6 +96,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	notifications := &NotificationsService{store: deps.Notifications, publish: deps.Realtime}
 	services.Notifications = notifications
 	services.Jobs.WithNotifications(notifications)
+	services.MFA = NewMFAService(deps.MFA, deps.Auth, services.Settings, deps.Events, cfg.SessionTTL)
 	services.Tickets = &TicketsService{store: deps.Tickets, rbac: services.RBAC, events: deps.Events, logger: logger}
 	services.Tickets.WithNotifications(notifications)
 	services.Email = NewEmailService(deps.EmailTokens, deps.Auth, deps.Mailer, cfg.BaseURL, logger)

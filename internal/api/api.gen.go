@@ -838,6 +838,46 @@ type LoginRequest struct {
 	Password string              `json:"password"`
 }
 
+// MFAChallengeRequest defines model for MFAChallengeRequest.
+type MFAChallengeRequest struct {
+	// Challenge Token from the 401 mfa_required login response
+	Challenge string `json:"challenge"`
+
+	// Code TOTP or recovery code
+	Code string `json:"code"`
+}
+
+// MFACodeRequest defines model for MFACodeRequest.
+type MFACodeRequest struct {
+	Code string `json:"code"`
+}
+
+// MFADisableRequest defines model for MFADisableRequest.
+type MFADisableRequest struct {
+	Code     string `json:"code"`
+	Password string `json:"password"`
+}
+
+// MFAEnrollment defines model for MFAEnrollment.
+type MFAEnrollment struct {
+	// OtpauthUrl Provisioning URI to render as a QR code
+	OtpauthUrl string `json:"otpauth_url"`
+
+	// Secret Base32 secret to enter manually
+	Secret string `json:"secret"`
+}
+
+// MFAStatus defines model for MFAStatus.
+type MFAStatus struct {
+	Enabled bool `json:"enabled"`
+
+	// Pending Enrollment started but not confirmed
+	Pending bool `json:"pending"`
+
+	// Required The mfa.required policy flag
+	Required bool `json:"required"`
+}
+
 // NameCount defines model for NameCount.
 type NameCount struct {
 	Count int64  `json:"count"`
@@ -1337,11 +1377,12 @@ type ListApprovals200JSONResponseBody struct {
 
 // ListAuditParams defines parameters for ListAudit.
 type ListAuditParams struct {
-	Limit    *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset   *Offset `form:"offset,omitempty" json:"offset,omitempty"`
-	Actor    *string `form:"actor,omitempty" json:"actor,omitempty"`
-	Action   *string `form:"action,omitempty" json:"action,omitempty"`
-	Resource *string `form:"resource,omitempty" json:"resource,omitempty"`
+	Limit      *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset     *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+	Actor      *string `form:"actor,omitempty" json:"actor,omitempty"`
+	Action     *string `form:"action,omitempty" json:"action,omitempty"`
+	Resource   *string `form:"resource,omitempty" json:"resource,omitempty"`
+	ResourceId *string `form:"resource_id,omitempty" json:"resource_id,omitempty"`
 }
 
 // ForgotPasswordJSONBody defines parameters for ForgotPassword.
@@ -1624,6 +1665,12 @@ type ListUsersParams struct {
 // ListUsersParamsMode defines parameters for ListUsers.
 type ListUsersParamsMode string
 
+// GetUserActivityParams defines parameters for GetUserActivity.
+type GetUserActivityParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
 // UnassignUserRoleJSONBody defines parameters for UnassignUserRole.
 type UnassignUserRoleJSONBody struct {
 	Domain *string `json:"domain,omitempty"`
@@ -1665,6 +1712,15 @@ type ForgotPasswordJSONRequestBody ForgotPasswordJSONBody
 
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// MfaChallengeJSONRequestBody defines body for MfaChallenge for application/json ContentType.
+type MfaChallengeJSONRequestBody = MFAChallengeRequest
+
+// MfaDisableJSONRequestBody defines body for MfaDisable for application/json ContentType.
+type MfaDisableJSONRequestBody = MFADisableRequest
+
+// MfaVerifyJSONRequestBody defines body for MfaVerify for application/json ContentType.
+type MfaVerifyJSONRequestBody = MFACodeRequest
 
 // RegisterJSONRequestBody defines body for Register for application/json ContentType.
 type RegisterJSONRequestBody = RegisterRequest

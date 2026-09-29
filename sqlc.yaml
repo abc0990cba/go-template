@@ -15,6 +15,7 @@ sql:
       - migrations/postgres/000011_webhooks.up.sql
       - migrations/postgres/000012_tickets.up.sql
       - migrations/postgres/000013_streams.up.sql
+      - migrations/postgres/000014_mfa.up.sql
     queries: queries
     gen:
       go:

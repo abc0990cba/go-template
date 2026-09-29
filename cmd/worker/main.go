@@ -64,6 +64,7 @@ func main() {
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
 		Streams:  repos.Streams,
+		MFA:      repos.MFA,
 		Breakers: breakers,
 		Events:   repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
 		StreamsObserver: observ.NewStreamsObserver(),
@@ -78,6 +79,11 @@ func main() {
 	// Idempotency responses expire; the worker owns the sweep.
 	if repos.Idempotency != nil {
 		go pruneLoop(ctx, repos.Idempotency, logger)
+	}
+
+	// Expired MFA login challenges are swept here too.
+	if services.MFA != nil {
+		go mfaChallengePruneLoop(ctx, services.MFA, logger)
 	}
 
 	// Stream and relay metrics live in this process; expose them for
@@ -201,6 +207,22 @@ func pruneLoop(ctx context.Context, repo service.IdempotencyRepo, logger *slog.L
 				logger.Debug("idempotency prune failed", "err", err)
 			} else if n > 0 {
 				logger.Debug("idempotency keys pruned", "count", n)
+			}
+		}
+	}
+}
+
+// mfaChallengePruneLoop drops expired MFA login challenges every 10 minutes.
+func mfaChallengePruneLoop(ctx context.Context, mfa *service.MFAService, logger *slog.Logger) {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := mfa.PruneChallenges(ctx); err != nil {
+				logger.Debug("mfa challenge prune failed", "err", err)
 			}
 		}
 	}

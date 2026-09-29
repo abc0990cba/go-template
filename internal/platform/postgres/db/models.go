@@ -106,6 +106,32 @@ type Job struct {
 	CreatedBy string
 }
 
+type MfaChallenge struct {
+	ID        string
+	UserID    string
+	TokenHash string
+	Attempts  int32
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+type MfaFactor struct {
+	UserID      string
+	Secret      string
+	Confirmed   bool
+	CreatedAt   time.Time
+	ConfirmedAt pgtype.Timestamptz
+	UpdatedAt   time.Time
+}
+
+type MfaRecoveryCode struct {
+	ID        string
+	UserID    string
+	CodeHash  string
+	UsedAt    pgtype.Timestamptz
+	CreatedAt time.Time
+}
+
 type Notification struct {
 	ID        string
 	UserID    string

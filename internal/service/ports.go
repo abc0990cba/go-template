@@ -225,6 +225,27 @@ type IdempotencyRepo interface {
 	PruneIdempotency(ctx context.Context) (int64, error)
 }
 
+// MFARepo persists TOTP factors, hashed recovery codes, and short-lived
+// login challenges. Secrets and codes are stored as the service produced
+// them (base32 secret, sha256 code hashes); the raw values never leave it.
+type MFARepo interface {
+	UpsertMFAFactor(ctx context.Context, factor model.MFAFactor) error
+	ConfirmMFAFactor(ctx context.Context, userID string) error
+	GetMFAFactor(ctx context.Context, userID string) (model.MFAFactor, error)
+	DeleteMFAFactor(ctx context.Context, userID string) error
+
+	CreateMFARecoveryCode(ctx context.Context, code model.MFARecoveryCode) error
+	ListMFARecoveryCodes(ctx context.Context, userID string) ([]model.MFARecoveryCode, error)
+	ConsumeMFARecoveryCode(ctx context.Context, userID, codeHash string) error
+	DeleteMFARecoveryCodes(ctx context.Context, userID string) error
+
+	CreateMFAChallenge(ctx context.Context, challenge model.MFAChallenge) error
+	GetMFAChallengeByHash(ctx context.Context, tokenHash string) (model.MFAChallenge, error)
+	IncrementMFAChallengeAttempts(ctx context.Context, id string) error
+	DeleteMFAChallenge(ctx context.Context, id string) error
+	DeleteExpiredMFAChallenges(ctx context.Context) error
+}
+
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (
@@ -244,4 +265,5 @@ var (
 	_ TicketsRepo       = (*repository.MemoryStore)(nil)
 	_ StreamsRepo       = (*repository.MemoryStore)(nil)
 	_ IdempotencyRepo   = (*repository.MemoryStore)(nil)
+	_ MFARepo           = (*repository.MemoryStore)(nil)
 )

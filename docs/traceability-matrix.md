@@ -22,3 +22,7 @@
 | TRANS-005 | `transport-hardening` | `internal/httpapp/security.go` (identity scope) | `/api/*` per-principal 429 | `hardening_test.go` (per-user budget) | Planned |
 | TRANS-006 | `transport-hardening` | `internal/httpapp/maintenance.go` | 503 + Retry-After gate | `hardening_test.go` (gate + exemptions) | Planned |
 | TRANS-007 | `transport-hardening` | `internal/platform/postgres/store.go` (tuning) | pool knobs + statement timeouts | `.env.example`, integration suite | Planned |
+| MFA-001 | `mfa` | `internal/service/mfa.go` (enroll/verify) | profile card, `/api/auth/mfa/enroll|verify` | `mfa_test.go` (enroll/verify/disable) | Planned |
+| MFA-002 | `mfa` | `internal/service/mfa.go` (challenge) | `/api/auth/login` + `/api/auth/mfa/challenge` | `mfa_test.go` (challenge flow, attempts cap, recovery single-use) | Planned |
+| MFA-003 | `mfa` | `internal/service/mfa.go` (policy) | `mfa.required` setting, 403 marker | `mfa_test.go` (required gate) | Planned |
+| MFA-004 | `mfa` | `internal/httpapp/mfa.go` (admin reset) | `DELETE /api/users/{id}/mfa` | `mfa_test.go` (permission guard) | Planned |

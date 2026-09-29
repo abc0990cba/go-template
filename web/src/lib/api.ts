@@ -168,11 +168,80 @@ interface UserWithToken {
   token: string;
 }
 
+/** MFA answers the login can hand back instead of a session. */
+export type LoginOutcome =
+  | { kind: "ok"; user: User; token: string }
+  | { kind: "mfa_required"; challenge: string }
+  | { kind: "enrollment_required" };
+
+export interface MFAStatus {
+  enabled: boolean;
+  pending: boolean;
+  required: boolean;
+}
+
+export interface MFAEnrollment {
+  secret: string;
+  otpauth_url: string;
+}
+
+/** loginOutcome classifies the password step without throwing for the two
+ * intentional non-200 answers (the challenge and the enrollment gate). */
+async function loginOutcome(email: string, password: string): Promise<LoginOutcome> {
+  let response: Response;
+  try {
+    response = await fetch("/api/auth/login", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (cause) {
+    throw new ApiError(0, "network error", cause instanceof Error ? cause.message : "network error");
+  }
+  if (response.ok) {
+    const ok = (await response.json()) as UserWithToken;
+    return { kind: "ok", user: ok.user, token: ok.token };
+  }
+  let body: Record<string, unknown> = {};
+  try {
+    body = (await response.json()) as Record<string, unknown>;
+  } catch {
+    // Non-JSON error bodies are fine; the status still carries meaning.
+  }
+  if (body.mfa_required === true && typeof body.challenge === "string") {
+    return { kind: "mfa_required", challenge: body.challenge };
+  }
+  if (body.mfa_enrollment_required === true) return { kind: "enrollment_required" };
+  throw new ApiError(
+    response.status,
+    (body.title as string) ?? "request failed",
+    (body.detail as string) ?? "",
+  );
+}
+
 export const api = {
   register: (email: string, name: string, password: string) =>
     post<UserWithToken>("/api/auth/register", { email, name, password }),
-  login: (email: string, password: string) =>
-    post<UserWithToken>("/api/auth/login", { email, password }),
+  login: async (email: string, password: string) => {
+    const outcome = await loginOutcome(email, password);
+    if (outcome.kind !== "ok") {
+      // The demo picker only signs into MFA-less accounts; reaching this
+      // branch means the caller ignored the outcome protocol.
+      throw new ApiError(401, "mfa_required", "This account requires a second step");
+    }
+    return { user: outcome.user, token: outcome.token };
+  },
+  /** loginWithChallenge runs the password step and reports its outcome. */
+  loginStep: loginOutcome,
+  mfaChallenge: (challenge: string, code: string) =>
+    post<UserWithToken>("/api/auth/mfa/challenge", { challenge, code }),
+  mfaStatus: () => get<MFAStatus>("/api/auth/mfa/status"),
+  mfaEnroll: () => post<MFAEnrollment>("/api/auth/mfa/enroll"),
+  mfaVerify: (code: string) => post<{ recovery_codes: string[] }>("/api/auth/mfa/verify", { code }),
+  mfaDisable: (password: string, code: string) =>
+    post<void>("/api/auth/mfa/disable", { password, code }),
+  resetUserMFA: (id: string) => del<void>(`/api/users/${encodeURIComponent(id)}/mfa`),
   logout: () => post<void>("/api/auth/logout"),
   me: () => get<Me>("/api/me"),
   myIdentities: () => get<Paged<AuthIdentity>>("/api/me/identities").then((p) => p.data),
