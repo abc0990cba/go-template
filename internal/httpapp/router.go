@@ -122,6 +122,10 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized := api.Group("", app.apiAuthRequired, app.identityRateLimit(), app.orgDomain)
 	authorized.GET("/me", app.apiMe)
 	authorized.GET("/search", app.apiSearch)
+	// GDPR data export: request, status, download (owner-only by contract).
+	authorized.POST("/users/me/export", app.apiRequestExport)
+	authorized.GET("/users/me/export", app.apiExportStatus)
+	authorized.GET("/users/me/export/download", app.apiExportDownload)
 	// Files: uploads are self-service (owner-scoped metadata); reads are
 	// gated by attachment visibility (ticket canView rules) in the service.
 	authorized.POST("/files", app.apiUploadFile)

@@ -18,6 +18,7 @@ import (
 // sync the operational job record around execution. webhooks may be nil to
 // skip the webhook task.
 func NewMux(jobService *service.JobService, logger *slog.Logger, webhooks *service.WebhooksService) *asynq.ServeMux {
+	// The GDPR export handler lives in the jobs service via WithExporter.
 	mux := asynq.NewServeMux()
 
 	if webhooks != nil {
@@ -41,6 +42,19 @@ func NewMux(jobService *service.JobService, logger *slog.Logger, webhooks *servi
 		}
 		return jobService.RunJob(ctx, p.JobID, func(ctx context.Context) error {
 			return jobService.EnrichBatch(ctx, count)
+		})
+	})
+
+	mux.HandleFunc(jobs.TypeExportGenerate, func(ctx context.Context, t *asynq.Task) error {
+		var p jobs.ExportGenerate
+		if err := json.Unmarshal(t.Payload(), &p); err != nil {
+			return asynqPermanent(fmt.Errorf("decode %s payload: %w", t.Type(), err))
+		}
+		if p.UserID == "" {
+			return asynqPermanent(fmt.Errorf("export payload needs a user id"))
+		}
+		return jobService.RunJob(ctx, p.JobID, func(ctx context.Context) error {
+			return jobService.ProcessExport(ctx, p.UserID)
 		})
 	})
 

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"time"
 )
 
 const getFile = `-- name: GetFile :one
@@ -72,6 +73,45 @@ func (q *Queries) InsertFile(ctx context.Context, arg InsertFileParams) error {
 		arg.RefID,
 	)
 	return err
+}
+
+const listExportFilesOlderThan = `-- name: ListExportFilesOlderThan :many
+SELECT id, owner_id, org_id, key, filename, content_type, size_bytes, checksum_sha256, ref_type, ref_id, created_at, deleted_at
+FROM files
+WHERE ref_type = 'export' AND deleted_at IS NULL AND created_at < $1
+`
+
+func (q *Queries) ListExportFilesOlderThan(ctx context.Context, olderThan time.Time) ([]File, error) {
+	rows, err := q.db.Query(ctx, listExportFilesOlderThan, olderThan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []File
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.OrgID,
+			&i.Key,
+			&i.Filename,
+			&i.ContentType,
+			&i.SizeBytes,
+			&i.ChecksumSha256,
+			&i.RefType,
+			&i.RefID,
+			&i.CreatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listFilesByOwner = `-- name: ListFilesByOwner :many

@@ -190,6 +190,11 @@ func (s *FilesService) canRead(ctx context.Context, callerID, orgID string, file
 	if file.RefType == FileRefTicket {
 		return s.checkTicketAttachment(ctx, callerID, orgID, file.RefID)
 	}
+	// Private files (plain uploads, export bundles) are owner-only: no
+	// permission widens this, so foreign ids probe nothing.
+	if file.OwnerID != callerID {
+		return fmt.Errorf("%w: file not found", repository.ErrNotFound)
+	}
 	return nil
 }
 

@@ -30,3 +30,8 @@ UPDATE files SET deleted_at = now() WHERE id = sqlc.arg('id') AND deleted_at IS 
 
 -- name: SumFileBytesForUser :one
 SELECT COALESCE(sum(size_bytes), 0)::bigint FROM files WHERE owner_id = sqlc.arg('owner_id') AND deleted_at IS NULL;
+
+-- name: ListExportFilesOlderThan :many
+SELECT id, owner_id, org_id, key, filename, content_type, size_bytes, checksum_sha256, ref_type, ref_id, created_at, deleted_at
+FROM files
+WHERE ref_type = 'export' AND deleted_at IS NULL AND created_at < sqlc.arg('older_than');

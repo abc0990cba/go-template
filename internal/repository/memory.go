@@ -2645,3 +2645,15 @@ func (s *MemoryStore) SoftDeleteFile(_ context.Context, id string) error {
 	}
 	return fmt.Errorf("%w: file not found", ErrNotFound)
 }
+
+func (s *MemoryStore) ListExportFilesOlderThan(_ context.Context, olderThan time.Time) ([]model.File, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.File
+	for _, file := range s.files {
+		if file.RefType == "export" && file.DeletedAt == nil && file.CreatedAt.Before(olderThan) {
+			out = append(out, file)
+		}
+	}
+	return out, nil
+}

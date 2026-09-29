@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-29
+goal: Add GDPR data-portability exports — an async job producing a ZIP of JSON bundles per entity, stored as an owner-only file with retention pruning.

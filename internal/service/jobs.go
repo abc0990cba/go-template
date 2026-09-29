@@ -28,6 +28,7 @@ const enrichBatchURL = "https://randomuser.me/api/?results=1"
 // With a queue wired, producers publish to Redis and the worker process
 // executes; without one, ProcessOne runs jobs in-process for development.
 type JobService struct {
+	exporter       *ExportService
 	store          JobsRepo
 	reports        ReportsRepo
 	queue          JobQueue
@@ -256,6 +257,58 @@ func (s *JobService) fetchExternalProfile(ctx context.Context) (string, error) {
 	return payload, nil
 }
 
+// WithExporter attaches the GDPR export builder (worker side; the api only
+// enqueues).
+func (s *JobService) WithExporter(exporter *ExportService) *JobService {
+	s.exporter = exporter
+	return s
+}
+
+// RequestExport enqueues a GDPR data export for the caller. One live export
+// per user: a queued or running request answers with a conflict so retries
+// cannot pile up duplicates.
+func (s *JobService) RequestExport(ctx context.Context, userID string) (model.Job, error) {
+	if s.queue == nil {
+		return model.Job{}, validationError("exports require the background queue (set APP_REDIS_ADDR)")
+	}
+	live, _, err := s.store.ListJobs(ctx, repository.ListOptions{Type: jobs.TypeExportGenerate, Status: "queued", Limit: 50})
+	if err == nil {
+		for _, job := range live {
+			if job.CreatedBy == userID {
+				return job, fmt.Errorf("%w: an export is already queued", repository.ErrConflict)
+			}
+		}
+	}
+	payload, err := json.Marshal(jobs.ExportGenerate{PayloadVersion: 1, UserID: userID})
+	if err != nil {
+		return model.Job{}, err
+	}
+	return s.Enqueue(ctx, jobs.TypeExportGenerate, string(payload), userID)
+}
+
+// LatestExport returns the caller's newest export job of any status.
+func (s *JobService) LatestExport(ctx context.Context, userID string) (model.Job, error) {
+	jobsList, _, err := s.store.ListJobs(ctx, repository.ListOptions{Type: jobs.TypeExportGenerate, Limit: 50})
+	if err != nil {
+		return model.Job{}, err
+	}
+	for _, job := range jobsList {
+		if job.CreatedBy == userID {
+			return job, nil
+		}
+	}
+	return model.Job{}, fmt.Errorf("%w: no export requested yet", repository.ErrNotFound)
+}
+
+// ProcessExport builds the bundle for the queue handler.
+func (s *JobService) ProcessExport(ctx context.Context, userID string) error {
+	if s.exporter == nil {
+		return fmt.Errorf("export builder is not wired in this process")
+	}
+	_, err := s.exporter.Generate(ctx, userID)
+	return err
+}
+
 // GenerateReport builds a snapshot report and stores it; it is the body of
 // user.report_generate.
 func (s *JobService) GenerateReport(ctx context.Context) error {
@@ -280,6 +333,16 @@ func (s *JobService) process(ctx context.Context, job model.Job) error {
 		return s.EnrichBatch(ctx, req.Count)
 	case jobs.TypeReportGenerate:
 		return s.GenerateReport(ctx)
+	case jobs.TypeExportGenerate:
+		var req jobs.ExportGenerate
+		if err := json.Unmarshal([]byte(job.Payload), &req); err != nil {
+			return fmt.Errorf("decode payload: %w", err)
+		}
+		if s.exporter == nil {
+			return fmt.Errorf("export builder is not wired in this process")
+		}
+		_, err := s.exporter.Generate(ctx, req.UserID)
+		return err
 	default:
 		return fmt.Errorf("unknown job type %q", job.Type)
 	}

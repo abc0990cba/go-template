@@ -125,6 +125,54 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserWithToken" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/users/me/export:
+    post:
+      tags: [users]
+      summary: Request a GDPR data export (async job)
+      description: One live export per user; a queued or running request answers 409.
+      operationId: requestExport
+      security: [{ bearerAuth: [] }]
+      responses:
+        "202":
+          description: Export queued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job_id, status]
+                properties:
+                  job_id: { type: string }
+                  status: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+    get:
+      tags: [users]
+      summary: The caller's latest export job status
+      operationId: exportStatus
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: string }
+                  status: { type: string }
+                  error: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/me/export/download:
+    get:
+      tags: [users]
+      summary: Download the latest finished export bundle (ZIP of JSON)
+      description: 202 with Retry-While while the export runs; bundles expire after 7 days (worker pruned).
+      operationId: downloadExport
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The ZIP bundle
+        "202": { description: Export still running }
+        default: { $ref: "#/components/responses/Problem" }
   /api/files:
     post:
       tags: [files]

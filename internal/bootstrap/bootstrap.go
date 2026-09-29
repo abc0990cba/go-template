@@ -12,6 +12,7 @@ import (
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/model"
 	ch "github.com/your-org/go-template/internal/platform/clickhouse"
+	platformfilestore "github.com/your-org/go-template/internal/platform/filestore"
 	"github.com/your-org/go-template/internal/platform/postgres"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
@@ -165,4 +166,25 @@ func (sinks compoundSink) AddEvent(ctx context.Context, event, userID string) {
 	for _, sink := range sinks {
 		sink.AddEvent(ctx, event, userID)
 	}
+}
+
+// FileStore selects the blob adapter: S3/MinIO when configured (probe
+// failure degrades to the in-process store with a warning), in-process
+// otherwise. Both binaries share this so exports can be produced by the
+// worker whatever the deployment mode.
+func FileStore(cfg config.Config, ctx context.Context, logger *slog.Logger) service.FileStore {
+	var blobs service.FileStore = platformfilestore.NewMemory()
+	if cfg.S3Bucket == "" {
+		return blobs
+	}
+	s3store, err := platformfilestore.NewS3(ctx, platformfilestore.S3Config{
+		Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, Bucket: cfg.S3Bucket,
+		AccessKeyID: cfg.S3AccessKeyID, SecretKey: cfg.S3SecretKey, UsePathStyle: cfg.S3UsePathStyle,
+	})
+	if err != nil {
+		logger.Warn("s3 filestore unavailable; uploads stay in-process", "err", err)
+		return blobs
+	}
+	logger.Info("s3 filestore ready", "bucket", cfg.S3Bucket)
+	return s3store
 }

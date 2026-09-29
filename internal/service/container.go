@@ -82,6 +82,7 @@ type Container struct {
 	Search        *SearchService
 	Invitations   *InvitationsService
 	Files         *FilesService
+	Exports       *ExportService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -121,6 +122,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	services.Tickets = &TicketsService{store: deps.Tickets, rbac: services.RBAC, events: deps.Events, logger: logger}
 	if deps.Files != nil && deps.Blobs != nil {
 		services.Files = NewFilesService(deps.Files, deps.Blobs, services.Tickets, cfg.FilesMaxBytes, logger)
+		services.Exports = NewExportService(deps.Users, deps.Auth, deps.Tickets, deps.Notifications, deps.Audit, deps.Files, deps.Blobs)
 	}
 	services.Tickets.WithNotifications(notifications)
 	services.Email = NewEmailService(deps.EmailTokens, deps.Auth, deps.Mailer, cfg.BaseURL, logger)

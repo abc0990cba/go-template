@@ -60,15 +60,22 @@ func main() {
 		observ.RecordBreakerState(name, int(from), int(to))
 	})
 
+	blobs := bootstrap.FileStore(cfg, ctx, logger)
+
 	services := service.NewContainer(service.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
 		Streams: repos.Streams,
 		MFA:     repos.MFA, Tokens: repos.Tokens, Search: repos.Search, Invitations: repos.Invitations, Files: repos.Files,
+		Blobs:    blobs,
 		Breakers: breakers,
 		Events:   repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
 		StreamsObserver: observ.NewStreamsObserver(),
 	}, logger, cfg)
+
+	if services.Files != nil {
+		services.Jobs.WithExporter(service.NewExportService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
+	}
 
 	// Brokers are optional: each side that fails to open disables its
 	// consumer with a warning instead of taking the worker down.

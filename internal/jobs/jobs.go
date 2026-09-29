@@ -13,7 +13,16 @@ const (
 	TypeEnrichBatch    = "user.enrich_batch"
 	TypeReportGenerate = "user.report_generate"
 	TypeWebhookDeliver = "webhook.deliver"
+	TypeExportGenerate = "user.export_generate"
 )
+
+// ExportGenerate is the payload for TypeExportGenerate: one user's GDPR
+// data bundle, stored as a file owned by them.
+type ExportGenerate struct {
+	PayloadVersion int    `json:"payload_version"`
+	JobID          string `json:"job_id"`
+	UserID         string `json:"user_id"`
+}
 
 // WebhookDeliver is the payload for TypeWebhookDeliver: one recorded
 // delivery to (re-)post through the queue path.

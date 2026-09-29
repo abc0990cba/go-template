@@ -283,6 +283,7 @@ type FilesRepo interface {
 	ListFilesByRef(ctx context.Context, refType, refID string) ([]model.File, error)
 	ListFilesByOwner(ctx context.Context, ownerID string, limit, offset int) ([]model.File, error)
 	SoftDeleteFile(ctx context.Context, id string) error
+	ListExportFilesOlderThan(ctx context.Context, olderThan time.Time) ([]model.File, error)
 }
 
 // FileStore keeps the blobs behind FilesRepo metadata.
