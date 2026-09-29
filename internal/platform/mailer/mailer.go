@@ -58,7 +58,12 @@ func (s *SMTPSender) Send(_ context.Context, msg Message) error {
 	if err != nil {
 		return fmt.Errorf("mailer render: %w", err)
 	}
-	auth := smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
+	// Authenticate only when credentials are configured: servers without
+	// AUTH (Mailpit, internal relays) must not receive an AUTH attempt.
+	var auth smtp.Auth
+	if s.cfg.Username != "" {
+		auth = smtp.PlainAuth("", s.cfg.Username, s.cfg.Password, s.cfg.Host)
+	}
 	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	header := strings.Join([]string{
 		"From: " + s.cfg.From,
