@@ -44,6 +44,12 @@ The project is intentionally small enough to understand, but it includes the pat
 - Unit, integration, e2e, and performance test structure
 - Reliability rules: graceful shutdown, context propagation, bounded concurrency, retry limits, and health checks
 
+## Documentation
+
+- **[docs/architecture/](docs/architecture/)** — the master architecture set: C4 diagrams (context → containers → components), every flow as a sequence/state diagram (auth, MFA, JWT rotation, approvals, streams/outbox/DLQ, files, export, webhooks, idempotency), the data model ER, the full technology stack with rationale, security model, operations, testing strategy, and a template adoption guide.
+- **[docs/architecture/decisions/](docs/architecture/decisions/)** — 20 ADRs recording every significant architectural choice (hexagonal architecture, monolith-first, sqlc over ORM, sessions vs JWT, exactly-once consumption, transactional outbox, distroless supply chain, …).
+- Feature guides: [application overview](docs/application-overview.md), [quickstart](docs/quickstart.md), [tickets](docs/tickets.md), [MFA](docs/mfa.md), [token auth](docs/token-auth.md), [RBAC](docs/rbac.md), [invitations](docs/invitations.md), [files](docs/files.md), [data export](docs/data-export.md), [enrichment streams](docs/enrichment-streams.md), [caching & search](docs/caching-search.md), [jobs](docs/jobs.md), [database](docs/database.md), [observability](docs/observability.md), [reliability](docs/reliability.md), [deployment](docs/deployment.md), [frontend](docs/frontend.md), [testing](docs/testing.md), [regression checklist](docs/regression-checklist.md).
+
 ## Demo accounts
 
 Seeded by the demo dataset (also shown as a one-click table on the login page when the
