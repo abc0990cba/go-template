@@ -3,6 +3,7 @@ package httpapp
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -30,7 +31,10 @@ func (a *App) requestID() gin.HandlerFunc {
 	}
 }
 
-// bodyLimit rejects oversized request bodies before handlers read them.
+// bodyLimit caps request bodies before handlers read them. The
+// ContentLength check rejects pre-declared oversize bodies up front; the
+// MaxBytesReader wrapper catches chunked requests whose size only becomes
+// known while streaming — the mid-read overflow surfaces in a.bind as 413.
 func (a *App) bodyLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.ContentLength > maxBodyBytes {
@@ -38,6 +42,26 @@ func (a *App) bodyLimit() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		if c.Request.Body != nil {
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
+		}
 		c.Next()
 	}
+}
+
+// bind decodes the JSON request body into dst and writes the error response
+// itself: 413 problem+json when the body exceeded the cap mid-read (the
+// ContentLength pre-check cannot see chunked framing), 400 otherwise. It
+// reports whether decoding succeeded.
+func (a *App) bind(c *gin.Context, dst any) bool {
+	if err := c.ShouldBindJSON(dst); err != nil {
+		var overflow *http.MaxBytesError
+		if errors.As(err, &overflow) {
+			a.problem(c, http.StatusRequestEntityTooLarge, "request body too large", nil)
+		} else {
+			a.problem(c, http.StatusBadRequest, "invalid request body", err)
+		}
+		return false
+	}
+	return true
 }

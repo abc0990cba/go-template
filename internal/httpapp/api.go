@@ -28,8 +28,7 @@ func derefEmail(e *types.Email) string {
 // account becomes superadmin; later ones get the viewer role.
 func (a *App) apiRegister(c *gin.Context) {
 	var req api.RegisterRequest
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if !a.services.Settings.Bool(c.Request.Context(), "registration.enabled") {
@@ -50,8 +49,7 @@ func (a *App) apiRegister(c *gin.Context) {
 // apiLogin verifies credentials, opens a session, and sets the cookie.
 func (a *App) apiLogin(c *gin.Context) {
 	var req api.LoginRequest
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	user, token, err := a.services.Auth.Login(c.Request.Context(), string(req.Email), req.Password)
@@ -144,8 +142,7 @@ func (a *App) apiUsers(c *gin.Context) {
 
 func (a *App) apiCreateUser(c *gin.Context) {
 	var req api.CreateUserRequest
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	user, err := a.services.Users.Create(c.Request.Context(), derefEmail(&req.Email), derefString(req.Name), derefString(req.ExternalRef))
@@ -168,8 +165,7 @@ func (a *App) apiGetUser(c *gin.Context) {
 
 func (a *App) apiUpdateUser(c *gin.Context) {
 	var req api.UpdateUserRequest
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	before, _ := a.services.Users.Get(c.Request.Context(), c.Param("id"))
@@ -225,8 +221,7 @@ func (a *App) apiProcessJob(c *gin.Context) {
 
 func (a *App) apiEnrichEnrichment(c *gin.Context) {
 	var req api.EnqueueEnrichmentJSONBody
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	payload, err := json.Marshal(struct {

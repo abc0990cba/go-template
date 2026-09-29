@@ -12,7 +12,7 @@ func (a *App) apiForgotPassword(c *gin.Context) {
 	var req struct {
 		Email string `json:"email"`
 	}
-	if err := c.BindJSON(&req); err != nil || req.Email == "" {
+	if err := c.ShouldBindJSON(&req); err != nil || req.Email == "" {
 		a.problem(c, http.StatusBadRequest, "invalid request", nil)
 		return
 	}
@@ -31,8 +31,7 @@ func (a *App) apiResetPassword(c *gin.Context) {
 		Token    string `json:"token"`
 		Password string `json:"password"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.Email.ResetPassword(c.Request.Context(), req.Token, req.Password); err != nil {
@@ -47,8 +46,7 @@ func (a *App) apiVerifyEmail(c *gin.Context) {
 	var req struct {
 		Token string `json:"token"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.Email.VerifyEmail(c.Request.Context(), req.Token); err != nil {

@@ -14,12 +14,17 @@ import (
 
 // securityHeaders sets hardening headers on every response. The SPA is
 // served same-origin, so the CSP needs no external sources; inline styles
-// stay allowed because component libraries set style attributes.
+// stay allowed because component libraries set style attributes. HSTS is
+// emitted only in secure-cookie mode: the flag is the deployment's claim
+// that TLS terminates in front of us.
 func (a *App) securityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("X-Frame-Options", "DENY")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
+		if a.cfg.CookieSecure {
+			c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
 		c.Header("Content-Security-Policy",
 			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:")
 		c.Next()
@@ -67,19 +72,20 @@ func sameHost(origin, host string) bool {
 	return strings.EqualFold(strings.TrimSuffix(origin, "/"), host)
 }
 
-// rateLimitScope builds the per-scope limiter middleware. With the factory
-// wired the budget is shared by every api process (Redis sliding window);
-// without one, per-process token buckets do the job. Limiter failures fail
-// open: shedding traffic because the limiter is down would turn one outage
-// into two.
-func (a *App) rateLimitScope(scope string) gin.HandlerFunc {
+// rateLimitScope builds the per-scope limiter middleware, keyed by the
+// callback (client IP for the shared scopes, principal id for the identity
+// scope). With the factory wired the budget is shared by every api process
+// (Redis sliding window); without one, per-process token buckets do the job.
+// Limiter failures fail open: shedding traffic because the limiter is down
+// would turn one outage into two.
+func (a *App) rateLimitScope(scope string, key func(*gin.Context) string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		limiter := a.limiters[scope]
 		if limiter == nil {
 			c.Next()
 			return
 		}
-		ok, retryAfter, err := limiter.Allow(c.Request.Context(), scope+":"+c.ClientIP())
+		ok, retryAfter, err := limiter.Allow(c.Request.Context(), scope+":"+key(c))
 		if err != nil {
 			observ.RateLimitErrors.Inc()
 			c.Next()
@@ -100,8 +106,20 @@ func (a *App) rateLimitScope(scope string) gin.HandlerFunc {
 
 // apiRateLimit sheds excess traffic across the whole /api surface, per
 // client IP, with the general API budget.
-func (a *App) apiRateLimit() gin.HandlerFunc { return a.rateLimitScope("api") }
+func (a *App) apiRateLimit() gin.HandlerFunc { return a.rateLimitScope("api", func(c *gin.Context) string { return c.ClientIP() }) }
 
 // authRateLimit throttles login, register, and password-reset attempts per
 // client IP with a much tighter budget than the general API limit.
-func (a *App) authRateLimit() gin.HandlerFunc { return a.rateLimitScope("auth") }
+func (a *App) authRateLimit() gin.HandlerFunc { return a.rateLimitScope("auth", func(c *gin.Context) string { return c.ClientIP() }) }
+
+// identityRateLimit runs after authentication and throttles each principal
+// (user id, or the API-key owner) with its own budget, so one hot account
+// cannot exhaust an IP budget shared with everyone behind the same NAT.
+func (a *App) identityRateLimit() gin.HandlerFunc {
+	return a.rateLimitScope("user", func(c *gin.Context) string {
+		if id := c.GetString("user_id"); id != "" {
+			return id
+		}
+		return c.ClientIP()
+	})
+}

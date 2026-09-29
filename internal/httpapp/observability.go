@@ -10,6 +10,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/your-org/go-template/internal/observ"
 )
@@ -31,6 +35,35 @@ var (
 		Help: "Requests currently being served.",
 	})
 )
+
+// tracing starts a server span per request, continuing inbound W3C
+// tracecontext from the headers. The span is named after the method when it
+// starts and renamed to the matched route pattern once routing has run, so
+// the backend groups by endpoint instead of raw URL. With the no-op provider
+// (APP_OTLP_ENDPOINT unset) spans are cheap empty objects with no exporter.
+func (a *App) tracing() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx := observ.Propagator.Extract(c.Request.Context(), propagation.HeaderCarrier(c.Request.Header))
+		ctx, span := observ.Tracer.Start(ctx, "HTTP "+c.Request.Method,
+			trace.WithSpanKind(trace.SpanKindServer),
+			trace.WithAttributes(
+				attribute.String("http.request.method", c.Request.Method),
+				attribute.String("url.path", c.Request.URL.Path),
+			))
+		defer span.End()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
+		status := c.Writer.Status()
+		span.SetAttributes(attribute.Int("http.response.status_code", status))
+		if route := c.FullPath(); route != "" {
+			span.SetName(route)
+			span.SetAttributes(attribute.String("http.route", route))
+		}
+		if status >= http.StatusInternalServerError {
+			span.SetStatus(codes.Error, strconv.Itoa(status))
+		}
+	}
+}
 
 // metrics records RED numbers for every request. The route label is the Gin
 // path pattern, not the raw URL, so cardinality stays bounded.

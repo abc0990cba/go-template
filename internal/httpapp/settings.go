@@ -22,8 +22,7 @@ func (a *App) apiUpdateSetting(c *gin.Context) {
 	var req struct {
 		Value string `json:"value"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	user := a.currentUser(c)

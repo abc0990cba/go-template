@@ -37,3 +37,6 @@ go.work.sum
 web/node_modules/
 web/dist/*
 !web/dist/.gitkeep
+
+# Build artifact of cmd/devtools (make devtools builds it locally)
+/devtools

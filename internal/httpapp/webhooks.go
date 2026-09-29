@@ -21,8 +21,7 @@ func (a *App) apiListWebhooks(c *gin.Context) {
 
 func (a *App) apiCreateWebhook(c *gin.Context) {
 	var req model.WebhookEndpoint
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	req.ID = ""
@@ -39,8 +38,7 @@ func (a *App) apiCreateWebhook(c *gin.Context) {
 
 func (a *App) apiUpdateWebhook(c *gin.Context) {
 	var req model.WebhookEndpoint
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	req.ID = c.Param("id")

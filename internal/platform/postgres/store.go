@@ -52,12 +52,31 @@ type Option func(*poolConfig)
 
 type poolConfig struct {
 	connTracer pgx.QueryTracer
+	tuning     Tuning
+}
+
+// Tuning carries the pool knobs; zero values keep the driver defaults.
+// StatementTimeout and IdleTxTimeout are enforced server-side via
+// statement_timeout / idle_in_transaction_session_timeout runtime params.
+type Tuning struct {
+	MaxConns          int32
+	MinConns          int32
+	ConnMaxLifetime   time.Duration
+	ConnMaxIdleTime   time.Duration
+	HealthCheckPeriod time.Duration
+	StatementTimeout  time.Duration
+	IdleTxTimeout     time.Duration
 }
 
 // WithQueryTracing instruments every query with OpenTelemetry spans
 // (otelpgx); enable only after the global tracer provider is installed.
 func WithQueryTracing() Option {
 	return func(c *poolConfig) { c.connTracer = otelpgx.NewTracer() }
+}
+
+// WithTuning applies pool sizing and server-side statement timeouts.
+func WithTuning(t Tuning) Option {
+	return func(c *poolConfig) { c.tuning = t }
 }
 
 // Open connects the pool, verifies connectivity, and applies pending
@@ -74,6 +93,7 @@ func Open(ctx context.Context, url string, migrations fs.FS, opts ...Option) (*S
 	if cfg.connTracer != nil {
 		poolCfg.ConnConfig.Tracer = cfg.connTracer
 	}
+	applyTuning(poolCfg, cfg.tuning)
 	pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
 		return nil, fmt.Errorf("postgres connect: %w", err)
@@ -91,6 +111,32 @@ func Open(ctx context.Context, url string, migrations fs.FS, opts ...Option) (*S
 
 // Close releases the connection pool.
 func (s *Store) Close() { s.pool.Close() }
+
+// applyTuning overlays the optional knobs on the parsed pool config; unset
+// fields keep whatever the connection URL (or the driver default) chose.
+func applyTuning(poolCfg *pgxpool.Config, t Tuning) {
+	if t.MaxConns > 0 {
+		poolCfg.MaxConns = t.MaxConns
+	}
+	if t.MinConns > 0 {
+		poolCfg.MinConns = t.MinConns
+	}
+	if t.ConnMaxLifetime > 0 {
+		poolCfg.MaxConnLifetime = t.ConnMaxLifetime
+	}
+	if t.ConnMaxIdleTime > 0 {
+		poolCfg.MaxConnIdleTime = t.ConnMaxIdleTime
+	}
+	if t.HealthCheckPeriod > 0 {
+		poolCfg.HealthCheckPeriod = t.HealthCheckPeriod
+	}
+	if t.StatementTimeout > 0 {
+		poolCfg.ConnConfig.RuntimeParams["statement_timeout"] = strconv.FormatInt(t.StatementTimeout.Milliseconds(), 10)
+	}
+	if t.IdleTxTimeout > 0 {
+		poolCfg.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = strconv.FormatInt(t.IdleTxTimeout.Milliseconds(), 10)
+	}
+}
 
 // Ping reports database readiness for the health endpoints.
 func (s *Store) Ping(ctx context.Context) error {

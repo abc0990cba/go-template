@@ -38,6 +38,7 @@ var SettingDefinitions = []SettingDefinition{
 	{Key: "password_reset.enabled", Type: "bool", Default: "true", Group: "Access", Label: "Allow password reset by email", Public: true, IsFlag: true},
 	{Key: "demo_mode", Type: "bool", Default: "true", Group: "Access", Label: "Show demo account quick sign-in", Public: true, IsFlag: true},
 	{Key: "webhooks.enabled", Type: "bool", Default: "true", Group: "Integrations", Label: "Deliver outgoing webhooks", IsFlag: true},
+	{Key: "maintenance.enabled", Type: "bool", Default: "false", Group: "Operations", Label: "Maintenance mode (API returns 503)", Public: true, IsFlag: true},
 	{Key: "audit.retention_days", Type: "int", Default: "365", Group: "Compliance", Label: "Audit retention (days)"},
 	{Key: "sessions.max_per_user", Type: "int", Default: "0", Group: "Access", Label: "Max sessions per user (0 = unlimited)"},
 }

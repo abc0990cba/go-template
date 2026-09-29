@@ -18,7 +18,7 @@ The service exposes three signals, all configurable from the environment.
 
 Set `APP_OTLP_ENDPOINT` (OTLP/HTTP, e.g. `localhost:4318`) to export traces. Propagation is W3C `tracecontext`:
 
-- `otelgin` middleware creates server spans for HTTP requests.
+- A built-in server-span middleware (`internal/httpapp/observability.go`, `tracing()`) starts a span per HTTP request — named after the matched route pattern, carrying method/path/status, marked error for 5xx, and continuing inbound `traceparent` headers.
 - The asynq producer injects the current span context into task headers; the worker mux middleware extracts it, so worker spans join the API trace.
 - `otelpgx` instruments every query when the store adapter runs with tracing enabled (wired in `internal/bootstrap`).
 

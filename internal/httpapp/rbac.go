@@ -103,8 +103,7 @@ func (a *App) apiCreateRole(c *gin.Context) {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	role, err := a.services.RBAC.CreateRole(c.Request.Context(), req.Key, req.Name, req.Description)
@@ -121,8 +120,7 @@ func (a *App) apiUpdateRole(c *gin.Context) {
 		Name        string `json:"name"`
 		Description string `json:"description"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.RBAC.UpdateRole(c.Request.Context(), c.Param("key"), req.Name, req.Description); err != nil {
@@ -156,8 +154,7 @@ func (a *App) apiSetRolePermissions(c *gin.Context) {
 		Domain      string               `json:"domain"`
 		Permissions []service.Permission `json:"permissions"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.RBAC.SetRolePermissions(c.Param("key"), req.Domain, req.Permissions); err != nil {
@@ -180,8 +177,7 @@ func (a *App) apiPolicies(c *gin.Context) {
 
 func (a *App) apiAddPolicy(c *gin.Context) {
 	var req model.PolicyRule
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	req.PType = c.DefaultQuery("ptype", req.PType)
@@ -195,8 +191,7 @@ func (a *App) apiAddPolicy(c *gin.Context) {
 
 func (a *App) apiRemovePolicy(c *gin.Context) {
 	var req model.PolicyRule
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.RBAC.RemovePolicyRule(req); err != nil {
@@ -221,8 +216,7 @@ func (a *App) apiAssignUserRole(c *gin.Context) {
 		Role   string `json:"role"`
 		Domain string `json:"domain"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	domain := req.Domain
@@ -242,8 +236,7 @@ func (a *App) apiUnassignUserRole(c *gin.Context) {
 		Role   string `json:"role"`
 		Domain string `json:"domain"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	domain := req.Domain
@@ -272,8 +265,7 @@ func (a *App) apiCreateOrg(c *gin.Context) {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	org, err := a.services.RBAC.CreateOrg(c.Request.Context(), req.Name, req.Slug)
@@ -299,8 +291,7 @@ func (a *App) apiUpdateOrg(c *gin.Context) {
 		Name string `json:"name"`
 		Slug string `json:"slug"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.RBAC.UpdateOrg(c.Request.Context(), c.Param("id"), req.Name, req.Slug); err != nil {
@@ -333,8 +324,7 @@ func (a *App) apiAddOrgMember(c *gin.Context) {
 	var req struct {
 		UserID string `json:"user_id"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	if err := a.services.RBAC.AddOrgMember(c.Request.Context(), c.Param("id"), req.UserID); err != nil {
@@ -359,8 +349,7 @@ func (a *App) apiImpersonate(c *gin.Context) {
 	var req struct {
 		UserID string `json:"user_id"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	admin := a.currentUser(c)

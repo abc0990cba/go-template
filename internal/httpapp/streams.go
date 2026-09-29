@@ -73,8 +73,7 @@ func (a *App) apiTriggerEnrichDemo(c *gin.Context) {
 		return
 	}
 	var req api.EnrichDemoRequest
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	source := string(req.Source)

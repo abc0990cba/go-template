@@ -98,6 +98,15 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 	if cfg.OTLPEndpoint != "" {
 		opts = append(opts, postgres.WithQueryTracing())
 	}
+	opts = append(opts, postgres.WithTuning(postgres.Tuning{
+		MaxConns:          cfg.Pool.MaxConns,
+		MinConns:          cfg.Pool.MinConns,
+		ConnMaxLifetime:   cfg.Pool.ConnMaxLifetime,
+		ConnMaxIdleTime:   cfg.Pool.ConnMaxIdleTime,
+		HealthCheckPeriod: cfg.Pool.HealthCheckPeriod,
+		StatementTimeout:  cfg.Pool.StatementTimeout,
+		IdleTxTimeout:     cfg.Pool.IdleTxTimeout,
+	}))
 	store, err := postgres.Open(ctx, cfg.DatabaseURL, os.DirFS("migrations/postgres"), opts...)
 	if err != nil {
 		return Repos{}, func() {}, err

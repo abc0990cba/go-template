@@ -15,3 +15,10 @@
 | TICKET-004 | `ticket-approvals` | `internal/service/tickets.go` (step guards) | `/api/tickets/{id}/actions` | `tickets_test.go` (role guard) | Planned |
 | TICKET-005 | `ticket-approvals` | `internal/service/tickets.go` (scope) | `/api/tickets?scope=`, `/api/approvals` | `tickets_test.go` (scope separation) | Planned |
 | TICKET-006 | `ticket-approvals` | `internal/bootstrap/demodata.go` | seeded types, roles, 120 tickets | demo seed smoke | Planned |
+| TRANS-001 | `transport-hardening` | `internal/httpapp/observability.go` (tracing) | every route (server spans) | `hardening_test.go` (span recorder) | Planned |
+| TRANS-002 | `transport-hardening` | `internal/httpapp/middleware.go` (bodyLimit + bind) | all JSON routes (413) | `hardening_test.go` (chunked + pre-declared) | Planned |
+| TRANS-003 | `transport-hardening` | `internal/httpapp/security.go` (HSTS) | every response | `hardening_test.go` (toggle test) | Planned |
+| TRANS-004 | `transport-hardening` | `internal/config/config.go` (`_FILE`) | startup validation | `hardening_test.go`, `config` tests | Planned |
+| TRANS-005 | `transport-hardening` | `internal/httpapp/security.go` (identity scope) | `/api/*` per-principal 429 | `hardening_test.go` (per-user budget) | Planned |
+| TRANS-006 | `transport-hardening` | `internal/httpapp/maintenance.go` | 503 + Retry-After gate | `hardening_test.go` (gate + exemptions) | Planned |
+| TRANS-007 | `transport-hardening` | `internal/platform/postgres/store.go` (tuning) | pool knobs + statement timeouts | `.env.example`, integration suite | Planned |

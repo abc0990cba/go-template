@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-29
+goal: Close the production-readiness gaps in the transport and platform layers — inbound tracing, connection-pool tuning, chunked body-limit bypass, HSTS, file-based secrets, per-identity rate limiting, and a maintenance mode.

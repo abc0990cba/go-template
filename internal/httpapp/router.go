@@ -64,10 +64,12 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	limiters := map[string]ratelimit.Limiter{
 		"api":  ratelimit.NewMemory(cfg.APIRateRPS, cfg.APIRateBurst),
 		"auth": ratelimit.NewMemory(cfg.AuthRateRPS, cfg.AuthRateBurst),
+		"user": ratelimit.NewMemory(cfg.UserRateRPS, cfg.UserRateBurst),
 	}
 	if o.LimiterFactory != nil {
 		limiters["api"] = o.LimiterFactory("api", cfg.APIRateRPS, cfg.APIRateBurst)
 		limiters["auth"] = o.LimiterFactory("auth", cfg.AuthRateRPS, cfg.AuthRateBurst)
+		limiters["user"] = o.LimiterFactory("user", cfg.UserRateRPS, cfg.UserRateBurst)
 	}
 	app := &App{
 		cfg: cfg, services: services, logger: logger, pinger: pinger,
@@ -78,7 +80,7 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 		readyProbes:      o.ReadyProbes,
 	}
 	r := gin.New()
-	r.Use(gin.Recovery(), app.securityHeaders(), app.requestID(), app.metrics(), app.accessLog(), app.bodyLimit())
+	r.Use(gin.Recovery(), app.securityHeaders(), app.requestID(), app.tracing(), app.metrics(), app.accessLog(), app.maintenanceGate(), app.bodyLimit())
 	r.NoRoute(app.notFound)
 	r.GET("/health/live", app.ok)
 	r.GET("/health/ready", app.ready)
@@ -109,8 +111,10 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	// Authenticated routes resolve the caller, then the active Casbin
 	// domain (X-Org-Id header, else the user's single org, else the
 	// platform). Guarded routes additionally require a catalog permission;
-	// self-service routes (me, profile, sessions, SSE) only need auth.
-	authorized := api.Group("", app.apiAuthRequired, app.orgDomain)
+	// self-service routes (me, profile, sessions, SSE) only need auth. The
+	// identity limiter throttles each principal on top of the per-IP budget
+	// the whole /api group already paid.
+	authorized := api.Group("", app.apiAuthRequired, app.identityRateLimit(), app.orgDomain)
 	authorized.GET("/me", app.apiMe)
 	authorized.GET("/users", app.requirePermission("users", "read"), app.apiUsers)
 	authorized.POST("/users", app.requirePermission("users", "create"), app.apiCreateUser)

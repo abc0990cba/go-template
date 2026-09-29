@@ -26,8 +26,7 @@ func (a *App) apiCreateAPIKey(c *gin.Context) {
 		Scopes []string `json:"scopes"`
 		TTL    string   `json:"ttl"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	var ttl time.Duration

@@ -70,8 +70,7 @@ func (a *App) apiCreateTicket(c *gin.Context) {
 		Description string `json:"description"`
 		Priority    string `json:"priority"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	ticket, err := a.services.Tickets.Create(c.Request.Context(), a.ticketActor(c), req.TypeID, req.Title, req.Description, req.Priority)
@@ -98,8 +97,7 @@ func (a *App) apiUpdateTicket(c *gin.Context) {
 		Description string `json:"description"`
 		Priority    string `json:"priority"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	ticket, err := a.services.Tickets.Update(c.Request.Context(), a.ticketActor(c), c.Param("id"), req.Title, req.Description, req.Priority)
@@ -127,8 +125,7 @@ func (a *App) apiTicketAction(c *gin.Context) {
 		Action  string `json:"action"`
 		Comment string `json:"comment"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	ticket, err := a.services.Tickets.Action(c.Request.Context(), a.ticketActor(c), c.Param("id"), req.Action, req.Comment)
@@ -153,8 +150,7 @@ func (a *App) apiAddTicketComment(c *gin.Context) {
 	var req struct {
 		Body string `json:"body"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	comment, err := a.services.Tickets.AddComment(c.Request.Context(), a.ticketActor(c), c.Param("id"), req.Body)
@@ -216,8 +212,7 @@ func (a *App) apiCreateTicketType(c *gin.Context) {
 		Steps       []model.TicketStep `json:"steps"`
 		Active      *bool              `json:"active"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	typ := model.TicketType{
@@ -240,8 +235,7 @@ func (a *App) apiUpdateTicketType(c *gin.Context) {
 		Steps       []model.TicketStep `json:"steps"`
 		Active      *bool              `json:"active"`
 	}
-	if err := c.BindJSON(&req); err != nil {
-		a.problem(c, http.StatusBadRequest, "invalid request", err)
+	if !a.bind(c, &req) {
 		return
 	}
 	typ, err := a.services.Tickets.UpdateTicketType(c.Request.Context(), c.Param("id"), req.Name, req.Description, req.Steps, req.Active)

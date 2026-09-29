@@ -85,6 +85,27 @@ type Config struct {
 	APIRateRPS     float64
 	APIRateBurst   int
 	IdempotencyTTL time.Duration
+
+	// UserRate limits each authenticated principal (user id or API-key
+	// subject) individually on top of the per-IP API budget.
+	UserRateRPS   float64
+	UserRateBurst int
+
+	// Pool tunes the pgx connection pool; zero durations mean "driver
+	// default". StatementTimeout and IdleTxTimeout are applied server-side
+	// as statement_timeout / idle_in_transaction_session_timeout.
+	Pool PoolTuning
+}
+
+// PoolTuning carries the pgxpool knobs; all fields optional.
+type PoolTuning struct {
+	MaxConns          int32
+	MinConns          int32
+	ConnMaxLifetime   time.Duration
+	ConnMaxIdleTime   time.Duration
+	HealthCheckPeriod time.Duration
+	StatementTimeout  time.Duration
+	IdleTxTimeout     time.Duration
 }
 
 // Load reads configuration from the environment. Invalid values fail startup
@@ -95,7 +116,6 @@ func Load() (Config, error) {
 		HTTPAddr:       env("APP_HTTP_ADDR", ":8080"),
 		MetricsAddr:    os.Getenv("APP_METRICS_ADDR"),
 		BaseURL:        env("APP_BASE_URL", "http://localhost:8080"),
-		DatabaseURL:    os.Getenv("APP_DATABASE_URL"),
 		RedisAddr:      os.Getenv("APP_REDIS_ADDR"),
 		ReportCron:     os.Getenv("APP_REPORT_CRON"),
 		LogFormat:      env("APP_LOG_FORMAT", "text"),
@@ -136,6 +156,17 @@ func Load() (Config, error) {
 	}
 
 	var err error
+	// Secrets may come from mounted files (Docker/K8s secrets) instead of
+	// plain environment variables.
+	if cfg.DatabaseURL, err = secretValue("APP_DATABASE_URL"); err != nil {
+		return Config{}, err
+	}
+	if cfg.SMTPPassword, err = secretValue("APP_SMTP_PASSWORD"); err != nil {
+		return Config{}, err
+	}
+	if cfg.ClickHousePass, err = secretValue("APP_CLICKHOUSE_PASSWORD"); err != nil {
+		return Config{}, err
+	}
 	if cfg.LogLevel, err = logLevelEnv("APP_LOG_LEVEL", slog.LevelInfo); err != nil {
 		return Config{}, err
 	}
@@ -227,7 +258,73 @@ func Load() (Config, error) {
 	if cfg.IdempotencyTTL <= 0 {
 		return Config{}, fmt.Errorf("%s must be positive", "APP_IDEMPOTENCY_TTL")
 	}
+	if cfg.UserRateRPS, err = floatEnv("APP_USER_RATE_RPS", 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.UserRateBurst, err = intEnv("APP_USER_RATE_BURST", 200); err != nil {
+		return Config{}, err
+	}
+	if cfg.UserRateRPS <= 0 || cfg.UserRateBurst <= 0 {
+		return Config{}, fmt.Errorf("user rate limit must be positive")
+	}
+	if cfg.Pool, err = poolTuningEnv(); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// poolTuningEnv reads the optional APP_PG_* knobs. Zero values keep the
+// driver defaults; durations must parse and positive ints must be positive.
+func poolTuningEnv() (PoolTuning, error) {
+	var p PoolTuning
+	var err error
+	if p.MaxConns, err = int32Env("APP_PG_MAX_CONNS", 0); err != nil {
+		return p, err
+	}
+	if p.MinConns, err = int32Env("APP_PG_MIN_CONNS", 0); err != nil {
+		return p, err
+	}
+	if p.ConnMaxLifetime, err = durationEnv("APP_PG_CONN_MAX_LIFETIME", 0); err != nil {
+		return p, err
+	}
+	if p.ConnMaxIdleTime, err = durationEnv("APP_PG_CONN_MAX_IDLE_TIME", 0); err != nil {
+		return p, err
+	}
+	if p.HealthCheckPeriod, err = durationEnv("APP_PG_HEALTH_CHECK_PERIOD", 0); err != nil {
+		return p, err
+	}
+	if p.StatementTimeout, err = durationEnv("APP_PG_STATEMENT_TIMEOUT", 0); err != nil {
+		return p, err
+	}
+	if p.IdleTxTimeout, err = durationEnv("APP_PG_IDLE_TX_TIMEOUT", 0); err != nil {
+		return p, err
+	}
+	if p.MaxConns < 0 || p.MinConns < 0 {
+		return p, fmt.Errorf("pg pool connection counts must not be negative")
+	}
+	if p.MinConns > 0 && p.MaxConns > 0 && p.MinConns > p.MaxConns {
+		return p, fmt.Errorf("APP_PG_MIN_CONNS must not exceed APP_PG_MAX_CONNS")
+	}
+	return p, nil
+}
+
+// secretValue resolves a sensitive variable: either KEY is set directly, or
+// KEY_FILE points at a file whose trimmed contents are the value (the
+// Docker/K8s secrets mount pattern). Setting both is a configuration error.
+func secretValue(key string) (string, error) {
+	direct := os.Getenv(key)
+	file := os.Getenv(key + "_FILE")
+	if direct != "" && file != "" {
+		return "", fmt.Errorf("%s and %s are mutually exclusive", key, key+"_FILE")
+	}
+	if file != "" {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", key+"_FILE", err)
+		}
+		return strings.TrimRight(string(data), "\r\n"), nil
+	}
+	return direct, nil
 }
 
 func env(key, fallback string) string {
@@ -266,15 +363,20 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 }
 
 func intEnv(key string, fallback int) (int, error) {
+	value, err := int32Env(key, int32(fallback))
+	return int(value), err
+}
+
+func int32Env(key string, fallback int32) (int32, error) {
 	value := os.Getenv(key)
 	if value == "" {
 		return fallback, nil
 	}
-	parsed, err := strconv.Atoi(value)
+	parsed, err := strconv.ParseInt(value, 10, 32)
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	return parsed, nil
+	return int32(parsed), nil
 }
 
 func boolEnv(key string, fallback bool) (bool, error) {
