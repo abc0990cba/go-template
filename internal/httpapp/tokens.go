@@ -79,6 +79,10 @@ func (a *App) apiTokenRevoke(c *gin.Context) {
 		return
 	}
 	if err := a.services.Tokens.Revoke(c.Request.Context(), req.RefreshToken); err != nil {
+		if errors.Is(err, service.ErrTokenAuthDisabled) {
+			a.problem(c, http.StatusNotImplemented, "token authentication is not configured", nil)
+			return
+		}
 		a.fail(c, err)
 		return
 	}

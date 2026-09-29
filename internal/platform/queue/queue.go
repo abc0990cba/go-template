@@ -46,6 +46,15 @@ func (q *Queue) Enqueue(ctx context.Context, job model.Job) error {
 	case jobs.TypeReportGenerate:
 		payload = jobs.ReportGenerate{PayloadVersion: 1, JobID: job.ID}
 		opts = append(opts, asynq.Timeout(time.Minute))
+	case jobs.TypeExportGenerate:
+		var p struct {
+			UserID string `json:"user_id"`
+		}
+		if err := json.Unmarshal([]byte(job.Payload), &p); err != nil {
+			return fmt.Errorf("decode job payload: %w", err)
+		}
+		payload = jobs.ExportGenerate{PayloadVersion: 1, JobID: job.ID, UserID: p.UserID}
+		opts = append(opts, asynq.Timeout(10*time.Minute))
 	default:
 		return fmt.Errorf("unknown job type %q", job.Type)
 	}

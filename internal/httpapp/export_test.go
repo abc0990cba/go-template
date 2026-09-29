@@ -34,11 +34,14 @@ func TestExportEndpointsInMemoryMode(t *testing.T) {
 	server, services := newExportServer(t)
 	token := registerAndLogin(t, server, "export-api@example.com")
 
-	// Without the queue the request degrades to an explicit 400 naming the
-	// missing dependency (no silent fake success).
+	// Without the queue the job is created but stays queued: single-process
+	// dev mode runs it via POST /api/jobs/process, like every other type.
 	status, body := callJSON(t, server, http.MethodPost, "/api/users/me/export", "", token)
-	if status != http.StatusBadRequest {
-		t.Fatalf("request without queue: want 400, got %d (%v)", status, body)
+	if status != http.StatusAccepted {
+		t.Fatalf("request without queue: want 202, got %d (%v)", status, body)
+	}
+	if status, body = callJSON(t, server, http.MethodPost, "/api/jobs/process", "", token); status != http.StatusOK {
+		t.Fatalf("process: want 200, got %d (%v)", status, body)
 	}
 
 	// A bundle generated out-of-band downloads fine.

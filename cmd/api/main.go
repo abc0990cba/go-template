@@ -136,6 +136,9 @@ func main() {
 		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
 		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
 		MFA:               repos.MFA,
+		Tokens:            repos.Tokens,
+		Search:            repos.Search,
+		Invitations:       repos.Invitations,
 		Cache:             appCache,
 		Files:             repos.Files,
 		Blobs:             blobs,
@@ -150,6 +153,10 @@ func main() {
 		Events: events, EventStats: repos.EventStats, Queue: jobQueue,
 		Observer: observ.NewJobObserver(), RBACEnforcer: enforcer,
 	}, logger, cfg)
+	// The export builder runs wherever jobs execute: the worker in queue
+	// mode, the api's /api/jobs/process in single-process dev mode.
+	services.Jobs.WithExporter(service.NewExportService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
+
 	if err := services.RBAC.EnsureSystemRoles(ctx); err != nil {
 		logger.Error("seed system roles", "err", err)
 		os.Exit(1)

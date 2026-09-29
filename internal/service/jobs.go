@@ -268,9 +268,8 @@ func (s *JobService) WithExporter(exporter *ExportService) *JobService {
 // per user: a queued or running request answers with a conflict so retries
 // cannot pile up duplicates.
 func (s *JobService) RequestExport(ctx context.Context, userID string) (model.Job, error) {
-	if s.queue == nil {
-		return model.Job{}, validationError("exports require the background queue (set APP_REDIS_ADDR)")
-	}
+	// Without a queue the job stays queued until POST /api/jobs/process
+	// runs it inline (single-process dev mode) — same as every other type.
 	live, _, err := s.store.ListJobs(ctx, repository.ListOptions{Type: jobs.TypeExportGenerate, Status: "queued", Limit: 50})
 	if err == nil {
 		for _, job := range live {

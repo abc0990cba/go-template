@@ -1,5 +1,6 @@
 import http from "k6/http";
 import { check, sleep } from "k6";
+import { BASE_URL } from "./common.js";
 
 export const options = {
   vus: 10,
@@ -11,7 +12,7 @@ export const options = {
 };
 
 export default function () {
-  const res = http.get("http://localhost:8080/health/live");
+  const res = http.get(`${BASE_URL}/health/live`);
   check(res, { "healthy": (r) => r.status === 200 });
   sleep(1);
 }

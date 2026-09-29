@@ -19,6 +19,15 @@ The project is intentionally small enough to understand, but it includes the pat
 - **Tickets & approvals** — a request workflow in the spirit of Jira: a state machine with distinct "withdrawn by requester" vs "rejected by approver" outcomes, configurable multi-step approval chains per ticket type, role-guarded decisions, and separate requester ("My Tickets") and approver ("Approvals") interfaces
 - **Client app vs admin console** — the SPA is split into a user-facing workspace at `/` (top navbar, personal dashboard, tickets) and a back-office console under `/admin/*` (sidebar shell, system pages), gated by the `admin_console:access` permission on the route and re-checked by every admin API
 - **i18n** — English/Russian UI toggle (EN shell + RU translations)
+- **Two-factor authentication (TOTP)** — QR enrollment, a challenge step in login, single-use hashed recovery codes, an `mfa.required` policy flag, and admin reset — see [docs/mfa.md](docs/mfa.md)
+- **JWT token grants** — OAuth-style password/mfa/refresh grants with rotation and reuse-detection families for mobile & API clients — see [docs/token-auth.md](docs/token-auth.md)
+- **Org invitations** — email offers with single-use tokens; acceptance lands membership plus the domain role in one step — see [docs/invitations.md](docs/invitations.md)
+- **File storage & ticket attachments** — S3/MinIO (or in-memory) blobs, checksummed uploads, permission-scoped downloads, presigned URLs — see [docs/files.md](docs/files.md)
+- **GDPR data export** — a queued job builds a ZIP of per-entity JSON, owner-only downloads, 7-day retention — see [docs/data-export.md](docs/data-export.md)
+- **Caching & search** — read-through cache (memory/Redis, singleflight) for hot reads, ETag/304 on heavy lists, permission-scoped full-text search — see [docs/caching-search.md](docs/caching-search.md)
+- **Transport hardening** — inbound server spans, pgx pool tuning, chunked-safe body caps, HSTS, `_FILE` secrets, per-identity rate limits, maintenance mode — see [docs/reliability.md](docs/reliability.md)
+- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) and a signed, scanned, SBOM'd release pipeline — see [docs/deployment.md](docs/deployment.md)
+- **Regression** — `scripts/regression-walkthrough.sh` drives every feature against a live stack; the full gauntlet is documented in [docs/regression-checklist.md](docs/regression-checklist.md)
 - **Rich demo data** — 500 users, 3 organizations, 120 tickets across the whole approval lifecycle, 90 days of events (12 types with property dimensions), audit entries, notifications, keys, and webhook history on first launch
 - Gin HTTP API
 - React admin SPA (Vite + TanStack Router/Query/Table, shadcn/ui, Tailwind v4) embedded in the binary, with Server-Sent Events for live updates

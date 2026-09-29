@@ -39,12 +39,23 @@ design. Track it as a follow-up capability.
 
 ## Try it locally
 
-Exports need the queue (`APP_REDIS_ADDR` + the worker):
+**Queue mode** (`APP_REDIS_ADDR` + the worker — `make docker-up`):
 
 ```bash
-make docker-up            # redis + worker included
 curl -s -X POST localhost:8080/api/users/me/export -H "Authorization: Bearer $TOKEN"
 curl -s localhost:8080/api/users/me/export -H "Authorization: Bearer $TOKEN"
 curl -s -o my-data.zip localhost:8080/api/users/me/export/download -H "Authorization: Bearer $TOKEN"
 unzip -l my-data.zip
+```
+
+Remember the multi-process note above: point `APP_S3_*` at MinIO
+(`--profile files`) so the api can stream the worker-produced bundle.
+
+**Single-process mode** (no Redis — jobs run when triggered, like every
+other job type):
+
+```bash
+curl -s -X POST localhost:8080/api/users/me/export -H "Authorization: Bearer $TOKEN"   # 202 queued
+curl -s -X POST localhost:8080/api/jobs/process -H "Authorization: Bearer $TOKEN"      # run it inline
+curl -s -o my-data.zip localhost:8080/api/users/me/export/download -H "Authorization: Bearer $TOKEN"
 ```

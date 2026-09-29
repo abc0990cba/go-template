@@ -43,3 +43,6 @@
 | FILE-003 | `files` | `internal/service/files.go` (visibility) | ticket attachments | `httpapp/files_test.go` (hidden ticket, unknown ref) | Planned |
 | EXP-001 | `data-export` | `internal/service/export.go` | `POST/GET /api/users/me/export` | `export_test.go` (roundtrip), `httpapp/export_test.go` (degraded mode) | Planned |
 | EXP-002 | `data-export` | `internal/service/export.go` (download) | `GET .../download` | `export_test.go` (ownership, pruning) | Planned |
+| DEP-001 | `deployment` | `deploy/helm/go-template/` | helm chart (api+worker, HPA/PDB/probes) | `make helm-lint helm-template` | n/a |
+| DEP-002 | `deployment` | `.github/workflows/release.yml` | tag → GHCR → Trivy → SBOM → cosign | workflow YAML parse + CI | n/a |
+| REG-001 | `transport-hardening`+ | `scripts/regression-walkthrough.sh` | live 33-check walkthrough | docs/regression-checklist.md | k6 smoke |
