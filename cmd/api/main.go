@@ -17,6 +17,7 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	platformcache "github.com/your-org/go-template/internal/platform/cache"
+	platformfilestore "github.com/your-org/go-template/internal/platform/filestore"
 
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
@@ -111,6 +112,21 @@ func main() {
 		appCache = platformcache.NewMemory()
 	}
 
+	// File store: S3/MinIO when configured (probe fails → warn + memory);
+	// in-process blobs otherwise (dev convenience, resets on restart).
+	var blobs service.FileStore = platformfilestore.NewMemory()
+	if cfg.S3Bucket != "" {
+		if s3store, err := platformfilestore.NewS3(ctx, platformfilestore.S3Config{
+			Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, Bucket: cfg.S3Bucket,
+			AccessKeyID: cfg.S3AccessKeyID, SecretKey: cfg.S3SecretKey, UsePathStyle: cfg.S3UsePathStyle,
+		}); err != nil {
+			logger.Warn("s3 filestore unavailable; uploads stay in-process", "err", err)
+		} else {
+			blobs = s3store
+			logger.Info("s3 filestore ready", "bucket", cfg.S3Bucket)
+		}
+	}
+
 	// Circuit breakers wrap outbound calls; transitions land in Prometheus.
 	breakers := reliability.NewBreakers(cfg.CBFailureThreshold, cfg.CBOpenTimeout)
 	breakers.SetOnChange(func(name string, from, to reliability.CircuitState) {
@@ -133,6 +149,8 @@ func main() {
 		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
 		MFA:               repos.MFA,
 		Cache:             appCache,
+		Files:             repos.Files,
+		Blobs:             blobs,
 		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers,
 		StreamsObserver: observ.NewStreamsObserver(),
 		Realtime: func(n model.Notification) {

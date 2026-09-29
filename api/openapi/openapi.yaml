@@ -125,6 +125,109 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/UserWithToken" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/files:
+    post:
+      tags: [files]
+      summary: Upload a file (multipart/form-data)
+      description: >-
+        Fields: `file` (required), `ref_type` + `ref_id` (optional attachment
+        target — `ticket` validates visibility against the ticket). The
+        route's body cap is the configured upload limit instead of the
+        default 1 MiB.
+      operationId: uploadFile
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: { type: string, format: binary }
+                ref_type: { type: string, enum: [ticket] }
+                ref_id: { type: string }
+      responses:
+        "201":
+          description: Stored metadata (checksum included)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/files/{id}:
+    get:
+      tags: [files]
+      summary: File metadata
+      operationId: getFile
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/fileId" }]
+      responses:
+        "200":
+          description: Metadata
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [files]
+      summary: Soft-delete metadata and remove the blob (owner only)
+      operationId: deleteFile
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/fileId" }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/files/{id}/content:
+    get:
+      tags: [files]
+      summary: Stream the blob through the API (works in every storage mode)
+      operationId: downloadFile
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/fileId" }]
+      responses:
+        "200":
+          description: The raw bytes (attachment disposition)
+        default: { $ref: "#/components/responses/Problem" }
+  /api/files/{id}/url:
+    get:
+      tags: [files]
+      summary: Presigned direct-download URL (S3 mode only)
+      operationId: presignFile
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/fileId" }]
+      responses:
+        "200":
+          description: URL + TTL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, expires_in]
+                properties:
+                  url: { type: string }
+                  expires_in: { type: integer }
+        "501": { description: The active store cannot presign (in-memory mode) }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/tickets/{id}/attachments:
+    get:
+      tags: [files]
+      summary: A ticket's attachments (ticket visibility applies)
+      operationId: ticketAttachments
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/ticketId" }]
+      responses:
+        "200":
+          description: Newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/File" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/search:
     get:
       tags: [search]
@@ -1908,6 +2011,11 @@ components:
       bearerFormat: JWT
       description: HS256 access token from POST /api/auth/token (identity claims only).
   parameters:
+    fileId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
     userId:
       name: id
       in: path
@@ -1920,6 +2028,11 @@ components:
       schema: { type: string }
     orgId:
       name: orgId
+      in: path
+      required: true
+      schema: { type: string }
+    ticketId:
+      name: id
       in: path
       required: true
       schema: { type: string }
@@ -2067,6 +2180,20 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    File:
+      type: object
+      required: [id, owner_id, filename, content_type, size_bytes, created_at]
+      properties:
+        id: { type: string }
+        owner_id: { type: string }
+        org_id: { type: string }
+        filename: { type: string }
+        content_type: { type: string }
+        size_bytes: { type: integer, format: int64 }
+        checksum_sha256: { type: string }
+        ref_type: { type: string }
+        ref_id: { type: string }
+        created_at: { type: string, format: date-time }
     OrgInvitation:
       type: object
       required: [id, org_id, email, role, status, expires_at]

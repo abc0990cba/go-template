@@ -19,6 +19,7 @@ sql:
       - migrations/postgres/000015_refresh_tokens.up.sql
       - migrations/postgres/000016_search.up.sql
       - migrations/postgres/000017_org_invitations.up.sql
+      - migrations/postgres/000018_files.up.sql
     queries: queries
     gen:
       go:

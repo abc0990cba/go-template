@@ -39,6 +39,7 @@ type Repos struct {
 	Tokens        service.TokenRepo
 	Search        service.SearchRepo
 	Invitations   service.InvitationsRepo
+	Files         service.FilesRepo
 	Rules         repository.RuleStore
 	Pinger        service.Pinger
 	// Events receives the analytics event trail; nil means the process does
@@ -92,7 +93,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 		}
 		return Repos{
 			Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
-			Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store,
+			Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 			Pinger: store, Events: events, EventStats: store, Warehouse: store, Kind: "memory",
 		}, closeAll, nil
 	}
@@ -122,7 +123,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 	}
 	return Repos{
 		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
-		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store,
+		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 		Pinger: store, Events: events, EventStats: stats, Warehouse: warehouse, Kind: "postgres",
 	}, func() { closeAll(); store.Close() }, nil
 }

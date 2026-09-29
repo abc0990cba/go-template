@@ -280,6 +280,23 @@ type MFAChallenge struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// File is one uploaded blob's metadata; the bytes live in the file store.
+// RefType/RefId attach it to an entity (e.g. "ticket" + ticket id).
+type File struct {
+	ID          string     `json:"id"`
+	OwnerID     string     `json:"owner_id"`
+	OrgID       string     `json:"org_id,omitempty"`
+	Key         string     `json:"-"`
+	Filename    string     `json:"filename"`
+	ContentType string     `json:"content_type"`
+	SizeBytes   int64      `json:"size_bytes"`
+	Checksum    string     `json:"checksum_sha256,omitempty"`
+	RefType     string     `json:"ref_type,omitempty"`
+	RefID       string     `json:"ref_id,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+}
+
 // OrgInvitation is a pending org membership offer. The raw token lives only
 // in the invitation email; the store keeps its sha256 hash.
 type OrgInvitation struct {

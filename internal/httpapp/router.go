@@ -122,6 +122,13 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized := api.Group("", app.apiAuthRequired, app.identityRateLimit(), app.orgDomain)
 	authorized.GET("/me", app.apiMe)
 	authorized.GET("/search", app.apiSearch)
+	// Files: uploads are self-service (owner-scoped metadata); reads are
+	// gated by attachment visibility (ticket canView rules) in the service.
+	authorized.POST("/files", app.apiUploadFile)
+	authorized.GET("/files/:id", app.apiGetFile)
+	authorized.GET("/files/:id/content", app.apiDownloadFile)
+	authorized.GET("/files/:id/url", app.apiFilePresign)
+	authorized.DELETE("/files/:id", app.apiDeleteFile)
 	authorized.GET("/users", app.requirePermission("users", "read"), app.etag(), app.apiUsers)
 	authorized.POST("/users", app.requirePermission("users", "create"), app.apiCreateUser)
 	authorized.GET("/users/:id", app.requirePermission("users", "read"), app.etag(), app.apiGetUser)
@@ -192,6 +199,7 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized.GET("/tickets/:id/comments", app.requirePermission("tickets", "read"), app.apiTicketComments)
 	authorized.POST("/tickets/:id/comments", app.requirePermission("tickets", "read"), app.apiAddTicketComment)
 	authorized.GET("/tickets/:id/events", app.requirePermission("tickets", "read"), app.apiTicketEvents)
+	authorized.GET("/tickets/:id/attachments", app.requirePermission("tickets", "read"), app.apiTicketAttachments)
 	authorized.GET("/approvals", app.requirePermission("tickets", "approve"), app.apiApprovals)
 	authorized.GET("/ticket-types", app.requirePermission("tickets", "read"), app.apiTicketTypes)
 	authorized.POST("/ticket-types", app.requirePermission("ticket_types", "create"), app.apiCreateTicketType)

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,15 +36,21 @@ func (a *App) requestID() gin.HandlerFunc {
 // ContentLength check rejects pre-declared oversize bodies up front; the
 // MaxBytesReader wrapper catches chunked requests whose size only becomes
 // known while streaming — the mid-read overflow surfaces in a.bind as 413.
+// The upload route earns a higher cap (the file limit plus multipart
+// framing) when the files service is wired.
 func (a *App) bodyLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if c.Request.ContentLength > maxBodyBytes {
+		limit := int64(maxBodyBytes)
+		if a.services != nil && a.services.Files != nil && strings.HasPrefix(c.Request.URL.Path, "/api/files") {
+			limit = a.services.Files.MaxSize() + 1<<20
+		}
+		if c.Request.ContentLength > limit {
 			a.problem(c, http.StatusRequestEntityTooLarge, "request body too large", nil)
 			c.Abort()
 			return
 		}
 		if c.Request.Body != nil {
-			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBodyBytes)
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, limit)
 		}
 		c.Next()
 	}

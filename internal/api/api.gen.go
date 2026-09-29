@@ -398,6 +398,21 @@ func (e ListEnrichmentProfilesParamsMode) Valid() bool {
 	}
 }
 
+// Defines values for UploadFileMultipartBodyRefType.
+const (
+	UploadFileMultipartBodyRefTypeTicket UploadFileMultipartBodyRefType = "ticket"
+)
+
+// Valid indicates whether the value is a known member of the UploadFileMultipartBodyRefType enum.
+func (e UploadFileMultipartBodyRefType) Valid() bool {
+	switch e {
+	case UploadFileMultipartBodyRefTypeTicket:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListJobsParamsMode.
 const (
 	ListJobsParamsModeCursor ListJobsParamsMode = "cursor"
@@ -851,6 +866,20 @@ type EventRecord struct {
 	Name       string    `json:"name"`
 	OccurredAt time.Time `json:"occurred_at"`
 	UserId     *string   `json:"user_id,omitempty"`
+}
+
+// File defines model for File.
+type File struct {
+	ChecksumSha256 *string   `json:"checksum_sha256,omitempty"`
+	ContentType    string    `json:"content_type"`
+	CreatedAt      time.Time `json:"created_at"`
+	Filename       string    `json:"filename"`
+	Id             string    `json:"id"`
+	OrgId          *string   `json:"org_id,omitempty"`
+	OwnerId        string    `json:"owner_id"`
+	RefId          *string   `json:"ref_id,omitempty"`
+	RefType        *string   `json:"ref_type,omitempty"`
+	SizeBytes      int64     `json:"size_bytes"`
 }
 
 // Job defines model for Job.
@@ -1330,6 +1359,9 @@ type WebhookEndpoint struct {
 // ApiKeyId defines model for apiKeyId.
 type ApiKeyId = string
 
+// FileId defines model for fileId.
+type FileId = string
+
 // Limit defines model for limit.
 type Limit = int
 
@@ -1347,6 +1379,9 @@ type OrgId = string
 
 // RoleKey defines model for roleKey.
 type RoleKey = string
+
+// TicketId defines model for ticketId.
+type TicketId = string
 
 // UserId defines model for userId.
 type UserId = string
@@ -1509,6 +1544,16 @@ type ListEnrichmentProfilesParams struct {
 
 // ListEnrichmentProfilesParamsMode defines parameters for ListEnrichmentProfiles.
 type ListEnrichmentProfilesParamsMode string
+
+// UploadFileMultipartBody defines parameters for UploadFile.
+type UploadFileMultipartBody struct {
+	File    openapi_types.File              `json:"file"`
+	RefId   *string                         `json:"ref_id,omitempty"`
+	RefType *UploadFileMultipartBodyRefType `json:"ref_type,omitempty"`
+}
+
+// UploadFileMultipartBodyRefType defines parameters for UploadFile.
+type UploadFileMultipartBodyRefType string
 
 // StartImpersonationJSONBody defines parameters for StartImpersonation.
 type StartImpersonationJSONBody struct {
@@ -1852,6 +1897,9 @@ type RevokeTokenJSONRequestBody RevokeTokenJSONBody
 
 // VerifyEmailJSONRequestBody defines body for VerifyEmail for application/json ContentType.
 type VerifyEmailJSONRequestBody VerifyEmailJSONBody
+
+// UploadFileMultipartRequestBody defines body for UploadFile for multipart/form-data ContentType.
+type UploadFileMultipartRequestBody UploadFileMultipartBody
 
 // StartImpersonationJSONRequestBody defines body for StartImpersonation for application/json ContentType.
 type StartImpersonationJSONRequestBody StartImpersonationJSONBody

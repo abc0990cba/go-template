@@ -38,6 +38,10 @@ type Deps struct {
 	Tokens            TokenRepo
 	Search            SearchRepo
 	Invitations       InvitationsRepo
+	// Files stores file metadata; Blobs is the backing file store. Both may
+	// be nil in processes that do not serve uploads.
+	Files             FilesRepo
+	Blobs             FileStore
 	// Cache is the optional read-through cache (memory or Redis); nil keeps
 	// every read on the store.
 	Cache             Cache
@@ -77,6 +81,7 @@ type Container struct {
 	Tokens        *TokenService
 	Search        *SearchService
 	Invitations   *InvitationsService
+	Files         *FilesService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -114,6 +119,9 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	services.MFA = NewMFAService(deps.MFA, deps.Auth, services.Settings, deps.Events, cfg.SessionTTL)
 	services.Tokens = NewTokenService(deps.Tokens, deps.Auth, services.MFA, deps.Events, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
 	services.Tickets = &TicketsService{store: deps.Tickets, rbac: services.RBAC, events: deps.Events, logger: logger}
+	if deps.Files != nil && deps.Blobs != nil {
+		services.Files = NewFilesService(deps.Files, deps.Blobs, services.Tickets, cfg.FilesMaxBytes, logger)
+	}
 	services.Tickets.WithNotifications(notifications)
 	services.Email = NewEmailService(deps.EmailTokens, deps.Auth, deps.Mailer, cfg.BaseURL, logger)
 	services.APIKeys = NewAPIKeysService(deps.APIKeys)

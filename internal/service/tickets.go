@@ -111,6 +111,15 @@ func (s *TicketsService) record(ctx context.Context, ticketID, actorID, action, 
 	}
 }
 
+// RecordAttachment appends the timeline entry for an uploaded attachment and
+// notifies the ticket's watchers; failures never fail the upload.
+func (s *TicketsService) RecordAttachment(ctx context.Context, actorID, ticketID, filename string) {
+	s.record(ctx, ticketID, actorID, "attachment_added", filename)
+	if ticket, err := s.store.GetTicket(ctx, ticketID); err == nil {
+		s.notify(ticket)
+	}
+}
+
 // --- Ticket types -------------------------------------------------------
 
 // TicketTypes lists the types available in the domain: platform-wide plus

@@ -101,6 +101,17 @@ type Config struct {
 	JWTSecret     string
 	JWTAccessTTL  time.Duration
 	JWTRefreshTTL time.Duration
+
+	// File storage: S3/MinIO when APP_S3_BUCKET is set (secrets accept the
+	// _FILE pattern); otherwise the in-process store. FilesMaxBytes caps
+	// single uploads.
+	S3Endpoint     string
+	S3Region       string
+	S3Bucket       string
+	S3AccessKeyID  string
+	S3SecretKey    string
+	S3UsePathStyle bool
+	FilesMaxBytes  int64
 }
 
 // PoolTuning carries the pgxpool knobs; all fields optional.
@@ -294,6 +305,29 @@ func Load() (Config, error) {
 	if cfg.JWTRefreshTTL < cfg.JWTAccessTTL {
 		return Config{}, fmt.Errorf("APP_JWT_REFRESH_TTL must not be shorter than APP_JWT_ACCESS_TTL")
 	}
+	if cfg.S3Endpoint = os.Getenv("APP_S3_ENDPOINT"); cfg.S3Endpoint != "" || os.Getenv("APP_S3_BUCKET") != "" {
+		cfg.S3Region = env("APP_S3_REGION", "us-east-1")
+		cfg.S3Bucket = os.Getenv("APP_S3_BUCKET")
+		if cfg.S3AccessKeyID, err = secretValue("APP_S3_ACCESS_KEY_ID"); err != nil {
+			return Config{}, err
+		}
+		if cfg.S3SecretKey, err = secretValue("APP_S3_SECRET_ACCESS_KEY"); err != nil {
+			return Config{}, err
+		}
+		if cfg.S3UsePathStyle, err = boolEnv("APP_S3_USE_PATH_STYLE", true); err != nil {
+			return Config{}, err
+		}
+		if cfg.S3Bucket == "" {
+			return Config{}, fmt.Errorf("APP_S3_BUCKET is required when file storage is configured")
+		}
+	}
+	if cfg.FilesMaxBytes, err = int64Env("APP_FILES_MAX_MB", 10); err != nil {
+		return Config{}, err
+	}
+	cfg.FilesMaxBytes *= 1 << 20
+	if cfg.FilesMaxBytes <= 0 {
+		return Config{}, fmt.Errorf("APP_FILES_MAX_MB must be positive")
+	}
 	return cfg, nil
 }
 
@@ -389,6 +423,18 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 func intEnv(key string, fallback int) (int, error) {
 	value, err := int32Env(key, int32(fallback))
 	return int(value), err
+}
+
+func int64Env(key string, fallback int64) (int64, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	return parsed, nil
 }
 
 func int32Env(key string, fallback int32) (int32, error) {

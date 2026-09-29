@@ -81,6 +81,21 @@ type EmailToken struct {
 	CreatedAt time.Time
 }
 
+type File struct {
+	ID             string
+	OwnerID        string
+	OrgID          string
+	Key            string
+	Filename       string
+	ContentType    string
+	SizeBytes      int64
+	ChecksumSha256 string
+	RefType        string
+	RefID          string
+	CreatedAt      time.Time
+	DeletedAt      pgtype.Timestamptz
+}
+
 type IdempotencyKey struct {
 	Key          string
 	UserID       string

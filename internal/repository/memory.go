@@ -173,6 +173,9 @@ type MemoryStore struct {
 
 	// Org membership invitations.
 	invitations []model.OrgInvitation
+
+	// File metadata (blobs live in the file store adapter).
+	files []model.File
 }
 
 // streamSeqs tracks the highest applied enrichment sequence per source; the
@@ -2577,4 +2580,68 @@ func (s *MemoryStore) ExpireOldOrgInvitations(_ context.Context) error {
 		}
 	}
 	return nil
+}
+
+// --- File metadata ----------------------------------------------------------
+
+func (s *MemoryStore) InsertFile(_ context.Context, file model.File) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.files = append(s.files, file)
+	return nil
+}
+
+func (s *MemoryStore) GetFile(_ context.Context, id string) (model.File, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, file := range s.files {
+		if file.ID == id && file.DeletedAt == nil {
+			return file, nil
+		}
+	}
+	return model.File{}, fmt.Errorf("%w: file not found", ErrNotFound)
+}
+
+func (s *MemoryStore) ListFilesByRef(_ context.Context, refType, refID string) ([]model.File, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []model.File
+	for _, file := range s.files {
+		if file.RefType == refType && file.RefID == refID && file.DeletedAt == nil {
+			out = append(out, file)
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) ListFilesByOwner(_ context.Context, ownerID string, limit, offset int) ([]model.File, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var mine []model.File
+	for _, file := range s.files {
+		if file.OwnerID == ownerID && file.DeletedAt == nil {
+			mine = append(mine, file)
+		}
+	}
+	if offset >= len(mine) {
+		return []model.File{}, nil
+	}
+	end := offset + limit
+	if end > len(mine) {
+		end = len(mine)
+	}
+	return mine[offset:end], nil
+}
+
+func (s *MemoryStore) SoftDeleteFile(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, file := range s.files {
+		if file.ID == id {
+			now := time.Now()
+			s.files[i].DeletedAt = &now
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: file not found", ErrNotFound)
 }

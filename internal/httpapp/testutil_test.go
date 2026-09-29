@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/your-org/go-template/internal/config"
+	platformfilestore "github.com/your-org/go-template/internal/platform/filestore"
 	"github.com/your-org/go-template/internal/platform/rbac"
 	"github.com/your-org/go-template/internal/repository"
 	"github.com/your-org/go-template/internal/service"
@@ -25,7 +26,7 @@ func newTestContainer(t *testing.T, store *repository.MemoryStore, events servic
 	}
 	services := service.NewContainer(service.Deps{
 		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
-		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, MFA: store, Tokens: store, Search: store, Invitations: store, Mailer: nil, Events: events, EventStats: store, RBACEnforcer: enforcer,
+		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store, Blobs: platformfilestore.NewMemory(), Mailer: nil, Events: events, EventStats: store, RBACEnforcer: enforcer,
 	}, logger, cfg)
 	if err := services.RBAC.EnsureSystemRoles(t.Context()); err != nil {
 		t.Fatalf("seed system roles: %v", err)

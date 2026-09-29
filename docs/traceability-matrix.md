@@ -38,3 +38,6 @@
 | INV-001 | `org-invitations` | `internal/service/invitations.go` (invite) | seats dialog, `POST /api/orgs/{id}/invitations` | `invitations_test.go` (lifecycle), `httpapp/invitations_test.go` | Planned |
 | INV-002 | `org-invitations` | `internal/service/invitations.go` (accept) | `/accept-invitation`, `/api/invitations/accept` | `invitations_test.go` (single-use, roles) | Planned |
 | INV-003 | `org-invitations` | `internal/service/invitations.go` (revoke/list/mine) | invitations list + revoke | `invitations_test.go` (cross-org, statuses) | Planned |
+| FILE-001 | `files` | `internal/platform/filestore/` | S3/memory adapters, presign | `filestore_test.go` (MinIO contract, integration tag) | Planned |
+| FILE-002 | `files` | `internal/service/files.go` | `/api/files` roundtrip + caps | `httpapp/files_test.go` (roundtrip, delete) | Planned |
+| FILE-003 | `files` | `internal/service/files.go` (visibility) | ticket attachments | `httpapp/files_test.go` (hidden ticket, unknown ref) | Planned |

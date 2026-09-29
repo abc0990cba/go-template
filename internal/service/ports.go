@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/your-org/go-template/internal/model"
@@ -275,6 +276,23 @@ type InvitationsRepo interface {
 	ExpireOldOrgInvitations(ctx context.Context) error
 }
 
+// FilesRepo persists file metadata (the blobs live in a FileStore).
+type FilesRepo interface {
+	InsertFile(ctx context.Context, file model.File) error
+	GetFile(ctx context.Context, id string) (model.File, error)
+	ListFilesByRef(ctx context.Context, refType, refID string) ([]model.File, error)
+	ListFilesByOwner(ctx context.Context, ownerID string, limit, offset int) ([]model.File, error)
+	SoftDeleteFile(ctx context.Context, id string) error
+}
+
+// FileStore keeps the blobs behind FilesRepo metadata.
+type FileStore interface {
+	Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
+	Open(ctx context.Context, key string) (io.ReadCloser, error)
+	Delete(ctx context.Context, key string) error
+	Presign(ctx context.Context, key string, ttl time.Duration) (string, error)
+}
+
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (
@@ -298,4 +316,5 @@ var (
 	_ TokenRepo         = (*repository.MemoryStore)(nil)
 	_ SearchRepo        = (*repository.MemoryStore)(nil)
 	_ InvitationsRepo   = (*repository.MemoryStore)(nil)
+	_ FilesRepo         = (*repository.MemoryStore)(nil)
 )
