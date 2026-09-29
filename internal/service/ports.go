@@ -264,6 +264,17 @@ type SearchRepo interface {
 	SearchTickets(ctx context.Context, domain, query string, limit int) ([]model.Ticket, error)
 }
 
+// InvitationsRepo persists org membership invitations.
+type InvitationsRepo interface {
+	CreateOrgInvitation(ctx context.Context, invitation model.OrgInvitation) error
+	GetOrgInvitationByHash(ctx context.Context, tokenHash string) (model.OrgInvitation, error)
+	GetOrgInvitation(ctx context.Context, id string) (model.OrgInvitation, error)
+	ListOrgInvitations(ctx context.Context, orgID string, limit, offset int) ([]model.OrgInvitation, int64, error)
+	ListPendingOrgInvitationsByEmail(ctx context.Context, email string) ([]model.OrgInvitation, error)
+	SetOrgInvitationStatus(ctx context.Context, id, status string, acceptedAt *time.Time, acceptedBy string) error
+	ExpireOldOrgInvitations(ctx context.Context) error
+}
+
 // Compile-time proof that the in-memory fake stays interchangeable with any
 // adapter, including the PostgreSQL one.
 var (
@@ -286,4 +297,5 @@ var (
 	_ MFARepo           = (*repository.MemoryStore)(nil)
 	_ TokenRepo         = (*repository.MemoryStore)(nil)
 	_ SearchRepo        = (*repository.MemoryStore)(nil)
+	_ InvitationsRepo   = (*repository.MemoryStore)(nil)
 )

@@ -67,6 +67,9 @@ func (a *App) requirePermission(obj, act string) gin.HandlerFunc {
 
 func (a *App) forbidden(c *gin.Context) {
 	a.problem(c, http.StatusForbidden, "forbidden", nil)
+	// Without the abort the rest of the chain still ran: the response said
+	// 403 while the handler executed its side effects.
+	c.Abort()
 }
 
 // grantRegistrationRole gives the first account superadmin and everyone

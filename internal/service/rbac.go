@@ -154,6 +154,11 @@ type Permission struct {
 // Catalog returns the resource/action matrix the roles page renders.
 func (s *RBACService) Catalog() []Resource { return Resources }
 
+// RoleByKey resolves one role by key (used to validate invitation targets).
+func (s *RBACService) RoleByKey(key string) (model.Role, error) {
+	return s.roles.GetRole(context.Background(), key)
+}
+
 // WithCache attaches the expanded-permissions cache (30s, invalidated on
 // every policy mutation).
 func (s *RBACService) WithCache(cache Cache) *RBACService {

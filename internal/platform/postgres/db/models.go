@@ -151,6 +151,20 @@ type OauthState struct {
 	ExpiresAt     time.Time
 }
 
+type OrgInvitation struct {
+	ID         string
+	OrgID      string
+	Email      string
+	Role       string
+	InvitedBy  string
+	TokenHash  string
+	Status     string
+	ExpiresAt  time.Time
+	AcceptedAt pgtype.Timestamptz
+	AcceptedBy string
+	CreatedAt  time.Time
+}
+
 type OrgMember struct {
 	OrgID    string
 	UserID   string

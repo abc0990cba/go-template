@@ -220,6 +220,11 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	authorized.GET("/orgs/:id/members", app.requirePermission("orgs", "read"), app.apiOrgMembers)
 	authorized.POST("/orgs/:id/members", app.requirePermission("orgs", "update"), app.apiAddOrgMember)
 	authorized.DELETE("/orgs/:id/members/:userId", app.requirePermission("orgs", "update"), app.apiRemoveOrgMember)
+	authorized.GET("/orgs/:id/invitations", app.requirePermission("orgs", "read"), app.apiOrgInvitations)
+	authorized.POST("/orgs/:id/invitations", app.requirePermission("orgs", "update"), app.apiInviteOrgMember)
+	authorized.DELETE("/orgs/:id/invitations/:invId", app.requirePermission("orgs", "update"), app.apiRevokeOrgInvitation)
+	authorized.GET("/invitations", app.apiMyInvitations)
+	authorized.POST("/invitations/accept", app.apiAcceptInvitation)
 
 	// OAuth link flows stay on the server: redirects and callbacks.
 	r.GET("/auth/:provider/login", app.apiAuthHandler(app.oauthLogin))

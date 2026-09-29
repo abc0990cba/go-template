@@ -64,7 +64,7 @@ func main() {
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
 		Streams: repos.Streams,
-		MFA:     repos.MFA, Tokens: repos.Tokens, Search: repos.Search,
+		MFA:     repos.MFA, Tokens: repos.Tokens, Search: repos.Search, Invitations: repos.Invitations,
 		Breakers: breakers,
 		Events:   repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
 		StreamsObserver: observ.NewStreamsObserver(),

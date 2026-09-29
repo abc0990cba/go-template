@@ -170,6 +170,9 @@ type MemoryStore struct {
 
 	// Refresh-token families for the JWT grant.
 	refreshTokens []model.RefreshToken
+
+	// Org membership invitations.
+	invitations []model.OrgInvitation
 }
 
 // streamSeqs tracks the highest applied enrichment sequence per source; the
@@ -2480,4 +2483,98 @@ func (s *MemoryStore) SearchTickets(_ context.Context, domain, query string, lim
 		}
 	}
 	return out, nil
+}
+
+// --- Org invitations --------------------------------------------------------
+
+func (s *MemoryStore) CreateOrgInvitation(_ context.Context, invitation model.OrgInvitation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.invitations = append(s.invitations, invitation)
+	return nil
+}
+
+func (s *MemoryStore) GetOrgInvitationByHash(_ context.Context, tokenHash string) (model.OrgInvitation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, invitation := range s.invitations {
+		if invitation.TokenHash == tokenHash {
+			return invitation, nil
+		}
+	}
+	return model.OrgInvitation{}, fmt.Errorf("%w: invitation not found", ErrNotFound)
+}
+
+func (s *MemoryStore) GetOrgInvitation(_ context.Context, id string) (model.OrgInvitation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, invitation := range s.invitations {
+		if invitation.ID == id {
+			return invitation, nil
+		}
+	}
+	return model.OrgInvitation{}, fmt.Errorf("%w: invitation not found", ErrNotFound)
+}
+
+func (s *MemoryStore) ListOrgInvitations(_ context.Context, orgID string, limit, offset int) ([]model.OrgInvitation, int64, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var orgInvitations []model.OrgInvitation
+	for _, invitation := range s.invitations {
+		if invitation.OrgID == orgID {
+			orgInvitations = append(orgInvitations, invitation)
+		}
+	}
+	total := int64(len(orgInvitations))
+	if offset >= len(orgInvitations) {
+		return []model.OrgInvitation{}, total, nil
+	}
+	end := offset + limit
+	if end > len(orgInvitations) {
+		end = len(orgInvitations)
+	}
+	return orgInvitations[offset:end], total, nil
+}
+
+func (s *MemoryStore) ListPendingOrgInvitationsByEmail(_ context.Context, email string) ([]model.OrgInvitation, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	now := time.Now()
+	var out []model.OrgInvitation
+	for _, invitation := range s.invitations {
+		if strings.EqualFold(invitation.Email, email) && invitation.Status == "pending" && invitation.ExpiresAt.After(now) {
+			out = append(out, invitation)
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) SetOrgInvitationStatus(_ context.Context, id, status string, acceptedAt *time.Time, acceptedBy string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, invitation := range s.invitations {
+		if invitation.ID == id {
+			s.invitations[i].Status = status
+			if acceptedAt != nil {
+				s.invitations[i].AcceptedAt = acceptedAt
+			}
+			if acceptedBy != "" {
+				s.invitations[i].AcceptedBy = acceptedBy
+			}
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: invitation not found", ErrNotFound)
+}
+
+func (s *MemoryStore) ExpireOldOrgInvitations(_ context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for i, invitation := range s.invitations {
+		if invitation.Status == "pending" && !invitation.ExpiresAt.After(now) {
+			s.invitations[i].Status = "expired"
+		}
+	}
+	return nil
 }

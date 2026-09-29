@@ -37,6 +37,7 @@ type Deps struct {
 	MFA               MFARepo
 	Tokens            TokenRepo
 	Search            SearchRepo
+	Invitations       InvitationsRepo
 	// Cache is the optional read-through cache (memory or Redis); nil keeps
 	// every read on the store.
 	Cache             Cache
@@ -75,6 +76,7 @@ type Container struct {
 	MFA           *MFAService
 	Tokens        *TokenService
 	Search        *SearchService
+	Invitations   *InvitationsService
 }
 
 // NewContainer builds the service graph from the dependency set.
@@ -100,6 +102,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	}
 	services.Streams = NewStreamsService(deps.Streams, deps.StreamsObserver, logger)
 	services.Search = NewSearchService(deps.Search, services.RBAC)
+	services.Invitations = NewInvitationsService(deps.Invitations, deps.Orgs, deps.Auth, services.RBAC, deps.Mailer, cfg.BaseURL, logger)
 	services.Jobs.breakers = deps.Breakers
 	notifications := &NotificationsService{store: deps.Notifications, publish: deps.Realtime}
 	services.Notifications = notifications

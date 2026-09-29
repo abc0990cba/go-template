@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-29
+goal: Add email-based organization invitations with single-use tokens, an accept flow that lands membership plus the domain role in one step, and admin revoke/list surfaces.

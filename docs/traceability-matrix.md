@@ -35,3 +35,6 @@
 | CACHE-002 | `caching-search` | `internal/httpapp/etag.go` | users/jobs/tickets/analytics GETs | `caching_search_test.go` (304 + fresh tag) | Planned |
 | SRCH-001 | `caching-search` | `internal/service/search.go` | `/api/search` | `search_cache_test.go`, `caching_search_test.go` (scoping) | Planned |
 | SRCH-002 | `caching-search` | `internal/platform/postgres/search.go` | tsvector + GIN (migration 000016) | store contract (regression phase) | Planned |
+| INV-001 | `org-invitations` | `internal/service/invitations.go` (invite) | seats dialog, `POST /api/orgs/{id}/invitations` | `invitations_test.go` (lifecycle), `httpapp/invitations_test.go` | Planned |
+| INV-002 | `org-invitations` | `internal/service/invitations.go` (accept) | `/accept-invitation`, `/api/invitations/accept` | `invitations_test.go` (single-use, roles) | Planned |
+| INV-003 | `org-invitations` | `internal/service/invitations.go` (revoke/list/mine) | invitations list + revoke | `invitations_test.go` (cross-org, statuses) | Planned |

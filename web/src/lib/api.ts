@@ -12,6 +12,7 @@ import type {
   Notification,
   OAuthProviderInfo,
   Organization,
+  OrgInvitation,
   OrgMember,
   Paged,
   Permission,
@@ -242,6 +243,15 @@ export const api = {
   mfaDisable: (password: string, code: string) =>
     post<void>("/api/auth/mfa/disable", { password, code }),
   resetUserMFA: (id: string) => del<void>(`/api/users/${encodeURIComponent(id)}/mfa`),
+  inviteOrgMember: (orgId: string, email: string, role: string) =>
+    post<OrgInvitation & { token: string }>(`/api/orgs/${encodeURIComponent(orgId)}/invitations`, { email, role }),
+  orgInvitations: (orgId: string) =>
+    get<Paged<OrgInvitation>>(`/api/orgs/${encodeURIComponent(orgId)}/invitations`).then((p) => p.data),
+  revokeOrgInvitation: (orgId: string, invitationId: string) =>
+    del<void>(`/api/orgs/${encodeURIComponent(orgId)}/invitations/${encodeURIComponent(invitationId)}`),
+  myInvitations: () => get<Paged<OrgInvitation>>("/api/invitations").then((p) => p.data),
+  acceptInvitation: (token: string) =>
+    post<{ org_id: string; role: string }>("/api/invitations/accept", { token }),
   logout: () => post<void>("/api/auth/logout"),
   me: () => get<Me>("/api/me"),
   myIdentities: () => get<Paged<AuthIdentity>>("/api/me/identities").then((p) => p.data),

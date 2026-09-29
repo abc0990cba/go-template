@@ -74,6 +74,30 @@ func (e JobStatus) Valid() bool {
 	}
 }
 
+// Defines values for OrgInvitationStatus.
+const (
+	OrgInvitationStatusAccepted OrgInvitationStatus = "accepted"
+	OrgInvitationStatusExpired  OrgInvitationStatus = "expired"
+	OrgInvitationStatusPending  OrgInvitationStatus = "pending"
+	OrgInvitationStatusRevoked  OrgInvitationStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the OrgInvitationStatus enum.
+func (e OrgInvitationStatus) Valid() bool {
+	switch e {
+	case OrgInvitationStatusAccepted:
+		return true
+	case OrgInvitationStatusExpired:
+		return true
+	case OrgInvitationStatusPending:
+		return true
+	case OrgInvitationStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PolicyRulePtype.
 const (
 	PolicyRulePtypeG PolicyRulePtype = "g"
@@ -923,6 +947,23 @@ type OAuthProviderInfo struct {
 	Name       string `json:"name"`
 }
 
+// OrgInvitation defines model for OrgInvitation.
+type OrgInvitation struct {
+	AcceptedAt *time.Time          `json:"accepted_at,omitempty"`
+	AcceptedBy *string             `json:"accepted_by,omitempty"`
+	CreatedAt  *time.Time          `json:"created_at,omitempty"`
+	Email      openapi_types.Email `json:"email"`
+	ExpiresAt  time.Time           `json:"expires_at"`
+	Id         string              `json:"id"`
+	InvitedBy  *string             `json:"invited_by,omitempty"`
+	OrgId      string              `json:"org_id"`
+	Role       string              `json:"role"`
+	Status     OrgInvitationStatus `json:"status"`
+}
+
+// OrgInvitationStatus defines model for OrgInvitation.Status.
+type OrgInvitationStatus string
+
 // OrgMember defines model for OrgMember.
 type OrgMember struct {
 	Email    string    `json:"email"`
@@ -1474,6 +1515,11 @@ type StartImpersonationJSONBody struct {
 	UserId string `json:"user_id"`
 }
 
+// AcceptInvitationJSONBody defines parameters for AcceptInvitation.
+type AcceptInvitationJSONBody struct {
+	Token string `json:"token"`
+}
+
 // ListJobsParams defines parameters for ListJobs.
 type ListJobsParams struct {
 	Mode   *ListJobsParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
@@ -1531,6 +1577,20 @@ type CreateOrgJSONBody struct {
 type UpdateOrgJSONBody struct {
 	Name *string `json:"name,omitempty"`
 	Slug *string `json:"slug,omitempty"`
+}
+
+// ListOrgInvitationsParams defines parameters for ListOrgInvitations.
+type ListOrgInvitationsParams struct {
+	Limit  *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// InviteOrgMemberJSONBody defines parameters for InviteOrgMember.
+type InviteOrgMemberJSONBody struct {
+	Email openapi_types.Email `json:"email"`
+
+	// Role Role key granted in the org domain on acceptance
+	Role string `json:"role"`
 }
 
 // AddOrgMemberJSONBody defines parameters for AddOrgMember.
@@ -1796,6 +1856,9 @@ type VerifyEmailJSONRequestBody VerifyEmailJSONBody
 // StartImpersonationJSONRequestBody defines body for StartImpersonation for application/json ContentType.
 type StartImpersonationJSONRequestBody StartImpersonationJSONBody
 
+// AcceptInvitationJSONRequestBody defines body for AcceptInvitation for application/json ContentType.
+type AcceptInvitationJSONRequestBody AcceptInvitationJSONBody
+
 // EnqueueEnrichmentJSONRequestBody defines body for EnqueueEnrichment for application/json ContentType.
 type EnqueueEnrichmentJSONRequestBody EnqueueEnrichmentJSONBody
 
@@ -1804,6 +1867,9 @@ type CreateOrgJSONRequestBody CreateOrgJSONBody
 
 // UpdateOrgJSONRequestBody defines body for UpdateOrg for application/json ContentType.
 type UpdateOrgJSONRequestBody UpdateOrgJSONBody
+
+// InviteOrgMemberJSONRequestBody defines body for InviteOrgMember for application/json ContentType.
+type InviteOrgMemberJSONRequestBody InviteOrgMemberJSONBody
 
 // AddOrgMemberJSONRequestBody defines body for AddOrgMember for application/json ContentType.
 type AddOrgMemberJSONRequestBody AddOrgMemberJSONBody

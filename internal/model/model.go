@@ -280,6 +280,30 @@ type MFAChallenge struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// OrgInvitation is a pending org membership offer. The raw token lives only
+// in the invitation email; the store keeps its sha256 hash.
+type OrgInvitation struct {
+	ID         string     `json:"id"`
+	OrgID      string     `json:"org_id"`
+	Email      string     `json:"email"`
+	Role       string     `json:"role"`
+	InvitedBy  string     `json:"invited_by,omitempty"`
+	TokenHash  string     `json:"-"`
+	Status     string     `json:"status"`
+	ExpiresAt  time.Time  `json:"expires_at"`
+	AcceptedAt *time.Time `json:"accepted_at,omitempty"`
+	AcceptedBy string     `json:"accepted_by,omitempty"`
+	CreatedAt  time.Time  `json:"created_at"`
+}
+
+// OrgInvitation statuses.
+const (
+	InvitationPending  = "pending"
+	InvitationAccepted = "accepted"
+	InvitationRevoked  = "revoked"
+	InvitationExpired  = "expired"
+)
+
 // RefreshToken is one link in a rotation chain (family). Only the sha256 of
 // the token is stored; RevokedAt is set on rotation, and a *presented*
 // revoked token proves the family leaked.

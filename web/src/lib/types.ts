@@ -116,6 +116,21 @@ export interface OAuthProviderInfo {
   configured: boolean;
 }
 
+export type OrgInvitationStatus = "pending" | "accepted" | "revoked" | "expired";
+
+export interface OrgInvitation {
+  id: string;
+  org_id: string;
+  email: string;
+  role: string;
+  invited_by?: string;
+  status: OrgInvitationStatus;
+  expires_at: string;
+  accepted_at?: string;
+  accepted_by?: string;
+  created_at: string;
+}
+
 export interface Organization {
   id: string;
   name: string;

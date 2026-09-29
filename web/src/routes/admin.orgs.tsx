@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, Plus, Trash2, UserPlus } from "lucide-react";
+import { Loader2, MailPlus, Plus, Trash2, UserPlus } from "lucide-react";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import {
   AlertDialog,
@@ -32,6 +32,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { api } from "@/lib/api";
 import { ensurePermission } from "@/lib/auth";
 import type { Organization } from "@/lib/types";
+// Invitations share the org members dialog surface.
 
 export const Route = createFileRoute("/admin/orgs")({
   staticData: { title: "Organizations" },
@@ -260,13 +261,20 @@ function MembersDialog({
 }) {
   const queryClient = useQueryClient();
   const [userId, setUserId] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("requester");
   const members = useQuery({
     queryKey: ["orgs", org.id, "members"],
     queryFn: () => api.orgMembers(org.id),
   });
+  const invitations = useQuery({
+    queryKey: ["orgs", org.id, "invitations"],
+    queryFn: () => api.orgInvitations(org.id),
+  });
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["orgs", org.id, "members"] });
+    void queryClient.invalidateQueries({ queryKey: ["orgs", org.id, "invitations"] });
   };
 
   const add = useMutation({
@@ -288,6 +296,25 @@ function MembersDialog({
     onError: (error) => toast.error(error.message),
   });
 
+  const invite = useMutation({
+    mutationFn: () => api.inviteOrgMember(org.id, inviteEmail.trim(), inviteRole),
+    onSuccess: () => {
+      toast.success(`Invitation sent to ${inviteEmail.trim()} (valid 7 days)`);
+      setInviteEmail("");
+      invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
+  const revoke = useMutation({
+    mutationFn: (invitationId: string) => api.revokeOrgInvitation(org.id, invitationId),
+    onSuccess: () => {
+      toast.success("Invitation revoked");
+      invalidate();
+    },
+    onError: (error) => toast.error(error.message),
+  });
+
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -304,6 +331,68 @@ function MembersDialog({
           <Button onClick={() => add.mutate()} disabled={!userId.trim() || add.isPending}>
             <UserPlus /> Add
           </Button>
+        </div>
+        <div className="rounded border bg-muted/30 p-2">
+          <p className="mb-2 text-xs font-medium text-muted-foreground">
+            Invite by email — the invitee accepts from their profile or the email link
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Input
+              placeholder="email@example.com"
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+            <select
+              className="h-9 rounded-md border bg-transparent px-2 text-sm"
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value)}
+              aria-label="Role to grant"
+            >
+              {["requester", "approver", "manager", "admin", "viewer"].map((role) => (
+                <option key={role} value={role}>
+                  {role}
+                </option>
+              ))}
+            </select>
+            <Button
+              onClick={() => invite.mutate()}
+              disabled={!inviteEmail.trim() || !inviteEmail.includes("@") || invite.isPending}
+            >
+              {invite.isPending ? <Loader2 className="size-4 animate-spin" /> : <MailPlus />} Invite
+            </Button>
+          </div>
+          {(invitations.data ?? []).length > 0 && (
+            <div className="mt-2 space-y-1">
+              {(invitations.data ?? []).map((invitation) => (
+                <div
+                  key={invitation.id}
+                  className="flex items-center gap-2 rounded border bg-card px-2 py-1.5 text-sm"
+                >
+                  <MailPlus className="size-3.5 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate">{invitation.email}</span>
+                  <Badge variant="outline">{invitation.role}</Badge>
+                  <Badge
+                    variant={invitation.status === "pending" ? "secondary" : "outline"}
+                    className="text-[10px]"
+                  >
+                    {invitation.status}
+                  </Badge>
+                  {invitation.status === "pending" && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6 text-destructive"
+                      aria-label={`Revoke invitation for ${invitation.email}`}
+                      onClick={() => revoke.mutate(invitation.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         <div className="space-y-1">
           {(members.data ?? []).map((member) => (

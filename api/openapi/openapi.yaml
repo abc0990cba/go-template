@@ -1057,6 +1057,115 @@ paths:
       responses:
         "204": { description: Factor and recovery codes removed }
         default: { $ref: "#/components/responses/Problem" }
+  /api/orgs/{orgId}/invitations:
+    get:
+      tags: [rbac]
+      summary: List an organization's invitations
+      operationId: listOrgInvitations
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/orgId" }
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+      responses:
+        "200":
+          description: Newest first with total count
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/OrgInvitation" }
+                  total: { type: integer }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [rbac]
+      summary: Invite an email to the organization with a role
+      description: >-
+        Sends a single-use accept link (7-day TTL). Fails with 409 when the
+        address is already a member or has a pending invitation.
+      operationId: inviteOrgMember
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: "#/components/parameters/orgId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email: { type: string, format: email }
+                role: { type: string, description: Role key granted in the org domain on acceptance }
+      responses:
+        "201":
+          description: Invitation created (token echoed for dev tooling)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OrgInvitation" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/orgs/{orgId}/invitations/{invId}:
+    delete:
+      tags: [rbac]
+      summary: Revoke a pending invitation
+      operationId: revokeOrgInvitation
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: "#/components/parameters/orgId" }
+        - { name: invId, in: path, required: true, schema: { type: string } }
+      responses:
+        "204": { description: Revoked }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/invitations:
+    get:
+      tags: [rbac]
+      summary: The caller's pending invitations (matched by account email)
+      operationId: myInvitations
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Pending, unexpired invitations
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/OrgInvitation" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/invitations/accept:
+    post:
+      tags: [rbac]
+      summary: Accept an invitation as the signed-in user
+      description: Creates the membership and grants the invitation's role in the org domain.
+      operationId: acceptInvitation
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        "200":
+          description: Membership created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [org_id, role]
+                properties:
+                  org_id: { type: string }
+                  role: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
   /api/users/{id}/activity:
     get:
       tags: [audit]
@@ -1958,6 +2067,20 @@ components:
         application/problem+json:
           schema: { $ref: "#/components/schemas/Problem" }
   schemas:
+    OrgInvitation:
+      type: object
+      required: [id, org_id, email, role, status, expires_at]
+      properties:
+        id: { type: string }
+        org_id: { type: string }
+        email: { type: string, format: email }
+        role: { type: string }
+        invited_by: { type: string }
+        status: { type: string, enum: [pending, accepted, revoked, expired] }
+        expires_at: { type: string, format: date-time }
+        accepted_at: { type: string, format: date-time }
+        accepted_by: { type: string }
+        created_at: { type: string, format: date-time }
     TokenGrantRequest:
       type: object
       required: [grant_type]
