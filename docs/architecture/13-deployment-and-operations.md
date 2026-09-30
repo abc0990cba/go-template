@@ -58,9 +58,15 @@ Postgres/Redis/ClickHouse come from your platform.
 | secrets | `values.secrets.data` rendered as a Secret mounted at `/etc/go-template-secrets` with `<VAR>_FILE` wiring, or `existingSecret` |
 | worker metrics | `APP_METRICS_ADDR=:9091` + scrape annotations |
 | ingress | optional (nginx class, pathType Prefix) |
+| progressive delivery | `rollout.enabled=true` swaps the api Deployment for an Argo Rollouts canary (20→50→100%) gated by the SLO AnalysisTemplate with auto-abort (ADR 0024); HPA target follows the workload kind |
 
-`make helm-lint` / `make helm-template` validate locally; the release
-pipeline publishes the packaged chart to `oci://ghcr.io/<owner>/charts`.
+`make helm-lint` / `make helm-template` validate locally (both modes); the
+release pipeline publishes the packaged chart to
+`oci://ghcr.io/<owner>/charts`, which the Argo CD Application in
+`deploy/gitops/` pulls (docs/gitops.md). A Nomad alternative with native
+canary + auto-revert lives in `deploy/nomad/` — `docs/orchestrators.md`
+compares the orchestrator paths, including why Swarm is documented rather
+than shipped.
 
 ## 13.4 CI/CD pipelines
 
@@ -72,6 +78,7 @@ flowchart LR
     G["build-test job<br/>go vet → go build → go test -race -covermode=atomic"]
     L["lint job<br/>golangci-lint v2.1.6"]
     I["integration job<br/>go test -tags=integration<br/>testcontainers: PG, Redis, Kafka, NATS, CH, MinIO"]
+    C["codegen job<br/>make generate → git diff --exit-code<br/>(rejects generated-code drift)"]
     D["docker job<br/>build production image (no push)"]
 ```
 
@@ -83,7 +90,9 @@ flowchart TB
     IMG --> SCAN["Trivy scan — fails on CRITICAL/HIGH<br/>(ignore-unfixed), SARIF to code scanning"]
     IMG --> SBOM["Syft SPDX JSON SBOM attached"]
     IMG --> SIGN["cosign keyless sign (workflow OIDC)"]
+    IMG --> SLSA["SLSA build provenance attestation<br/>(gh attestation verify)"]
     IMG --> CH["chart job:<br/>helm lint → package → push oci://ghcr.io/.../charts"]
+    R["release-drafter:<br/>auto release notes by PR category"]
 ```
 
 All Actions are SHA-pinned; Go/Node versions come from `go.mod` /

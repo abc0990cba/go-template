@@ -83,6 +83,18 @@ jobs:
           IMAGE: ${{ fromJSON(steps.build.outputs.metadata)['image.name'] }}
         run: cosign sign --yes "$IMAGE"
 
+      # SLSA build provenance (closes the "next step" named in ADR 0018):
+      # a signed, unforgeable attestation of how this image was built —
+      # repo, workflow, inputs, digest. Consumers verify with
+      #   gh attestation verify <artifact> -R <repo>
+      # or cosign verify-attestation --type slsaprovenance.
+      - name: Attest SLSA build provenance
+        uses: actions/attest-build-provenance@173725a1209d09b31d9f307bdee5e56cc5f7f0e2 # v1.4.0
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
   chart:
     runs-on: ubuntu-latest
     needs: image

@@ -1,0 +1,22 @@
+{{- if .Values.rollout.enabled }}
+{{/* The canary twin of the api Service. Rollouts owns its selector: it
+     injects rollouts-pod-template-hash to pin the Service onto the canary
+     ReplicaSet only, while the stable Service keeps the majority. */}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "go-template.fullname" . }}-api-canary
+  labels:
+    {{- include "go-template.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "go-template.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+{{- end }}

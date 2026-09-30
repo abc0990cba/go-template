@@ -15,6 +15,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/your-org/go-template/internal/model"
 
@@ -29,6 +30,18 @@ var (
 // Client wraps the ClickHouse connection.
 type Client struct {
 	conn driver.Conn
+}
+
+// tracedCtx makes the current span visible to the ClickHouse driver. The
+// driver does not read OpenTelemetry contexts implicitly: the span context
+// must be attached explicitly (clickhouse.Context + WithSpan) and is then
+// propagated to the server as the traceparent query setting, joining ClickHouse
+// query logs to the application trace.
+func tracedCtx(ctx context.Context) context.Context {
+	if sc := trace.SpanContextFromContext(ctx); sc.IsValid() {
+		return clickhouse.Context(ctx, clickhouse.WithSpan(sc))
+	}
+	return ctx
 }
 
 // Open connects and applies the migration files (one statement per file)
@@ -84,7 +97,7 @@ func (c *Client) Close() error { return c.conn.Close() }
 // EventCounts aggregates stored events by name. Unknown names are ignored;
 // counters the dashboard knows about are always present (zero when absent).
 func (c *Client) EventCounts(ctx context.Context) (map[string]int64, error) {
-	rows, err := c.conn.Query(ctx, "SELECT event_name, toInt64(count()) FROM analytics_events GROUP BY event_name")
+	rows, err := c.conn.Query(tracedCtx(ctx), "SELECT event_name, toInt64(count()) FROM analytics_events GROUP BY event_name")
 	if err != nil {
 		return nil, fmt.Errorf("query event counts: %w", err)
 	}
@@ -103,7 +116,7 @@ func (c *Client) EventCounts(ctx context.Context) (map[string]int64, error) {
 
 // EventTimeseries returns per-day per-event counts for the last days days.
 func (c *Client) EventTimeseries(ctx context.Context, days int) ([]model.EventDayPoint, error) {
-	rows, err := c.conn.Query(ctx,
+	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT toString(toDate(occurred_at)) AS day, event_name, toInt64(count()) "+
 			"FROM analytics_events WHERE occurred_at >= now() - toIntervalDay(?) "+
 			"GROUP BY day, event_name ORDER BY day", days)
@@ -151,7 +164,7 @@ func (c *Client) RecentEvents(ctx context.Context, limit int) ([]model.EventReco
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
-	rows, err := c.conn.Query(ctx,
+	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT event_name, occurred_at, user_id, properties FROM analytics_events "+
 			"ORDER BY occurred_at DESC LIMIT ?", limit)
 	if err != nil {
@@ -175,7 +188,7 @@ func (c *Client) InsertEvents(ctx context.Context, events []model.EventRecord) e
 	if len(events) == 0 {
 		return nil
 	}
-	statement, err := c.conn.PrepareBatch(ctx, "INSERT INTO analytics_events (occurred_at, event_name, user_id, request_id, properties)")
+	statement, err := c.conn.PrepareBatch(tracedCtx(ctx), "INSERT INTO analytics_events (occurred_at, event_name, user_id, request_id, properties)")
 	if err != nil {
 		return fmt.Errorf("prepare backfill batch: %w", err)
 	}
@@ -197,7 +210,7 @@ func (c *Client) InsertEvents(ctx context.Context, events []model.EventRecord) e
 // EventBreakdown groups the window's events by one JSON property
 // dimension; missing dimensions collapse into the empty name.
 func (c *Client) EventBreakdown(ctx context.Context, dimension string, days int) ([]model.NameCount, error) {
-	rows, err := c.conn.Query(ctx,
+	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT JSONExtractString(properties, ?) AS dim, toInt64(count()) "+
 			"FROM analytics_events WHERE occurred_at >= now() - toIntervalDay(?) "+
 			"GROUP BY dim HAVING dim != '' ORDER BY count() DESC LIMIT 10", dimension, days)
@@ -218,7 +231,7 @@ func (c *Client) EventBreakdown(ctx context.Context, dimension string, days int)
 
 // DailyActiveUsers counts distinct event-attributed users per day.
 func (c *Client) DailyActiveUsers(ctx context.Context, days int) ([]model.DayCount, error) {
-	rows, err := c.conn.Query(ctx,
+	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT toString(toDate(occurred_at)) AS day, toInt64(uniqExact(user_id)) "+
 			"FROM analytics_events WHERE occurred_at >= now() - toIntervalDay(?) AND user_id != '' "+
 			"GROUP BY day ORDER BY day", days)
@@ -240,7 +253,7 @@ func (c *Client) DailyActiveUsers(ctx context.Context, days int) ([]model.DayCou
 // DeleteDemoEvents removes seed-generated events; ClickHouse deletions are
 // asynchronous mutations, which is acceptable for a demo reset.
 func (c *Client) DeleteDemoEvents(ctx context.Context) error {
-	return c.conn.Exec(ctx, "ALTER TABLE analytics_events DELETE WHERE user_id LIKE 'demo-%'")
+	return c.conn.Exec(tracedCtx(ctx), "ALTER TABLE analytics_events DELETE WHERE user_id LIKE 'demo-%'")
 }
 
 // EventBuffer batches events in memory and flushes them as a single insert

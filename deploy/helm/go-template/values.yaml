@@ -63,6 +63,35 @@ service:
   type: ClusterIP
   port: 80
 
+# Progressive delivery (ADR 0024): swap the api Deployment for an Argo
+# Rollouts canary gated by the SLO metrics. Requires argo-rollouts; see
+# scripts/kind-demo.sh for a local walkthrough. With trafficRouting enabled
+# you also need ingress-nginx and ingress.enabled=true.
+rollout:
+  enabled: false
+  trafficRouting:
+    enabled: false
+    stableIngress: "" # defaults to the fullname-based api ingress
+  # 20% -> analyze -> 50% -> analyze -> 100%; a pause with no duration waits
+  # for manual promotion (kubectl argo rollouts promote).
+  steps:
+    - weight: 20
+      pauseSeconds: 60
+      analysis: true
+    - weight: 50
+      pauseSeconds: 60
+      analysis: true
+    - weight: 100
+      pauseSeconds: 0
+      analysis: false
+  # The gate: each analysis runs `count` checks every 30s and aborts the
+  # rollout on the first breach.
+  analysis:
+    prometheusAddress: http://prometheus.observability:9090
+    count: 3
+    minAvailability: 0.99
+    maxLatencyP95: 0.5
+
 ingress:
   enabled: false
   className: nginx

@@ -1,4 +1,4 @@
-.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency openspec-validate
+.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
 run:
 	go run ./cmd/api
 
@@ -130,11 +130,67 @@ demo-ratelimit:
 demo-idempotency:
 	./scripts/demo-idempotency.sh
 
+# --- Chaos lab (docs/chaos.md) -----------------------------------------------
+# Fault injection through Toxiproxy: the app talks to postgres/redis through
+# the proxy and you break the middle. Best experienced with the
+# observability profile up so the dashboards and alerts react.
+
+CHAOS_COMPOSE = docker compose -f docker-compose.yml -f docker-compose.chaos.yml
+CHAOS = ./scripts/chaos.sh
+
+chaos-up:
+	$(CHAOS_COMPOSE) --profile chaos up -d
+
+chaos-down:
+	$(CHAOS_COMPOSE) --profile chaos down
+
+chaos-status:
+	$(CHAOS) status
+
+# Add latency to every Postgres round-trip: make chaos-pg-latency MS=2000
+chaos-pg-latency:
+	$(CHAOS) pg-latency ${MS:-2000}
+
+chaos-pg-down:
+	$(CHAOS) pg-down
+
+chaos-redis-down:
+	$(CHAOS) redis-down
+
+chaos-restore:
+	$(CHAOS) pg-restore && $(CHAOS) redis-restore
+
 helm-lint:
 	helm lint deploy/helm/go-template
 
 helm-template:
 	helm template go-template deploy/helm/go-template
+
+# --- Progressive delivery (ADR 0024) -----------------------------------------
+# Primary path: Kubernetes canary with metric-gated auto-rollback (Argo
+# Rollouts) — scripts/kind-demo.sh walks through it on a local kind cluster.
+# Lighter alternative: Nomad's native canary + auto-revert (deploy/nomad/).
+
+kind-up:
+	./scripts/kind-demo.sh up
+
+kind-release:
+	./scripts/kind-demo.sh release
+
+kind-down:
+	./scripts/kind-demo.sh down
+
+nomad-up:
+	nomad agent -dev >/tmp/nomad-dev.log 2>&1 & echo "nomad dev agent started (log: /tmp/nomad-dev.log, UI: http://localhost:4646)"
+
+nomad-validate:
+	nomad job validate deploy/nomad/go-template.nomad.hcl
+
+nomad-run:
+	nomad job run deploy/nomad/go-template.nomad.hcl
+
+nomad-stop:
+	pkill -f "nomad agent -dev" || true
 
 openspec-validate:
 	@command -v openspec >/dev/null 2>&1 && openspec validate || echo "openspec CLI is not installed; see docs/openspec.md"

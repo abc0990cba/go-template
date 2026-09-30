@@ -10,3 +10,6 @@
 | JOB-001 | Planned | `test/integration/queue_test.go` | `test/e2e/happy_path_test.go` | Redis e2e + queue dedup |
 | JOB-002 | `internal/reliability/retry_test.go` | Planned | Planned | Bounded runner covered |
 | REL-001 | `internal/reliability/retry_test.go` | Planned | Planned | Retry behavior covered |
+| REL-002 | `internal/reliability/bulkhead_test.go` | Planned | Planned | Limit, reject, ctx-cancel, observers covered |
+| OBS-001 | `internal/observ/slogtrace_test.go` | Planned | Planned | Handler stamps IDs; sampler mapping |
+| REL-003 | `internal/repository/memory_test.go` | `test/integration/streams_contract_test.go` (prune subtest) | Planned | Dedupe-vs-sequence-guard after sweep, both twins |

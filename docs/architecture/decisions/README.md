@@ -26,6 +26,10 @@ change a decision, write a new ADR that supersedes it and link both ways.
 | [0019](0019-openspec-workflow.md) | OpenSpec change-first workflow with traceability matrices | Accepted |
 | [0020](0020-fulltext-search-simple.md) | Postgres tsvector with the 'simple' config for full-text search | Accepted |
 | [0021](0021-package-by-feature.md) | Reorganize to package-by-feature (vertical slices) — see [16–18](../) | Accepted |
+| [0022](0022-monitoring-as-code.md) | Dashboards, alert rules, SLO burn alerts, and Alertmanager versioned in the repo | Accepted |
+| [0023](0023-log-trace-correlation.md) | Log↔trace correlation, configurable head sampling, continuous profiling | Accepted |
+| [0024](0024-progressive-delivery.md) | Progressive delivery: canary with metric-gated auto-rollback (Argo Rollouts; Nomad alternative) | Accepted |
+| [0025](0025-bulkheads.md) | Bulkheads around slow outbound dependencies | Accepted |
 
 ## Format
 

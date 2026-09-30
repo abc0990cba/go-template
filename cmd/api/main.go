@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 
 	platformcache "github.com/your-org/go-template/internal/platform/cache"
@@ -59,7 +61,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	shutdownTracing, err := observ.SetupTracing(ctx, cfg.OTLPEndpoint, build)
+	// Continuous profiling: off until APP_PYROSCOPE_URL is set.
+	defer observ.StartProfiler(cfg.PyroscopeURL, build)()
+
+	shutdownTracing, err := observ.SetupTracing(ctx, cfg.OTLPEndpoint, cfg.OTLPSampleRatio, build)
 	if err != nil {
 		logger.Error("setup tracing", "err", err)
 		os.Exit(1)
@@ -72,6 +77,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeStore()
+
+	// Pool saturation is invisible to the default Go runtime metrics; the
+	// custom collector exports pgxpool.Stat() (waiters, acquired share...).
+	if repos.PoolStats != nil {
+		prometheus.MustRegister(observ.NewPoolStatsCollector(repos.PoolStats))
+	}
 
 	// Realtime: the hub fans live events out to SSE subscribers; with Redis
 	// present, the bridge also relays job transitions published by the
@@ -100,7 +111,7 @@ func main() {
 
 	// Distributed rate limiting shares one Redis budget across api
 	// processes; single-process mode keeps token buckets in memory.
-	redisClient := openRedis(cfg)
+	redisClient := openRedis(cfg, logger)
 
 	// Read-through cache: shared via Redis when configured, in-process
 	// otherwise. Users + expanded permissions are the hot reads.
@@ -120,6 +131,11 @@ func main() {
 	breakers.SetOnChange(func(name string, from, to reliability.CircuitState) {
 		observ.RecordBreakerState(name, int(from), int(to))
 	})
+
+	// Bulkheads bound concurrent calls per outbound dependency; slot
+	// occupancy and rejections land in Prometheus.
+	bulkheads := reliability.NewBulkheads(cfg.BulkheadLimit, cfg.BulkheadAcquireTimeout)
+	bulkheads.SetObservers(observ.RecordBulkheadInFlight, observ.RecordBulkheadRejected)
 
 	// The policy engine guards every protected route; policies persist
 	// through the same store and system roles are re-seeded idempotently.
@@ -142,7 +158,7 @@ func main() {
 		Cache:             appCache,
 		Files:             repos.Files,
 		Blobs:             blobs,
-		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers,
+		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers, Bulkheads: bulkheads,
 		StreamsObserver: observ.NewStreamsObserver(),
 		Realtime: func(n model.Notification) {
 			hub.Publish(realtime.NewEvent(realtime.TypeNotification, n))
@@ -294,10 +310,16 @@ func runHealthcheck() int {
 
 func newLogger(format string, level slog.Level) *slog.Logger {
 	opts := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
 	if format == "json" {
-		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, opts)
 	}
-	return slog.New(slog.NewTextHandler(os.Stdout, opts))
+	// Stamp trace_id/span_id on every line that runs inside a span, so a
+	// log line jumps to its Jaeger trace (and back via the request.id
+	// attribute the access log sets on the span).
+	return slog.New(observ.NewTraceHandler(handler))
 }
 
 // openMailer picks the SMTP transport when configured, the logging
@@ -314,12 +336,17 @@ func openMailer(cfg config.Config, logger *slog.Logger) mailer.Sender {
 }
 
 // openRedis connects the shared limiter client when Redis is configured;
-// nil keeps rate limiting in-process.
-func openRedis(cfg config.Config) *redis.Client {
+// nil keeps rate limiting in-process. Commands get client spans (redisotel)
+// so cache and limiter round-trips join the request trace.
+func openRedis(cfg config.Config, logger *slog.Logger) *redis.Client {
 	if cfg.RedisAddr == "" {
 		return nil
 	}
-	return redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	client := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		logger.Debug("redis tracing unavailable", "err", err)
+	}
+	return client
 }
 
 // openQueue returns the asynq-backed job queue, or nil in single-process

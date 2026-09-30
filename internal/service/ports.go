@@ -214,6 +214,12 @@ type StreamsRepo interface {
 	ListDeadLetters(ctx context.Context, opts repository.DeadLetterOptions) ([]model.DeadLetter, string, error)
 	MarkDeadLetterReplayed(ctx context.Context, id string) error
 	CountDeadLettersPending(ctx context.Context) (int, error)
+
+	// PruneProcessedEvents deletes inbox rows older than the retention
+	// window. The inbox doubles as the exactly-once dedupe table, so the
+	// window must comfortably exceed any redelivery delay the brokers can
+	// produce; the worker sweeps it on a schedule.
+	PruneProcessedEvents(ctx context.Context, olderThan time.Duration) (int64, error)
 }
 
 // IdempotencyRepo stores API idempotency-key reservations and responses.

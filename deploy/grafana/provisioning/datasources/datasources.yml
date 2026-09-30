@@ -1,12 +1,22 @@
 apiVersion: 1
 
 datasources:
+  # uid is referenced by the provisioned dashboards (deploy/grafana/dashboards)
+  # and by the Rollouts AnalysisTemplate in deploy/helm — keep it stable.
   - name: Prometheus
     type: prometheus
+    uid: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
   - name: Jaeger
     type: jaeger
+    uid: jaeger
     access: proxy
     url: http://jaeger:16686
+  # Continuous profiling (APP_PYROSCOPE_URL); flame graphs next to metrics.
+  - name: Pyroscope
+    type: grafana-pyroscope-datasource
+    uid: pyroscope
+    access: proxy
+    url: http://pyroscope:4040

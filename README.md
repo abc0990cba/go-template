@@ -26,7 +26,7 @@ The project is intentionally small enough to understand, but it includes the pat
 - **GDPR data export** — a queued job builds a ZIP of per-entity JSON, owner-only downloads, 7-day retention — see [docs/data-export.md](docs/data-export.md)
 - **Caching & search** — read-through cache (memory/Redis, singleflight) for hot reads, ETag/304 on heavy lists, permission-scoped full-text search — see [docs/caching-search.md](docs/caching-search.md)
 - **Transport hardening** — inbound server spans, pgx pool tuning, chunked-safe body caps, HSTS, `_FILE` secrets, per-identity rate limits, maintenance mode — see [docs/reliability.md](docs/reliability.md)
-- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) and a signed, scanned, SBOM'd release pipeline — see [docs/deployment.md](docs/deployment.md)
+- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) with an SLO-gated canary option (Argo Rollouts, auto-rollback), GitOps manifests, a Nomad alternative, and a signed, scanned, SBOM'd, SLSA-attested release pipeline — see [docs/deployment.md](docs/deployment.md), [docs/orchestrators.md](docs/orchestrators.md), [docs/gitops.md](docs/gitops.md)
 - **Application map** — every component with file paths and a hand-check per piece: [docs/application-overview.md](docs/application-overview.md)
 - **Regression** — `scripts/regression-walkthrough.sh` drives every feature against a live stack; the full gauntlet is documented in [docs/regression-checklist.md](docs/regression-checklist.md)
 - **Rich demo data** — 500 users, 3 organizations, 120 tickets across the whole approval lifecycle, 90 days of events (12 types with property dimensions), audit entries, notifications, keys, and webhook history on first launch
@@ -37,7 +37,7 @@ The project is intentionally small enough to understand, but it includes the pat
 - CI (GitHub Actions) with vet, golangci-lint, and race-enabled tests
 - PostgreSQL persistence (pgx + sqlc + migrations) behind service ports
 - Redis/asynq job queue with a real worker process and idempotent enqueueing
-- Observability: structured logs, Prometheus metrics, OpenTelemetry traces
+- Observability: structured logs with trace↔log correlation, Prometheus metrics (RED, pool stats, resilience machinery), OpenTelemetry traces across every boundary (HTTP, asynq, Kafka/NATS, pgx, Redis, ClickHouse, outbound HTTP), configurable sampling, continuous profiling (Pyroscope), dashboards + alert rules + SLO burn-rate alerts + Alertmanager shipped as code, blackbox synthetic checks — see [docs/observability.md](docs/observability.md) and [docs/slo.md](docs/slo.md)
 - PostgreSQL migrations and sqlc query layout
 - Redis/asynq-ready background job design
 - ClickHouse analytics schema
@@ -48,7 +48,7 @@ The project is intentionally small enough to understand, but it includes the pat
 
 - **[docs/architecture/](docs/architecture/)** — the master architecture set: C4 diagrams (context → containers → components), every flow as a sequence/state diagram (auth, MFA, JWT rotation, approvals, streams/outbox/DLQ, files, export, webhooks, idempotency), the data model ER, the full technology stack with rationale, security model, operations, testing strategy, and a template adoption guide.
 - **[docs/architecture/decisions/](docs/architecture/decisions/)** — 20 ADRs recording every significant architectural choice (hexagonal architecture, monolith-first, sqlc over ORM, sessions vs JWT, exactly-once consumption, transactional outbox, distroless supply chain, …).
-- Feature guides: [application overview](docs/application-overview.md), [quickstart](docs/quickstart.md), [tickets](docs/tickets.md), [MFA](docs/mfa.md), [token auth](docs/token-auth.md), [RBAC](docs/rbac.md), [invitations](docs/invitations.md), [files](docs/files.md), [data export](docs/data-export.md), [enrichment streams](docs/enrichment-streams.md), [caching & search](docs/caching-search.md), [jobs](docs/jobs.md), [database](docs/database.md), [observability](docs/observability.md), [reliability](docs/reliability.md), [deployment](docs/deployment.md), [frontend](docs/frontend.md), [testing](docs/testing.md), [regression checklist](docs/regression-checklist.md).
+- Feature guides: [application overview](docs/application-overview.md), [quickstart](docs/quickstart.md), [tickets](docs/tickets.md), [MFA](docs/mfa.md), [token auth](docs/token-auth.md), [RBAC](docs/rbac.md), [invitations](docs/invitations.md), [files](docs/files.md), [data export](docs/data-export.md), [enrichment streams](docs/enrichment-streams.md), [caching & search](docs/caching-search.md), [jobs](docs/jobs.md), [database](docs/database.md), [observability](docs/observability.md), [SLOs](docs/slo.md), [reliability](docs/reliability.md), [chaos lab](docs/chaos.md), [deployment](docs/deployment.md), [orchestrators](docs/orchestrators.md), [GitOps](docs/gitops.md), [frontend](docs/frontend.md), [testing](docs/testing.md), [regression checklist](docs/regression-checklist.md).
 
 ## Demo accounts
 

@@ -1,0 +1,58 @@
+# Chaos engineering lab: fault injection in front of the dependencies the
+# app talks to. Overlay on the base compose:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.chaos.yml up -d
+#
+# Toxiproxy sits between the app and postgres/redis; the api and worker talk
+# to the proxies instead of the real services. Inject faults with the
+# scripts in scripts/ (or the make chaos-* targets) and watch the app
+# degrade exactly as docs/chaos.md predicts — breakers trip, alerts fire,
+# dashboards move. Remove the toxic and everything self-heals.
+#
+# The proxies listen on the ports the app already expects (postgres:5432,
+# redis:6379 inside the compose network); the real services keep their names
+# but no longer receive app traffic directly.
+services:
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    profiles: ["chaos"]
+    ports:
+      - "8474:8474" # control API + UI
+    networks:
+      default:
+        # The proxy answers for the names the app would normally resolve to
+        # the real services; injection then happens transparently.
+        aliases:
+          - postgres-proxy
+          - redis-proxy
+
+  toxiproxy-setup:
+    image: ghcr.io/shopify/toxiproxy:2.12.0
+    profiles: ["chaos"]
+    depends_on:
+      - toxiproxy
+    entrypoint: ["/bin/sh", "-c"]
+    # Register the two proxies once; host names are the real services.
+    command: |
+      '
+        sleep 2
+        toxiproxy-cli create pg --listen postgres-proxy:5432 --upstream postgres:5432
+        toxiproxy-cli create redis --listen redis-proxy:6379 --upstream redis:6379
+        echo "chaos proxies ready: pg, redis"
+      '
+
+  api:
+    environment:
+      # Through the proxy chain when the chaos profile is up; the toxiproxy
+      # service must exist for these names to resolve.
+      APP_DATABASE_URL: postgres://app:app@postgres-proxy:5432/app?sslmode=disable
+      APP_REDIS_ADDR: redis-proxy:6379
+    depends_on:
+      - toxiproxy-setup
+
+  worker:
+    environment:
+      APP_DATABASE_URL: postgres://app:app@postgres-proxy:5432/app?sslmode=disable
+      APP_REDIS_ADDR: redis-proxy:6379
+    depends_on:
+      - toxiproxy-setup

@@ -40,3 +40,6 @@ web/dist/*
 
 # Build artifact of cmd/devtools (make devtools builds it locally)
 /devtools
+
+# Build artifact of cmd/worker (go build ./cmd/worker)
+/worker

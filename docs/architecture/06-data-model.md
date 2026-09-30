@@ -222,9 +222,10 @@ Performance-relevant SQL patterns worth copying:
 | Idempotency records | `APP_IDEMPOTENCY_TTL` (24 h) | prune loop every 10 min |
 | Email tokens | reset 1 h / verify 24 h | checked at consume |
 | Invitation tokens | 7 d | expiry flip + check at accept |
-| Export ZIPs | 7 d | `ExportService.Prune` (exposed for a scheduler; not yet wired into the worker loop) |
+| Export ZIPs | 7 d | hourly `exportPruneLoop` in the worker (`app_prune_deleted_total{domain="export_files"}`) |
 | Audit | `audit.retention_days` (365) | `DeleteAuditOlderThan`, callable |
 | Outbox (processed) | 7 d | `DeleteOldOutbox` |
-| Analytics events | indefinitely | ClickHouse TTL is intentionally not set — add per your policy |
+| Analytics events | 90 d | ClickHouse TTL (`migrations/clickhouse/002_events_ttl.sql`, DELETE during merges); adjust per policy in a later migration |
+| Inbox (`processed_events`) | `APP_RETENTION_PROCESSED_EVENTS` (30 d) | hourly sweep; kept longer than any broker redelivery delay so dedupe stays sound |
 
 Next: [07 — Flows: Authentication & Identity](07-flows-authentication-and-identity.md).

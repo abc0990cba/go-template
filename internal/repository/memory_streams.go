@@ -81,6 +81,7 @@ func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event model.StreamEven
 		return model.StreamApplyResult{}, fmt.Errorf("unknown stream source %q", event.Source)
 	}
 	s.processedEvents[key] = model.StreamApplyResult{UserID: owner}
+	s.processedAt[key] = time.Now()
 	if !applied {
 		return model.StreamApplyResult{Status: model.StreamStale, UserID: owner}, nil
 	}
@@ -382,6 +383,23 @@ func (s *MemoryStore) PruneIdempotency(ctx context.Context) (int64, error) {
 	for key, record := range s.idempotency {
 		if now.After(record.ExpiresAt) {
 			delete(s.idempotency, key)
+			pruned++
+		}
+	}
+	return pruned, nil
+}
+
+// PruneProcessedEvents deletes inbox rows older than the retention window,
+// mirroring the SQL sweep so the contract twins stay equivalent.
+func (s *MemoryStore) PruneProcessedEvents(_ context.Context, olderThan time.Duration) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cutoff := time.Now().Add(-olderThan)
+	var pruned int64
+	for key, at := range s.processedAt {
+		if at.Before(cutoff) {
+			delete(s.processedEvents, key)
+			delete(s.processedAt, key)
 			pruned++
 		}
 	}

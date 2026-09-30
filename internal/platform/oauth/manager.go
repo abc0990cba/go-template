@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/github"
 	"golang.org/x/oauth2/google"
@@ -52,7 +53,10 @@ func NewManager(cfg config.Config) *Manager {
 		githubEmails = cfg.GitHubEmailURL
 	}
 	return &Manager{
-		httpClient: &http.Client{Timeout: cfg.ExternalTimeout},
+		httpClient: &http.Client{
+			Timeout:   cfg.ExternalTimeout,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		},
 		providers: map[string]Provider{
 			"google": {
 				Config: &oauth2.Config{

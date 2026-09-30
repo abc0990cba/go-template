@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/your-org/go-template/internal/bootstrap"
@@ -41,7 +42,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	shutdownTracing, err := observ.SetupTracing(ctx, cfg.OTLPEndpoint, build)
+	// Continuous profiling: off until APP_PYROSCOPE_URL is set.
+	defer observ.StartProfiler(cfg.PyroscopeURL, build)()
+
+	shutdownTracing, err := observ.SetupTracing(ctx, cfg.OTLPEndpoint, cfg.OTLPSampleRatio, build)
 	if err != nil {
 		logger.Error("setup tracing", "err", err)
 		os.Exit(1)
@@ -55,10 +59,21 @@ func main() {
 	}
 	defer closeStore()
 
+	// Pool saturation is invisible to the default Go runtime metrics; the
+	// custom collector exports pgxpool.Stat() (waiters, acquired share...).
+	if repos.PoolStats != nil {
+		prometheus.MustRegister(observ.NewPoolStatsCollector(repos.PoolStats))
+	}
+
 	breakers := reliability.NewBreakers(cfg.CBFailureThreshold, cfg.CBOpenTimeout)
 	breakers.SetOnChange(func(name string, from, to reliability.CircuitState) {
 		observ.RecordBreakerState(name, int(from), int(to))
 	})
+
+	// Bulkheads bound concurrent calls per outbound dependency; slot
+	// occupancy and rejections land in Prometheus.
+	bulkheads := reliability.NewBulkheads(cfg.BulkheadLimit, cfg.BulkheadAcquireTimeout)
+	bulkheads.SetObservers(observ.RecordBulkheadInFlight, observ.RecordBulkheadRejected)
 
 	blobs := bootstrap.FileStore(cfg, ctx, logger)
 
@@ -68,8 +83,8 @@ func main() {
 		Streams: repos.Streams,
 		MFA:     repos.MFA, Tokens: repos.Tokens, Search: repos.Search, Invitations: repos.Invitations, Files: repos.Files,
 		Blobs:    blobs,
-		Breakers: breakers,
-		Events:   repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
+		Breakers: breakers, Bulkheads: bulkheads,
+		Events: repos.Events, EventStats: repos.EventStats, Observer: observ.NewJobObserver(),
 		StreamsObserver: observ.NewStreamsObserver(),
 	}, logger, cfg)
 
@@ -87,6 +102,16 @@ func main() {
 	if repos.Idempotency != nil {
 		go pruneLoop(ctx, repos.Idempotency, logger)
 	}
+
+	// GDPR export ZIPs expire after ExportRetention (docs/data-export.md);
+	// the builder exposes the sweep, this loop schedules it.
+	if services.Exports != nil {
+		go exportPruneLoop(ctx, services.Exports, logger)
+	}
+
+	// The exactly-once inbox doubles as the dedupe table; rows older than
+	// the retention window can no longer be redelivered and are swept.
+	go processedEventsPruneLoop(ctx, repos.Streams, cfg.RetentionProcessedEvents, logger)
 
 	// Expired MFA login challenges and rotated-out refresh tokens are
 	// swept here too.
@@ -127,13 +152,17 @@ var (
 	date    = "unknown"
 )
 
-// newLogger picks text for humans and json for log shippers.
+// newLogger picks text for humans and json for log shippers. Every line
+// that runs inside a span carries trace_id/span_id (see observ.TraceHandler).
 func newLogger(format string, level slog.Level) *slog.Logger {
 	opts := &slog.HandlerOptions{Level: level}
+	var handler slog.Handler
 	if format == "json" {
-		return slog.New(slog.NewJSONHandler(os.Stdout, opts))
+		handler = slog.NewJSONHandler(os.Stdout, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stdout, opts)
 	}
-	return slog.New(slog.NewTextHandler(os.Stdout, opts))
+	return slog.New(observ.NewTraceHandler(handler))
 }
 
 // startStreams launches the enrichment consumers and the outbox relay in
@@ -217,7 +246,50 @@ func pruneLoop(ctx context.Context, repo service.IdempotencyRepo, logger *slog.L
 			if n, err := repo.PruneIdempotency(ctx); err != nil {
 				logger.Debug("idempotency prune failed", "err", err)
 			} else if n > 0 {
+				observ.PrunedRows.WithLabelValues("idempotency_keys").Add(float64(n))
 				logger.Debug("idempotency keys pruned", "count", n)
+			}
+		}
+	}
+}
+
+// exportPruneLoop deletes expired GDPR export bundles hourly; the retention
+// window lives in the export service (ExportRetention).
+func exportPruneLoop(ctx context.Context, exports *service.ExportService, logger *slog.Logger) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := exports.Prune(ctx)
+			if err != nil {
+				logger.Debug("export prune failed", "err", err)
+			} else if n > 0 {
+				observ.PrunedRows.WithLabelValues("export_files").Add(float64(n))
+				logger.Info("export bundles pruned", "count", n)
+			}
+		}
+	}
+}
+
+// processedEventsPruneLoop bounds the exactly-once inbox; the retention
+// window must stay longer than any redelivery delay the brokers produce.
+func processedEventsPruneLoop(ctx context.Context, repo service.StreamsRepo, olderThan time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := repo.PruneProcessedEvents(ctx, olderThan)
+			if err != nil {
+				logger.Debug("processed events prune failed", "err", err)
+			} else if n > 0 {
+				observ.PrunedRows.WithLabelValues("processed_events").Add(float64(n))
+				logger.Debug("processed events pruned", "count", n)
 			}
 		}
 	}

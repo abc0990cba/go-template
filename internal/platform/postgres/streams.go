@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -299,6 +300,13 @@ func (s *Store) CompleteIdempotency(ctx context.Context, key, userID string, sta
 // PruneIdempotency deletes expired reservations and responses.
 func (s *Store) PruneIdempotency(ctx context.Context) (int64, error) {
 	return s.q.PruneIdempotencyKeys(ctx)
+}
+
+// PruneProcessedEvents deletes inbox rows older than the retention window;
+// the worker sweeps them so the dedupe table does not grow forever.
+func (s *Store) PruneProcessedEvents(ctx context.Context, olderThan time.Duration) (int64, error) {
+	n, err := s.q.PruneProcessedEvents(ctx, int32(olderThan.Seconds())) // #nosec G115 -- retention window fits int32 seconds
+	return n, mapErr(err)
 }
 
 func idempotencyFromRow(row db.IdempotencyKey) model.IdempotencyRecord {

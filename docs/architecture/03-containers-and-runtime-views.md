@@ -163,7 +163,7 @@ the metrics listener.
 | GDPR export | enqueue + download ✔ | build ZIP ✔ |
 | Enrichment consumption | — | ✔ |
 | Outbox relay | — | ✔ |
-| Retention prunes | — | ✔ (export prune exposed, not yet scheduled — see [09](09-flows-business-domains.md) §4) |
+| Retention prunes | — | ✔ (idempotency 10 min; export ZIPs, inbox rows hourly — `app_prune_deleted_total` counts swept rows) |
 | Migrations | at boot ✔ | — (shares the same store; runs are idempotent) |
 | Metrics | via app port | via dedicated `APP_METRICS_ADDR` |
 

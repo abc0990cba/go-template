@@ -475,6 +475,21 @@ func (q *Queries) PruneIdempotencyKeys(ctx context.Context) (int64, error) {
 	return result.RowsAffected(), nil
 }
 
+const pruneProcessedEvents = `-- name: PruneProcessedEvents :execrows
+DELETE FROM processed_events
+WHERE processed_at < now() - make_interval(secs => $1::int)
+`
+
+// Retention sweep for the exactly-once inbox: rows older than the window
+// can no longer be redelivered by the brokers and are safe to delete.
+func (q *Queries) PruneProcessedEvents(ctx context.Context, dollar_1 int32) (int64, error) {
+	result, err := q.db.Exec(ctx, pruneProcessedEvents, dollar_1)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const releaseOutboxBatch = `-- name: ReleaseOutboxBatch :exec
 UPDATE outbox SET claimed_at = NULL, attempts = attempts + 1
 WHERE id = ANY($1::text[])

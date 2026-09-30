@@ -1,0 +1,48 @@
+# GitOps with Argo CD
+#
+# The Application manifest is the handoff point between the release
+# pipeline (builds, scans, signs, pushes the chart to OCI GHCR) and the
+# cluster: Argo CD pulls from the registry on its own schedule, applies
+# drift correction, and can be wired to promote automatically or hold for
+# a human sync. Nothing in the deploy path requires a human `helm upgrade`.
+#
+# The app-of-apps pattern: apply this one Application; it points at this
+# very directory so adding Applications is itself a Git operation.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: go-template
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: ghcr.io/your-org/charts
+    chart: go-template
+    targetRevision: 1.0.* # track minor releases; pin harder for prod
+    helm:
+      values: |
+        image:
+          tag: ""            # follows chart appVersion
+        rollout:
+          enabled: true      # canary + analysis (see values.yaml for the gate)
+        config:
+          otlpEndpoint: jaeger-collector.observability:4318
+          extraEnv:
+            APP_OTLP_SAMPLER: "0.1"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: go-template
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2
+        maxDuration: 5m

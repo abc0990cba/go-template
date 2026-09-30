@@ -1,0 +1,38 @@
+# Alertmanager routing. Firing alerts are always visible in the Alertmanager
+# UI (localhost:9093); this file decides where they ALSO go. The default
+# receiver below is a harmless placeholder — replace it with your real
+# delivery target when adopting the template.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: local-sink
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts page; warnings ticket. Split further by team here.
+    - matchers: [severity="critical"]
+      receiver: critical-sink
+      group_wait: 10s
+      repeat_interval: 2h
+
+receivers:
+  # POSTs here 404 harmlessly (the api has no sink endpoint by design —
+  # an unauthenticated write endpoint would be a bad default). Alerts remain
+  # visible in the UI either way.
+  #
+  # Real integrations, when you adopt this:
+  #   Slack:      slack_configs: { api_url_file: /etc/alertmanager/slack_url, channel: "#alerts", send_resolved: true }
+  #   PagerDuty:  pagerduty_configs: { routing_key_file: /etc/alertmanager/pd_key, send_resolved: true }
+  #   Email:      email_configs: { smarthost, from, to, auth_* }
+  - name: local-sink
+    webhook_configs:
+      - url: http://api:8080/metrics
+        max_alerts: 0
+
+  - name: critical-sink
+    webhook_configs:
+      - url: http://api:8080/metrics
+        max_alerts: 0

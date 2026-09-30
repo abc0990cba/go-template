@@ -126,11 +126,41 @@ var RateLimitErrors = prometheus.NewCounter(prometheus.CounterOpts{
 	Help: "Rate limiter infrastructure failures; requests fail open.",
 })
 
+// BulkheadInFlight gauges calls currently holding a slot per bulkhead.
+var BulkheadInFlight = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "app_bulkhead_in_flight",
+	Help: "Calls currently holding a bulkhead slot.",
+}, []string{"name"})
+
+// BulkheadRejected counts calls rejected because no slot freed up within
+// the acquire timeout (backpressure, not dependency failure).
+var BulkheadRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_bulkhead_rejected_total",
+	Help: "Calls rejected by a full bulkhead (fast backpressure).",
+}, []string{"name"})
+
+// RecordBulkheadInFlight applies a +1/-1 delta to the in-flight gauge.
+func RecordBulkheadInFlight(name string, delta int) {
+	BulkheadInFlight.WithLabelValues(name).Add(float64(delta))
+}
+
+// RecordBulkheadRejected counts one rejected call.
+func RecordBulkheadRejected(name string) {
+	BulkheadRejected.WithLabelValues(name).Inc()
+}
+
+// PrunedRows counts rows removed by the worker's retention sweeps.
+var PrunedRows = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_prune_deleted_total",
+	Help: "Rows deleted by retention sweeps (export_files, processed_events, idempotency_keys, ...).",
+}, []string{"domain"})
+
 func init() {
 	prometheus.MustRegister(JobsQueued, JobsProcessed, JobDuration,
 		CBCurrentState, CBTransitions, EnrichmentEvents, EnrichmentApplyDuration,
 		OutboxPending, OutboxRelayed, DeadLettersPending, DeadLettersReplayed,
-		RateLimitRejected, RateLimitErrors, IdempotencyReplays)
+		RateLimitRejected, RateLimitErrors, IdempotencyReplays,
+		BulkheadInFlight, BulkheadRejected, PrunedRows)
 }
 
 // RecordBreakerState applies one transition to the gauges; adapters call it
@@ -153,7 +183,11 @@ func stateName(state int) string {
 
 // SetupTracing installs the global tracer provider when endpoint is
 // non-empty and returns a shutdown function; otherwise it returns a no-op.
-func SetupTracing(ctx context.Context, endpoint string, build Build) (func(context.Context) error, error) {
+// sampleRatio is the APP_OTLP_SAMPLER knob (0..1]: 1 keeps the default
+// always-sample behavior useful in dev, 0.1 means "keep every 10th trace",
+// the number you want at production traffic levels. Sampling is
+// parent-based: a trace started upstream keeps the upstream decision.
+func SetupTracing(ctx context.Context, endpoint string, sampleRatio float64, build Build) (func(context.Context) error, error) {
 	if endpoint == "" {
 		otel.SetTracerProvider(noopTracerProvider())
 		otel.SetTextMapPropagator(Propagator)
@@ -168,6 +202,7 @@ func SetupTracing(ctx context.Context, endpoint string, build Build) (func(conte
 	}
 	tracerProvider = sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
+		sdktrace.WithSampler(samplerFor(sampleRatio)),
 		sdktrace.WithResource(resource.NewWithAttributes(
 			semconv.SchemaURL,
 			semconv.ServiceName("go-template"),
@@ -177,6 +212,16 @@ func SetupTracing(ctx context.Context, endpoint string, build Build) (func(conte
 	otel.SetTracerProvider(tracerProvider)
 	otel.SetTextMapPropagator(Propagator)
 	return tracerProvider.Shutdown, nil
+}
+
+// samplerFor maps the configured ratio to a parent-based sampler. Ratios
+// outside (0..1] fall back to always-sample rather than silently dropping
+// every trace.
+func samplerFor(ratio float64) sdktrace.Sampler {
+	if ratio <= 0 || ratio > 1 {
+		ratio = 1
+	}
+	return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(ratio))
 }
 
 // TracingEnabled reports whether spans should be created and propagated.

@@ -7,8 +7,10 @@ metadata:
     {{- include "go-template.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
+    # Rollouts implements the scale subresource, so the HPA tracks whichever
+    # workload kind is active.
+    apiVersion: {{ if .Values.rollout.enabled }}argoproj.io/v1alpha1{{ else }}apps/v1{{ end }}
+    kind: {{ include "go-template.apiWorkloadKind" . }}
     name: {{ include "go-template.fullname" . }}-api
   minReplicas: {{ .Values.api.hpa.minReplicas }}
   maxReplicas: {{ .Values.api.hpa.maxReplicas }}

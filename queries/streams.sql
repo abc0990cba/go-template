@@ -119,3 +119,9 @@ DELETE FROM outbox WHERE aggregate_id LIKE 'demo-%';
 SELECT enrich_profile_seq, enrich_contact_seq
 FROM users
 WHERE id = $1;
+
+-- name: PruneProcessedEvents :execrows
+-- Retention sweep for the exactly-once inbox: rows older than the window
+-- can no longer be redelivered by the brokers and are safe to delete.
+DELETE FROM processed_events
+WHERE processed_at < now() - make_interval(secs => $1::int);

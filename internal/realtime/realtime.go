@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/your-org/go-template/internal/model"
@@ -140,9 +141,14 @@ type RedisBridge struct {
 }
 
 // NewRedisBridge connects to Redis; the caller decides whether to run the
-// subscribe loop, the publisher, or both.
+// subscribe loop, the publisher, or both. Commands get OpenTelemetry client
+// spans so pub/sub round-trips appear in traces.
 func NewRedisBridge(addr string, hub *Hub, logger *slog.Logger) *RedisBridge {
-	return &RedisBridge{rdb: redis.NewClient(&redis.Options{Addr: addr}), hub: hub, logger: logger}
+	client := redis.NewClient(&redis.Options{Addr: addr})
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		logger.Debug("redis tracing unavailable", "err", err)
+	}
+	return &RedisBridge{rdb: client, hub: hub, logger: logger}
 }
 
 // Run subscribes to the realtime channel and republishes every message into

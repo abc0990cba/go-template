@@ -1,0 +1,54 @@
+# Release drafter config (used by .github/workflows/release-drafter.yml).
+# PR title prefixes map to release-note sections; "chore"/"docs" land in the
+# full changelog but stay out of the highlights.
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+categories:
+  - title: "⚠ Breaking changes"
+    labels: ["breaking"]
+  - title: "✨ Features"
+    labels: ["feature", "enhancement"]
+  - title: "🛡 Reliability & observability"
+    labels: ["observability", "reliability", "monitoring"]
+  - title: "🚀 Release & deployment"
+    labels: ["ci", "deployment", "release"]
+  - title: "🐛 Fixes"
+    labels: ["fix", "bug"]
+  - title: "📄 Documentation"
+    labels: ["docs"]
+
+exclude-labels:
+  - "skip-changelog"
+
+autolabeler:
+  - label: "breaking"
+    title: ["/!|breaking"]
+  - label: "feature"
+    title: ["/^feat|^add|^support"]
+  - label: "fix"
+    title: ["/^fix|^correct|^repair"]
+  - label: "docs"
+    title: ["/^docs?|readme|adr"]
+  - label: "observability"
+    title: ["/metric|trace|monitor|grafana|prometheus|slo|alert|profil"]
+  - label: "reliability"
+    title: ["/breaker|bulkhead|retry|chaos|retention|dlq|outbox"]
+  - label: "ci"
+    title: ["/^ci|workflow|github actions"]
+  - label: "deployment"
+    title: ["/helm|k8s|kubernetes|nomad|rollout|canary|deploy"]
+
+version-resolver:
+  major:
+    labels: ["breaking"]
+  minor:
+    labels: ["feature", "enhancement"]
+  patch:
+    labels: ["fix", "docs", "ci", "observability", "reliability", "deployment"]
+  default: patch
+
+template: |
+  ## What changed
+
+  $CHANGES

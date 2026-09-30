@@ -4,14 +4,27 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/casbin/casbin/v2"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/platform/mailer"
 	"github.com/your-org/go-template/internal/reliability"
 )
+
+// tracedClient builds the outbound HTTP client used for enrichment and
+// webhook deliveries: bounded by the external timeout and instrumented with
+// OpenTelemetry client spans (the global tracer provider), so third-party
+// calls appear in the trace that caused them.
+func tracedClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: otelhttp.NewTransport(http.DefaultTransport),
+	}
+}
 
 // Deps bundles the ports the services run on. One store usually satisfies
 // every repo, so callers pass the same adapter for each; a memory fake and
@@ -48,7 +61,10 @@ type Deps struct {
 	WebhookDispatcher WebhookDispatcher
 	// Breakers wraps outbound HTTP and broker calls; nil disables breakers.
 	Breakers *reliability.Breakers
-	Mailer   mailer.Sender
+	// Bulkheads bound concurrent calls per outbound dependency; nil runs
+	// unbounded (the same nil-safe convention as Breakers).
+	Bulkheads *reliability.Bulkheads
+	Mailer    mailer.Sender
 	// Realtime publishes live notifications to connected browsers; nil in
 	// processes without an SSE hub.
 	Realtime        func(model.Notification)
@@ -97,7 +113,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 			observer:       deps.Observer,
 			events:         deps.Events,
 			logger:         logger,
-			client:         &http.Client{Timeout: cfg.ExternalTimeout},
+			client:         tracedClient(cfg.ExternalTimeout),
 			maxConcurrency: cfg.MaxConcurrency,
 		},
 		Reports:   &ReportService{store: deps.Reports},
@@ -110,6 +126,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	services.Search = NewSearchService(deps.Search, services.RBAC)
 	services.Invitations = NewInvitationsService(deps.Invitations, deps.Orgs, deps.Auth, services.RBAC, deps.Mailer, cfg.BaseURL, logger)
 	services.Jobs.breakers = deps.Breakers
+	services.Jobs.bulkheads = deps.Bulkheads
 	notifications := &NotificationsService{store: deps.Notifications, publish: deps.Realtime}
 	services.Notifications = notifications
 	services.Jobs.WithNotifications(notifications)
@@ -127,7 +144,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	services.Tickets.WithNotifications(notifications)
 	services.Email = NewEmailService(deps.EmailTokens, deps.Auth, deps.Mailer, cfg.BaseURL, logger)
 	services.APIKeys = NewAPIKeysService(deps.APIKeys)
-	services.Webhooks = NewWebhooksService(deps.Webhooks, deps.WebhookDispatcher, services.Settings, &http.Client{Timeout: cfg.ExternalTimeout}, deps.Breakers, logger)
+	services.Webhooks = NewWebhooksService(deps.Webhooks, deps.WebhookDispatcher, services.Settings, tracedClient(cfg.ExternalTimeout), deps.Breakers, deps.Bulkheads, logger)
 	services.Email.WithNotifier(func(ctx context.Context, userID, typ, title, body, link string) {
 		_ = notifications.Create(ctx, userID, typ, title, body, link)
 	})

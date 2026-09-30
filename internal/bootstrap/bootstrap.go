@@ -9,6 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/model"
 	ch "github.com/your-org/go-template/internal/platform/clickhouse"
@@ -43,6 +45,9 @@ type Repos struct {
 	Files         service.FilesRepo
 	Rules         repository.RuleStore
 	Pinger        service.Pinger
+	// PoolStats snapshots pgxpool statistics for the Prometheus collector;
+	// nil in memory mode (no pool to observe).
+	PoolStats func() *pgxpool.Stat
 	// Events receives the analytics event trail; nil means the process does
 	// not persist events (plain PostgreSQL mode).
 	Events service.EventSink
@@ -126,6 +131,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
 		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 		Pinger: store, Events: events, EventStats: stats, Warehouse: warehouse, Kind: "postgres",
+		PoolStats: store.Stats,
 	}, func() { closeAll(); store.Close() }, nil
 }
 

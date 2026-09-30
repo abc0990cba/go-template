@@ -112,6 +112,10 @@ func Open(ctx context.Context, url string, migrations fs.FS, opts ...Option) (*S
 // Close releases the connection pool.
 func (s *Store) Close() { s.pool.Close() }
 
+// Stats exposes the pool statistics snapshot for the Prometheus collector;
+// nil after Close.
+func (s *Store) Stats() *pgxpool.Stat { return s.pool.Stat() }
+
 // applyTuning overlays the optional knobs on the parsed pool config; unset
 // fields keep whatever the connection URL (or the driver default) chose.
 func applyTuning(poolCfg *pgxpool.Config, t Tuning) {

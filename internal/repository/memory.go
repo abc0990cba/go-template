@@ -158,6 +158,7 @@ type MemoryStore struct {
 	// Streams: exactly-once enrichment bookkeeping, the outbox, dead
 	// letters, and API idempotency reservations.
 	processedEvents map[string]model.StreamApplyResult // "source\x00event_id"
+	processedAt     map[string]time.Time               // "source\x00event_id" → applied time (retention sweeps)
 	enrichSeqs      map[string]streamSeqs              // user id → applied seq per source
 	outboxItems     []*model.OutboxEvent
 	deadLetters     []model.DeadLetter
@@ -214,6 +215,7 @@ func NewMemoryStore() *MemoryStore {
 		ticketSeq:       map[string]int{},
 		approvals:       map[string][]model.TicketApproval{},
 		processedEvents: map[string]model.StreamApplyResult{},
+		processedAt:     map[string]time.Time{},
 		enrichSeqs:      map[string]streamSeqs{},
 		idempotency:     map[string]model.IdempotencyRecord{},
 		mfaFactors:      map[string]model.MFAFactor{},
@@ -2190,6 +2192,7 @@ func (s *MemoryStore) ResetDemoData(ctx context.Context) error {
 	for key, applied := range s.processedEvents {
 		if strings.HasPrefix(applied.UserID, "demo-") {
 			delete(s.processedEvents, key)
+			delete(s.processedAt, key)
 		}
 	}
 	for id := range s.enrichSeqs {

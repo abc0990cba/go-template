@@ -14,6 +14,7 @@ services:
       APP_SMTP_PORT: ${APP_SMTP_PORT:-1025}
       APP_LOG_FORMAT: json
       APP_OTLP_ENDPOINT: jaeger:4318
+      APP_PYROSCOPE_URL: ${APP_PYROSCOPE_URL:-}
       APP_COOKIE_SECURE: "0" # plain http behind a local port; enable in production
       APP_CLICKHOUSE_ADDR: clickhouse:9000
       APP_CLICKHOUSE_USER: app
@@ -49,6 +50,10 @@ services:
       APP_CLICKHOUSE_PASSWORD: app
       APP_LOG_FORMAT: json
       APP_OTLP_ENDPOINT: jaeger:4318
+      APP_PYROSCOPE_URL: ${APP_PYROSCOPE_URL:-}
+      # Prometheus (observability profile) scrapes worker:9090 for stream,
+      # outbox, and dead-letter gauges; without this the endpoint is dead.
+      APP_METRICS_ADDR: ":9090"
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,13 +130,40 @@ services:
       - "16686:16686" # UI
       - "4318:4318" # OTLP HTTP
 
+  # Continuous profiling backend; opt in per process with
+  # APP_PYROSCOPE_URL=pyroscope:4040 (see .env.example) so base stacks never
+  # open background upload connections.
+  pyroscope:
+    image: grafana/pyroscope:1.8.0
+    profiles: ["observability"]
+    ports:
+      - "4040:4040"
+
   prometheus:
     image: prom/prometheus:v2.54.1
     profiles: ["observability"]
     volumes:
       - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/prometheus/rules:/etc/prometheus/rules:ro # alert + SLO rules
     ports:
       - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: ["observability"]
+    volumes:
+      - ./deploy/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093" # UI: fired/silenced alerts
+
+  # Synthetic blackbox probe: the "is the front door actually open" check that
+  # whitebox /metrics cannot answer. Prometheus scrapes the exporter, not the
+  # app, and records probe_success per target.
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    profiles: ["observability"]
+    ports:
+      - "9115:9115"
 
   grafana:
     image: grafana/grafana:11.2.0
@@ -141,9 +173,11 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
     volumes:
       - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/etc/grafana/dashboards:ro
     ports:
       - "3000:3000"
 
 volumes:
   pgdata:
   clickdata:
+  filedata: # minio (--profile files); without it compose refuses to start the profile

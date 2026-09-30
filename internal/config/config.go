@@ -17,14 +17,20 @@ type Config struct {
 	HTTPAddr string
 	// MetricsAddr serves /metrics; empty disables the listener (the api
 	// serves metrics on its main port, the worker opts in via compose).
-	MetricsAddr     string
-	BaseURL         string
-	LogLevel        slog.Level
-	DatabaseURL     string
-	RedisAddr       string
-	ReportCron      string
-	LogFormat       string
-	OTLPEndpoint    string
+	MetricsAddr  string
+	BaseURL      string
+	LogLevel     slog.Level
+	DatabaseURL  string
+	RedisAddr    string
+	ReportCron   string
+	LogFormat    string
+	OTLPEndpoint string
+	// OTLPSampleRatio is the head-sampling ratio (0..1]; 1 = sample every
+	// trace. Production deployments typically run 0.05-0.25.
+	OTLPSampleRatio float64
+	// PyroscopeURL enables continuous profiling when set (APP_PYROSCOPE_URL);
+	// empty keeps the profiler off.
+	PyroscopeURL    string
 	PprofEnabled    bool
 	SessionTTL      time.Duration
 	CookieSecure    bool
@@ -76,6 +82,12 @@ type Config struct {
 	CBFailureThreshold int
 	CBOpenTimeout      time.Duration
 
+	// Bulkheads bound concurrent calls per outbound dependency; a full
+	// bulkhead rejects fast (backpressure) instead of stacking goroutines
+	// behind a slow dependency.
+	BulkheadLimit          int
+	BulkheadAcquireTimeout time.Duration
+
 	// Outbox relay drains transactional events to the brokers.
 	OutboxInterval    time.Duration
 	OutboxBatch       int
@@ -85,6 +97,11 @@ type Config struct {
 	APIRateRPS     float64
 	APIRateBurst   int
 	IdempotencyTTL time.Duration
+
+	// RetentionProcessedEvents bounds the exactly-once inbox (dedupe table).
+	// It must exceed any redelivery delay the brokers can produce; the
+	// worker deletes older rows on a schedule.
+	RetentionProcessedEvents time.Duration
 
 	// UserRate limits each authenticated principal (user id or API-key
 	// subject) individually on top of the per-IP API budget.
@@ -137,6 +154,7 @@ func Load() (Config, error) {
 		ReportCron:     os.Getenv("APP_REPORT_CRON"),
 		LogFormat:      env("APP_LOG_FORMAT", "text"),
 		OTLPEndpoint:   os.Getenv("APP_OTLP_ENDPOINT"),
+		PyroscopeURL:   os.Getenv("APP_PYROSCOPE_URL"),
 		PprofEnabled:   os.Getenv("APP_PPROF") == "1",
 		GoogleAuthURL:  os.Getenv("GOOGLE_AUTH_URL"),
 		GoogleTokenURL: os.Getenv("GOOGLE_TOKEN_URL"),
@@ -224,6 +242,12 @@ func Load() (Config, error) {
 	if cfg.LogFormat != "text" && cfg.LogFormat != "json" {
 		return Config{}, fmt.Errorf("APP_LOG_FORMAT must be text or json, got %q", cfg.LogFormat)
 	}
+	if cfg.OTLPSampleRatio, err = floatEnv("APP_OTLP_SAMPLER", 1); err != nil {
+		return Config{}, err
+	}
+	if cfg.OTLPSampleRatio <= 0 || cfg.OTLPSampleRatio > 1 {
+		return Config{}, fmt.Errorf("APP_OTLP_SAMPLER must be in (0, 1], got %g", cfg.OTLPSampleRatio)
+	}
 	if cfg.AuthRateRPS, err = floatEnv("APP_AUTH_RATE_RPS", 5); err != nil {
 		return Config{}, err
 	}
@@ -247,6 +271,18 @@ func Load() (Config, error) {
 	}
 	if cfg.CBOpenTimeout <= 0 {
 		return Config{}, fmt.Errorf("%s must be positive", "APP_CB_OPEN_TIMEOUT")
+	}
+	if cfg.BulkheadLimit, err = intEnv("APP_BULKHEAD_LIMIT", 16); err != nil {
+		return Config{}, err
+	}
+	if cfg.BulkheadAcquireTimeout, err = durationEnv("APP_BULKHEAD_ACQUIRE_TIMEOUT", time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.BulkheadLimit <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_BULKHEAD_LIMIT")
+	}
+	if cfg.BulkheadAcquireTimeout <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_BULKHEAD_ACQUIRE_TIMEOUT")
 	}
 	if cfg.OutboxInterval, err = durationEnv("APP_OUTBOX_INTERVAL", time.Second); err != nil {
 		return Config{}, err
@@ -274,6 +310,12 @@ func Load() (Config, error) {
 	}
 	if cfg.IdempotencyTTL <= 0 {
 		return Config{}, fmt.Errorf("%s must be positive", "APP_IDEMPOTENCY_TTL")
+	}
+	if cfg.RetentionProcessedEvents, err = durationEnv("APP_RETENTION_PROCESSED_EVENTS", 30*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.RetentionProcessedEvents <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_RETENTION_PROCESSED_EVENTS")
 	}
 	if cfg.UserRateRPS, err = floatEnv("APP_USER_RATE_RPS", 100); err != nil {
 		return Config{}, err

@@ -207,4 +207,33 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 		}
 		_ = pruned // the record is not expired yet; pruning just must not fail
 	})
+
+	// Deliberately last: it sweeps the inbox and applies a new event, so
+	// earlier subtests' outbox/inbox counts would not survive it.
+	t.Run("retention prune forgets the inbox, not the sequence guard", func(t *testing.T) {
+		// A zero retention window sweeps every processed row. Redelivering
+		// the same event must then fall through to the SEQUENCE guard
+		// (stale) instead of the inbox (deduped) — proving which table
+		// caught it. The inbox only accelerates dedupe; the seq columns
+		// protect against re-application, which is why the retention window
+		// may safely forget old rows.
+		result, err := store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
+		if err != nil || result.Status != model.StreamDeduped {
+			t.Fatalf("pre-prune redelivery = %+v err %v, want deduped", result, err)
+		}
+		if n, err := store.PruneProcessedEvents(ctx, 0); err != nil || n == 0 {
+			t.Fatalf("prune = %d rows, err %v; want the inbox swept", n, err)
+		}
+		result, err = store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
+		if err != nil || result.Status != model.StreamStale {
+			t.Fatalf("post-prune redelivery = %+v err %v, want stale via the seq guard", result, err)
+		}
+		// A longer window keeps fresh rows: the next sweep removes nothing.
+		if _, err := store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-4", 6, `{"company":"Globex"}`)); err != nil {
+			t.Fatalf("apply ce-4: %v", err)
+		}
+		if n, err := store.PruneProcessedEvents(ctx, time.Hour); err != nil || n != 0 {
+			t.Fatalf("prune within window = %d rows, err %v; want none", n, err)
+		}
+	})
 }

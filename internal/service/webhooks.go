@@ -114,14 +114,15 @@ type WebhooksService struct {
 	settings   *SettingsService
 	client     *http.Client
 	breakers   *reliability.Breakers
+	bulkheads  *reliability.Bulkheads
 	logger     *slog.Logger
 }
 
 // NewWebhooksService wires the service. Dispatcher may be nil in tests;
-// deliverInline then runs synchronously. Breakers may be nil — deliveries
-// then run unprotected.
-func NewWebhooksService(store WebhooksRepo, dispatcher WebhookDispatcher, settings *SettingsService, client *http.Client, breakers *reliability.Breakers, logger *slog.Logger) *WebhooksService {
-	return &WebhooksService{store: store, dispatcher: dispatcher, settings: settings, client: client, breakers: breakers, logger: logger}
+// deliverInline then runs synchronously. Breakers and bulkheads may be nil —
+// deliveries then run unprotected.
+func NewWebhooksService(store WebhooksRepo, dispatcher WebhookDispatcher, settings *SettingsService, client *http.Client, breakers *reliability.Breakers, bulkheads *reliability.Bulkheads, logger *slog.Logger) *WebhooksService {
+	return &WebhooksService{store: store, dispatcher: dispatcher, settings: settings, client: client, breakers: breakers, bulkheads: bulkheads, logger: logger}
 }
 
 // Create adds an endpoint; the secret is generated when omitted.
@@ -282,18 +283,23 @@ func (s *WebhooksService) post(ctx context.Context, url string, body []byte, sig
 	httpReq.Header.Set("X-Template-Signature", signature)
 	httpReq.Header.Set("X-Template-Delivery", deliveryID)
 	var status int
-	// A dead endpoint trips the webhooks.http breaker; while it is open
-	// deliveries fail fast instead of queuing timeouts.
-	err = s.breakers.Do(ctx, "webhooks.http", func() error {
-		start := time.Now()
-		resp, err := s.client.Do(httpReq)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-		status = resp.StatusCode
-		_ = time.Since(start)
-		return nil
+	// A slow endpoint can no longer stack unbounded goroutines: the
+	// bulkhead admits APP_BULKHEAD_LIMIT concurrent deliveries and rejects
+	// the excess fast (backpressure never counts as a breaker failure).
+	// Inside it, a dead endpoint trips the webhooks.http breaker; while it
+	// is open deliveries fail fast instead of queuing timeouts.
+	err = s.bulkheads.Do(ctx, "webhooks.http", func() error {
+		return s.breakers.Do(ctx, "webhooks.http", func() error {
+			start := time.Now()
+			resp, err := s.client.Do(httpReq)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = resp.Body.Close() }()
+			status = resp.StatusCode
+			_ = time.Since(start)
+			return nil
+		})
 	})
 	if err != nil {
 		return 0, err

@@ -79,18 +79,19 @@ func NewMux(jobService *service.JobService, logger *slog.Logger, webhooks *servi
 	})
 
 	// The tracing middleware restores the producer's span context from the
-	// task headers, so worker spans join the API trace.
+	// task headers, so worker spans join the API trace. Task lifecycle logs
+	// pass the context, so the lines carry trace_id/span_id too.
 	mux.Use(func(h asynq.Handler) asynq.Handler {
 		return asynq.HandlerFunc(func(ctx context.Context, t *asynq.Task) error {
 			ctx, span := observ.SpanFromHeaders(ctx, t.Headers(), "asynq.process "+t.Type())
 			defer span.End()
 			id, _ := asynq.GetTaskID(ctx)
-			logger.Info("task started", "type", t.Type(), "id", id)
+			logger.InfoContext(ctx, "task started", "type", t.Type(), "id", id)
 			err := h.ProcessTask(ctx, t)
 			if err != nil {
-				logger.Error("task failed", "type", t.Type(), "id", id, "err", err)
+				logger.ErrorContext(ctx, "task failed", "type", t.Type(), "id", id, "err", err)
 			} else {
-				logger.Info("task done", "type", t.Type(), "id", id)
+				logger.InfoContext(ctx, "task done", "type", t.Type(), "id", id)
 			}
 			return err
 		})

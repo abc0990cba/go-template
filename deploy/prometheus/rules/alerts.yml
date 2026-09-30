@@ -1,0 +1,134 @@
+# Alert rules for the go-template stack. Loaded by prometheus.yml
+# (rule_files) and evaluated by Prometheus; firing alerts are routed through
+# Alertmanager (deploy/alertmanager/alertmanager.yml) and always visible in
+# the Alertmanager UI at localhost:9093.
+#
+# Thresholds are template defaults, not laws: tune them per deployment once
+# a week of baseline data exists (docs/slo.md explains the budget math).
+
+groups:
+  # --- process availability -------------------------------------------------
+  - name: go-template-processes
+    rules:
+      - alert: ApiTargetDown
+        expr: up{job="go-template"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Prometheus cannot scrape the api /metrics endpoint"
+          description: "The api process is unreachable (up=0) for over a minute. Check container status first, then readiness: GET /health/ready reports which dependency is failing."
+
+      - alert: WorkerDown
+        expr: up{job="go-template-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Worker /metrics endpoint is unreachable"
+          description: "The worker owns jobs, stream consumers, the outbox relay and prune loops. While down, outbox backlog grows and enrichment stops."
+
+  # --- API health (whitebox RED) -------------------------------------------
+  - name: go-template-api
+    rules:
+      - alert: HTTPErrorRateHigh
+        expr: |
+          sum(rate(app_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(app_http_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "5xx ratio above 5% for 5 minutes"
+          description: "Server-side failures exceed the fast-burn threshold. Group by route in the API overview dashboard; traces for a failing span are one click away in Jaeger."
+
+      - alert: HTTPErrorRateElevated
+        expr: |
+          sum(rate(app_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(app_http_requests_total[5m])), 1e-9) > 0.01
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "5xx ratio above 1% for 15 minutes"
+          description: "Elevated but below fast-burn; likely a slow-burn budget drain (see docs/slo.md)."
+
+      - alert: HTTPLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(app_http_request_duration_seconds_bucket[10m])) by (le)) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 latency above the 500ms k6 budget for 10 minutes"
+          description: "The load-test budget from docs/performance.md is being missed under live traffic. Check in-flight saturation, pg pool wait time, and breaker state."
+
+  # --- jobs, outbox, dead letters ------------------------------------------
+  - name: go-template-jobs
+    rules:
+      - alert: JobsFailing
+        expr: sum(increase(app_jobs_processed_total{status="failed"}[15m])) > 3
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 3 jobs failed in 15 minutes"
+          description: "Job payloads land in the dead-letter queue after asynq retries; check the worker dashboard and 'task failed' log lines."
+
+      - alert: OutboxBacklog
+        expr: app_outbox_pending > 100
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Transactional outbox backlog above 100"
+          description: "Events are written to the outbox but not relayed to the brokers. Either the worker relay is down (WorkerDown?) or a broker publish is failing (breaker kafka.produce / nats.publish)."
+
+      - alert: OutboxRelayErrors
+        expr: increase(app_outbox_relay_total{result="error"}[10m]) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "Outbox relay passes are erroring"
+          description: "The relay loop is failing to publish; after APP_OUTBOX_MAX_ATTEMPTS events move to dead letters with reason max_attempts."
+
+      - alert: DeadLettersPending
+        expr: app_dead_letters_pending > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead letters are parked and awaiting replay"
+          description: "Poison or exhausted events need human judgement: GET /api/streams/dead-letters, then POST .../replay after fixing root cause (or make demo-dlq to rehearse)."
+
+  # --- resilience machinery -------------------------------------------------
+  - name: go-template-resilience
+    rules:
+      - alert: BreakerOpen
+        expr: max by (name) (app_cb_state) == 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Circuit breaker {{ $labels.name }} is open"
+          description: "Calls to this dependency fail fast with 503 instead of hanging. Find the root cause in Jaeger (spans named after the failing call), recovery is automatic half-open probing."
+
+      - alert: RateLimiterFailOpen
+        expr: increase(app_rate_limit_errors_total[5m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "Rate limiter is failing open (Redis unreachable)"
+          description: "The limiter could not be reached, so requests are admitted without a budget check. The app stays up by design; restore Redis before attackers notice the open door."
+
+  # --- synthetic blackbox (outside-in) --------------------------------------
+  - name: go-template-synthetic
+    rules:
+      - alert: LiveProbeFailed
+        expr: probe_success{job="blackbox-api-live"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Blackbox probe cannot reach /health/live"
+          description: "An actual HTTP GET from outside the process fails — the check that would catch a broken router, TLS, or ingress even while whitebox metrics look green."

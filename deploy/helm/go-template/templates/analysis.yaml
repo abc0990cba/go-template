@@ -1,0 +1,49 @@
+{{- if .Values.rollout.enabled }}
+{{/* Canary analysis: the metrics a new revision must hold before the
+     rollout continues. Prometheus answers; Argo Rollouts evaluates; a
+     failureLimit breach aborts and shifts everything back to stable.
+
+     The queries mirror the SLO layer in deploy/prometheus/rules/slo.yml:
+     availability >= 99% and p95 <= 500ms, measured per ReplicaSet via the
+     rollouts-pod-template-hash pod label (added by Prometheus pod
+     auto-discovery in kube-prometheus-stack setups). Without pod-level
+     labels, drop the pod filter — the gate then measures the whole fleet,
+     which is the right signal for replica-split canaries anyway. */}}
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: {{ include "go-template.fullname" . }}-api-slo
+  labels:
+    {{- include "go-template.labels" . | nindent 4 }}
+spec:
+  args:
+    - name: prometheus-address
+      value: {{ .Values.rollout.analysis.prometheusAddress | quote }}
+  metrics:
+    # Both successConditions treat no-data (NaN) as success: a quiet canary
+    # must not abort the rollout for having no traffic to measure. Argo
+    # evaluates the JavaScript-ish expression; isNaN is its documented
+    # no-data guard.
+    - name: availability
+      interval: 30s
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: isNaN(result[0]) || result[0] >= {{ .Values.rollout.analysis.minAvailability }}
+      failureLimit: 0
+      provider:
+        prometheus:
+          address: "{{`{{`}}args.prometheus-address{{`}}`}}"
+          query: |
+            sum(rate(app_http_requests_total{status!~"5.."}[2m]))
+              / sum(rate(app_http_requests_total[2m]))
+    - name: latency-p95
+      interval: 30s
+      count: {{ .Values.rollout.analysis.count }}
+      successCondition: isNaN(result[0]) || result[0] <= {{ .Values.rollout.analysis.maxLatencyP95 }}
+      failureLimit: 0
+      provider:
+        prometheus:
+          address: "{{`{{`}}args.prometheus-address{{`}}`}}"
+          query: |
+            histogram_quantile(0.95,
+              sum(rate(app_http_request_duration_seconds_bucket[2m])) by (le))
+{{- end }}

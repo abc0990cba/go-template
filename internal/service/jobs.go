@@ -39,6 +39,7 @@ type JobService struct {
 	logger         *slog.Logger
 	client         *http.Client
 	breakers       *reliability.Breakers
+	bulkheads      *reliability.Bulkheads
 	maxConcurrency int
 }
 
@@ -224,32 +225,38 @@ func (s *JobService) EnrichBatch(ctx context.Context, count int) error {
 }
 
 // fetchExternalProfile performs one guarded upstream call and returns the
-// raw body. 5xx responses count as breaker failures; 4xx are permanent and
+// raw body. The bulkhead bounds how many calls may be in flight (excess
+// rejects fast as backpressure); inside it, the enrichment.http circuit
+// breaker tracks dependency health — a bulkhead-full rejection never counts
+// as a breaker failure, and an open breaker fails fast without occupying a
+// slot. 5xx responses count as breaker failures; 4xx are permanent and
 // never trip it.
 func (s *JobService) fetchExternalProfile(ctx context.Context) (string, error) {
 	var payload string
-	err := s.breakers.Do(ctx, "enrichment.http", func() error {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, enrichBatchURL, nil)
-		if err != nil {
-			return err
-		}
-		resp, err := s.client.Do(req)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = resp.Body.Close() }()
-		if resp.StatusCode >= 500 {
-			return fmt.Errorf("transient upstream status %d", resp.StatusCode)
-		}
-		if resp.StatusCode >= 400 {
-			return reliability.PermanentError{Err: fmt.Errorf("permanent upstream status %d", resp.StatusCode)}
-		}
-		raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-		if err != nil {
-			return fmt.Errorf("read upstream profile: %w", err)
-		}
-		payload = strings.TrimSpace(string(raw))
-		return nil
+	err := s.bulkheads.Do(ctx, "enrichment.http", func() error {
+		return s.breakers.Do(ctx, "enrichment.http", func() error {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, enrichBatchURL, nil)
+			if err != nil {
+				return err
+			}
+			resp, err := s.client.Do(req)
+			if err != nil {
+				return err
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode >= 500 {
+				return fmt.Errorf("transient upstream status %d", resp.StatusCode)
+			}
+			if resp.StatusCode >= 400 {
+				return reliability.PermanentError{Err: fmt.Errorf("permanent upstream status %d", resp.StatusCode)}
+			}
+			raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+			if err != nil {
+				return fmt.Errorf("read upstream profile: %w", err)
+			}
+			payload = strings.TrimSpace(string(raw))
+			return nil
+		})
 	})
 	if err != nil {
 		return "", err

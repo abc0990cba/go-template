@@ -60,6 +60,21 @@ jobs:
       - name: Store contract tests
         run: go test -tags=integration ./test/integration/ -count=1 -timeout 10m
 
+  # The generated code (sqlc queries, oapi-codegen types) must match its
+  # sources. A PR that edits queries/ or openapi.yaml without regenerating
+  # fails here instead of surprising whoever runs `make generate` next.
+  codegen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-go@3041bf56c941b39c61721a86cd11f3bb1338122a
+        with:
+          go-version-file: go.mod
+      - name: Regenerate and reject drift
+        run: |
+          make generate
+          git diff --exit-code
+
   docker:
     runs-on: ubuntu-latest
     steps:

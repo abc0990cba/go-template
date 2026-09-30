@@ -1,0 +1,132 @@
+# SLO recording rules and burn-rate alerts.
+#
+# Objective (docs/slo.md): 99.9% of requests succeed with status < 500, and
+# 95% of requests complete within 500 ms — the same number the k6 suite
+# enforces in CI (docs/performance.md). Recording rules keep the multi-window
+# math in one place; alerts fire on error-budget burn, not on raw errors, so
+# a quiet Tuesday never pages and a real outage always does.
+#
+# Classic multi-window burn alerting (Google SRE Workbook, ch. 5):
+#   fast burn:   14.4x  — burns the 30-day budget in ~2 days  → page (critical)
+#   slow burn:    6x    — burns the 30-day budget in ~5 days  → ticket (warning)
+# Each alert requires BOTH its short and long window to agree, which kills
+# the flapping that single-window alerts suffer.
+
+groups:
+  - name: slo-availability
+    interval: 30s
+    rules:
+      - record: slo:http:requests_rate5m
+        expr: sum(rate(app_http_requests_total[5m]))
+      - record: slo:http:errors_rate5m
+        # `or vector(0)`: with zero 5xx the inner sum is an empty vector,
+        # which would leave the burn rate with no series on a healthy system.
+        expr: sum(rate(app_http_requests_total{status=~"5.."}[5m])) or vector(0)
+      - record: slo:http:requests_rate1h
+        expr: sum(rate(app_http_requests_total[1h]))
+      - record: slo:http:errors_rate1h
+        # `or vector(0)`: with zero 5xx the inner sum is an empty vector,
+        # which would leave the burn rate with no series on a healthy system.
+        expr: sum(rate(app_http_requests_total{status=~"5.."}[1h])) or vector(0)
+      - record: slo:http:requests_rate30m
+        expr: sum(rate(app_http_requests_total[30m]))
+      - record: slo:http:errors_rate30m
+        # `or vector(0)`: with zero 5xx the inner sum is an empty vector,
+        # which would leave the burn rate with no series on a healthy system.
+        expr: sum(rate(app_http_requests_total{status=~"5.."}[30m])) or vector(0)
+      - record: slo:http:requests_rate6h
+        expr: sum(rate(app_http_requests_total[6h]))
+      - record: slo:http:errors_rate6h
+        # `or vector(0)`: with zero 5xx the inner sum is an empty vector,
+        # which would leave the burn rate with no series on a healthy system.
+        expr: sum(rate(app_http_requests_total{status=~"5.."}[6h])) or vector(0)
+
+      # Error ratio per window; the 1-0.999 denominator is the budget.
+      - record: slo:availability:burn_rate5m
+        expr: |
+          (slo:http:errors_rate5m / clamp_min(slo:http:requests_rate5m, 1e-9)) / (1 - 0.999)
+      - record: slo:availability:burn_rate1h
+        expr: |
+          (slo:http:errors_rate1h / clamp_min(slo:http:requests_rate1h, 1e-9)) / (1 - 0.999)
+      - record: slo:availability:burn_rate30m
+        expr: |
+          (slo:http:errors_rate30m / clamp_min(slo:http:requests_rate30m, 1e-9)) / (1 - 0.999)
+      - record: slo:availability:burn_rate6h
+        expr: |
+          (slo:http:errors_rate6h / clamp_min(slo:http:requests_rate6h, 1e-9)) / (1 - 0.999)
+
+      - alert: SLOAvailabilityFastBurn
+        expr: |
+          slo:availability:burn_rate5m > 14.4
+            and slo:availability:burn_rate1h > 14.4
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Availability SLO fast burn (14.4x)"
+          description: "At this rate the 30-day 99.9% availability budget is gone in ~2 days. Treat as a page: stop the bleeding before shipping features."
+
+      - alert: SLOAvailabilitySlowBurn
+        expr: |
+          slo:availability:burn_rate30m > 6
+            and slo:availability:burn_rate6h > 6
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Availability SLO slow burn (6x)"
+          description: "A sustained leak is eating the error budget (~5 days to empty). File a ticket, find the top offending route, fix or freeze risky deploys."
+
+  - name: slo-latency
+    interval: 30s
+    rules:
+      # Good fraction = requests faster than 500 ms / all requests.
+      # The histogram bucket le="0.5" counts requests under budget.
+      - record: slo:latency:good_ratio_rate5m
+        expr: |
+          sum(rate(app_http_request_duration_seconds_bucket{le="0.5"}[5m]))
+            / clamp_min(sum(rate(app_http_request_duration_seconds_count[5m])), 1e-9)
+      - record: slo:latency:good_ratio_rate30m
+        expr: |
+          sum(rate(app_http_request_duration_seconds_bucket{le="0.5"}[30m]))
+            / clamp_min(sum(rate(app_http_request_duration_seconds_count[30m])), 1e-9)
+      - record: slo:latency:good_ratio_rate1h
+        expr: |
+          sum(rate(app_http_request_duration_seconds_bucket{le="0.5"}[1h]))
+            / clamp_min(sum(rate(app_http_request_duration_seconds_count[1h])), 1e-9)
+      - record: slo:latency:good_ratio_rate6h
+        expr: |
+          sum(rate(app_http_request_duration_seconds_bucket{le="0.5"}[6h]))
+            / clamp_min(sum(rate(app_http_request_duration_seconds_count[6h])), 1e-9)
+
+      # Budget for latency: 5% of requests may exceed 500 ms (95th percentile).
+      - record: slo:latency:burn_rate5m
+        expr: ((1 - slo:latency:good_ratio_rate5m) / 0.05)
+      - record: slo:latency:burn_rate1h
+        expr: ((1 - slo:latency:good_ratio_rate1h) / 0.05)
+      - record: slo:latency:burn_rate30m
+        expr: ((1 - slo:latency:good_ratio_rate30m) / 0.05)
+      - record: slo:latency:burn_rate6h
+        expr: ((1 - slo:latency:good_ratio_rate6h) / 0.05)
+
+      - alert: SLOLatencyFastBurn
+        expr: |
+          slo:latency:burn_rate5m > 14.4
+            and slo:latency:burn_rate1h > 14.4
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Latency SLO fast burn (14.4x)"
+          description: "More than 5% of requests are over the 500 ms budget at a rate that empties the 30-day latency budget in ~2 days. Correlate with the pg pool collector and breaker gauges."
+
+      - alert: SLOLatencySlowBurn
+        expr: |
+          slo:latency:burn_rate30m > 6
+            and slo:latency:burn_rate6h > 6
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latency SLO slow burn (6x)"
+          description: "Sustained latency budget drain (~5 days to empty). Usual suspects: N+1 queries, cache hit-rate drop, rate of unbounded list endpoints."

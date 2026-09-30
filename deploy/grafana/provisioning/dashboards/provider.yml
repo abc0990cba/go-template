@@ -1,0 +1,17 @@
+# Provisioning for deploy/grafana/dashboards/*.json — dashboards are code,
+# versioned with the app, and reload without touching the UI. A dashboard
+# change ships in the same PR as the metric it visualizes.
+apiVersion: 1
+
+providers:
+  - name: go-template
+    orgId: 1
+    folder: "Go Template"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      # Matches the compose mount: ./deploy/grafana/dashboards:/etc/grafana/dashboards
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

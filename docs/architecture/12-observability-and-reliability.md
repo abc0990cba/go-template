@@ -13,6 +13,9 @@ One line per request (`method`, `path`, `status`, `duration_ms`,
 `request_id`, `user_id`); `slow request` above 1 s; JSON or text via
 `APP_LOG_FORMAT`. Domain events (registration, logins, job transitions,
 stream applies) log with their own attributes. No third-party logger.
+Lines emitted inside a span also carry `trace_id`/`span_id`
+(`observ.TraceHandler`), and the span carries `request.id` back — the two
+signals cross-reference in one copy-paste (ADR 0023).
 
 ### Metrics (Prometheus, `app_` prefix)
 
@@ -32,17 +35,25 @@ stream applies) log with their own attributes. No third-party logger.
 | `app_idempotency_replays_total` | counter | — | client retries served from store |
 
 Scrape config: Prometheus pulls the api at `:8080/metrics` and the worker
-at `APP_METRICS_ADDR` (compose `:9090`) every 5 s; Grafana ships with
-provisioned Prometheus + Jaeger datasources (dashboards are intentionally
-left to you).
+at `APP_METRICS_ADDR` (compose `:9090`) every 5 s, plus a blackbox probe of
+`/health/live`. The watching stack ships with the repo (ADR 0022): three
+provisioned Grafana dashboards (`deploy/grafana/dashboards/` — API RED +
+pool + runtime, worker queues, resilience), alert rules
+(`deploy/prometheus/rules/alerts.yml`) routed through Alertmanager, and an
+SLO layer (99.9% availability, 95% under 500 ms) with multi-window
+burn-rate alerts — thresholds documented in `docs/slo.md`.
 
 ### Traces (OpenTelemetry)
 A server span per request (`HTTP <method>` → renamed to the route
 pattern), propagated end-to-end: **HTTP → asynq task headers → Kafka/NATS
-message headers → consumer spans**, with **pgx query spans** (otelpgx)
-when `APP_OTLP_ENDPOINT` is set. Jaeger all-in-one in the observability
-profile shows the whole chain — click a `job.updated` SSE event back to
-the enqueue request.
+message headers → consumer spans**, with **pgx query spans** (otelpgx),
+**outbound client spans** (otelhttp on webhooks/enrichment/OAuth),
+**Redis command spans** (redisotel), and **ClickHouse query propagation**
+(the driver requires explicit span attachment — `tracedCtx` in the
+adapter). Head sampling follows `APP_OTLP_SAMPLER` (0..1],
+parent-based: children keep the root's decision). Jaeger all-in-one in
+the observability profile shows the whole chain — click a `job.updated`
+SSE event back to the enqueue request.
 
 ### Health & identity endpoints
 
@@ -53,6 +64,7 @@ the enqueue request.
 | `/health/startup` | container startup gate (probes: startup 10 s window, then live/ready) |
 | `/version` | `{version, commit, date}` — stamped at build |
 | `/debug/pprof/*` | behind `APP_PPROF=1` only |
+| Pyroscope profiles | behind `APP_PYROSCOPE_URL` only: continuous CPU/heap push, flame graphs in Grafana |
 | `/docs` | Scalar API reference over the live OpenAPI spec |
 
 ## 12.2 The reliability toolkit (`internal/reliability` + middleware)
@@ -64,6 +76,14 @@ failures**, stay open **30 s**, admit exactly one probe, close on success
 → re-open on probe failure. Context cancellation never counts as failure
 (shutdowns don't trip). Every transition is a metric. Calls through an
 open breaker fail fast with `503 dependency temporarily unavailable`.
+
+### Bulkheads (ADR 0025)
+Per-dependency semaphores (`enrichment.http`, `webhooks.http`): at most
+`APP_BULKHEAD_LIMIT` concurrent calls, bounded slot wait
+(`APP_BULKHEAD_ACQUIRE_TIMEOUT`); excess rejects fast as backpressure
+(`app_bulkhead_rejected_total`) and never counts as a breaker failure —
+the breaker answers *broken*, the bulkhead answers *slow*. Composition
+is bulkhead outermost, breaker innermost.
 
 ### Retry with full jitter
 `reliability.Retry`: exponential `baseDelay * 2^attempt` capped at shift 5,

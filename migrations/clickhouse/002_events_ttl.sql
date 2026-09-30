@@ -1,0 +1,11 @@
+-- Retention for the analytics warehouse: events expire 90 days after they
+-- occurred (ADR 0017 left TTL as adopter policy; this is the template
+-- default). ClickHouse deletes expired parts during background merges, so
+-- the statement returns immediately. The toDateTime() cast matters: a TTL
+-- over a DateTime64 column yields DateTime64, which ClickHouse rejects with
+-- code 450 ("TTL expression result column should have DateTime or Date
+-- type"). Re-running with the same expression is idempotent, matching the
+-- apply-at-startup migration runner. Adjust the interval per deployment by
+-- editing or adding a later migration — adopted systems treat retention as
+-- a reviewed decision, not a runtime knob.
+ALTER TABLE analytics_events MODIFY TTL toDateTime(occurred_at) + INTERVAL 90 DAY DELETE;

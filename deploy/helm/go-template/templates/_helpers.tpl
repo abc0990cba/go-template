@@ -31,6 +31,77 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- end }}
 
+{{/* The workload kind for the api: Deployment by default, Rollout when
+     progressive delivery is enabled (values.rollout.enabled). The HPA
+     target switches with it. */}}
+{{- define "go-template.apiWorkloadKind" -}}
+{{- if .Values.rollout.enabled }}Rollout{{- else }}Deployment{{- end }}
+{{- end }}
+
+{{/* The api pod template, shared verbatim by the Deployment and the
+     Rollout so the two shapes can never drift. */}}
+{{- define "go-template.api.podSpec" -}}
+metadata:
+  labels:
+    {{- include "go-template.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  serviceAccountName: {{ include "go-template.serviceAccountName" . }}
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+    runAsUser: {{ .Values.securityContext.runAsUser }}
+  containers:
+    - name: api
+      image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+      imagePullPolicy: {{ .Values.image.pullPolicy }}
+      securityContext:
+        readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+        allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+        capabilities:
+          drop:
+            {{- toYaml .Values.securityContext.capabilities.drop | nindent 12 }}
+      args: ["/app/api"]
+      ports:
+        - name: http
+          containerPort: 8080
+      env:
+        {{- include "go-template.env" . | nindent 8 }}
+        {{- range $key, $value := .Values.api.env }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+      startupProbe:
+        httpGet: { path: /health/startup, port: http }
+        periodSeconds: 2
+        failureThreshold: 30
+      livenessProbe:
+        httpGet: { path: /health/live, port: http }
+        periodSeconds: {{ .Values.probe.periodSeconds }}
+      readinessProbe:
+        httpGet: { path: /health/ready, port: http }
+        periodSeconds: {{ .Values.probe.periodSeconds }}
+      {{- with .Values.api.resources }}
+      resources:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.secrets.data }}
+      volumeMounts:
+        - name: secrets
+          mountPath: /etc/go-template-secrets
+          readOnly: true
+      {{- end }}
+  {{- if .Values.secrets.data }}
+  volumes:
+    - name: secrets
+      secret:
+        secretName: {{ .Values.secrets.existingSecret | default (include "go-template.fullname" .) }}
+  {{- end }}
+{{- end }}
+
 {{/* Build the APP_* env list shared by api and worker. */}}
 {{- define "go-template.env" -}}
 - name: APP_HTTP_ADDR
@@ -50,6 +121,10 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- if .Values.config.otlpEndpoint }}
 - name: APP_OTLP_ENDPOINT
   value: {{ .Values.config.otlpEndpoint | quote }}
+{{- end }}
+{{- if .Values.config.otlpSampler }}
+- name: APP_OTLP_SAMPLER
+  value: {{ .Values.config.otlpSampler | quote }}
 {{- end }}
 {{- range $key, $value := .Values.config.extraEnv }}
 - name: {{ $key }}

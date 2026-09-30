@@ -1,0 +1,49 @@
+{{- if .Values.rollout.enabled }}
+{{/* Progressive delivery: Argo Rollouts replaces the Deployment. Traffic
+     shifts through canary steps; each pause runs the AnalysisTemplate
+     (templates/analysis.yaml) against Prometheus, and a failed metric
+     aborts the rollout back to stable with zero manual intervention.
+     Requires argo-rollouts in the cluster (scripts/kind-demo.sh walks
+     through it locally; docs/gitops.md covers the GitOps path). */}}
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: {{ include "go-template.fullname" . }}-api
+  labels:
+    {{- include "go-template.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.api.hpa.enabled }}
+  replicas: {{ .Values.api.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      {{- include "go-template.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    {{- include "go-template.api.podSpec" . | nindent 4 }}
+  strategy:
+    canary:
+      # Without trafficRouting, weights control the replica split between
+      # stable and canary (services select by the rollouts-pod-template-hash
+      # label that Rollouts manages). With ingress-nginx installed, flip
+      # rollout.trafficRouting.enabled to shift real traffic percentages.
+      stableService: {{ include "go-template.fullname" . }}-api
+      canaryService: {{ include "go-template.fullname" . }}-api-canary
+      {{- if .Values.rollout.trafficRouting.enabled }}
+      trafficRouting:
+        nginx:
+          stableIngress: {{ .Values.rollout.trafficRouting.stableIngress | default (include "go-template.fullname" .) }}
+      {{- end }}
+      steps:
+        {{- range .Values.rollout.steps }}
+        - setWeight: {{ .weight }}
+        - pause: {{ if .pauseSeconds }}{ duration: {{ .pauseSeconds }}s }{{ else }}{}{{ end }}
+        {{- if .analysis }}
+        - analysis:
+            templates:
+              - templateName: {{ include "go-template.fullname" $ }}-api-slo
+        {{- end }}
+        {{- end }}
+{{- end }}

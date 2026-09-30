@@ -6,6 +6,7 @@ Required production patterns:
 - context propagation
 - explicit timeouts
 - bounded concurrency
+- bulkheads per outbound dependency
 - retry limits
 - exponential backoff with jitter
 - no infinite retries
@@ -13,6 +14,7 @@ Required production patterns:
 - dead-letter handling for jobs
 - idempotency keys for sensitive commands
 - health endpoints
+- scheduled retention sweeps
 
 Health endpoints:
 
@@ -23,6 +25,9 @@ Health endpoints:
 Implemented beyond the checklist:
 
 - **Circuit breakers** — `internal/reliability/circuitbreaker.go` wraps every outbound call (external enrichment HTTP, webhook delivery, broker publishes). Consecutive failures trip it open; one half-open probe after `APP_CB_OPEN_TIMEOUT` closes or re-opens it. `app_cb_state{name}` and `app_cb_transitions_total` expose the state machine on `/metrics`.
+- **Bulkheads** (ADR 0025) — `internal/reliability/bulkhead.go` bounds concurrent calls per outbound dependency (`APP_BULKHEAD_LIMIT`, `APP_BULKHEAD_ACQUIRE_TIMEOUT`). A slow-but-alive dependency sheds excess callers in milliseconds instead of stacking goroutines for the full client timeout; rejections are backpressure (`ErrBulkheadFull`, counted in `app_bulkhead_rejected_total`) and never trip the breaker — bulkhead outermost, breaker innermost. Enrichment HTTP and webhook delivery are guarded; queue execution already bounds jobs at worker level.
+- **Retention sweeps** — the worker prunes expired idempotency keys (10 min), GDPR export ZIPs (hourly; 7-day window), and exactly-once inbox rows (`APP_RETENTION_PROCESSED_EVENTS`, default 30d — kept longer than any broker redelivery delay so dedupe never outlives its table); ClickHouse events carry a 90-day TTL (`migrations/clickhouse/002_events_ttl.sql`). Swept rows count toward `app_prune_deleted_total{domain}`.
+- **Chaos lab** — fault injection through Toxiproxy (`docker-compose.chaos.yml`, `make chaos-*`) rehearses degradation on demand: pool saturation under Postgres latency, the Redis graceful-degradation ladder, breaker-vs-bulkhead choreography on slow endpoints. Scenarios with hypotheses and expected observations live in [docs/chaos.md](chaos.md).
 - **Dead letters with replay** — poison and unprocessable messages park in `dead_letters` (admin API + Streams page, audit-logged replay) instead of blocking their stream; see [docs/enrichment-streams.md](enrichment-streams.md).
 - **Idempotency keys** — `Idempotency-Key` on POST routes replays stored responses for client retries, settled by a database-level reservation so concurrent double-submits cannot both proceed.
 - **Distributed rate limiting** — the `/api` surface shares one Redis sliding-window budget across api processes, with per-process token buckets as the fallback and fail-open on limiter outages. Authenticated calls additionally pay from a **per-principal budget** (`user` scope, keyed by user id or API-key subject), so one hot account cannot exhaust the budget of everyone behind a shared NAT IP.

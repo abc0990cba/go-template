@@ -85,7 +85,9 @@ func (a *App) metrics() gin.HandlerFunc {
 }
 
 // accessLog writes one structured line per request with the request id,
-// final status, and duration; slow requests are escalated to warn.
+// final status, and duration; slow requests are escalated to warn. The
+// request id also lands on the server span (request.id), so a trace found
+// in Jaeger points back at its log lines.
 func (a *App) accessLog() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -96,21 +98,28 @@ func (a *App) accessLog() gin.HandlerFunc {
 		if route == "" {
 			route = c.Request.URL.Path
 		}
+		requestID := c.GetString("request_id")
+		if span := trace.SpanFromContext(c.Request.Context()); span != nil && requestID != "" {
+			span.SetAttributes(attribute.String("request.id", requestID))
+		}
 		attrs := []any{
 			"method", c.Request.Method,
 			"path", route,
 			"status", c.Writer.Status(),
 			"duration_ms", duration.Milliseconds(),
-			"request_id", c.GetString("request_id"),
+			"request_id", requestID,
 		}
 		if userID := c.GetString("user_id"); userID != "" {
 			attrs = append(attrs, "user_id", userID)
 		}
 		if duration > 1*time.Second {
-			a.logger.Warn("slow request", attrs...)
+			// InfoContext/WarnContext carry the request context, so the
+			// observ.TraceHandler wrapper stamps trace_id/span_id onto the
+			// line — without the context the log↔trace link is lost.
+			a.logger.WarnContext(c.Request.Context(), "slow request", attrs...)
 			return
 		}
-		a.logger.Info("request", attrs...)
+		a.logger.InfoContext(c.Request.Context(), "request", attrs...)
 	}
 }
 
