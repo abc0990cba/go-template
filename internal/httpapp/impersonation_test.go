@@ -29,8 +29,9 @@ func registerAccount(t *testing.T, server *httptest.Server, email string) (strin
 }
 
 // postWith sends one JSON request with an explicit client (the cookie-jar
-// browser simulations need their own client, not the shared server one).
-func postWith(t *testing.T, client *http.Client, server *httptest.Server, method, path, body, token string) (int, map[string]any) {
+// browser simulations need their own client, not the shared server one);
+// identity rides the client's cookie jar, so no token is attached.
+func postWith(t *testing.T, client *http.Client, server *httptest.Server, method, path, body string) (int, map[string]any) {
 	t.Helper()
 	var reader io.Reader
 	if body != "" {
@@ -42,9 +43,6 @@ func postWith(t *testing.T, client *http.Client, server *httptest.Server, method
 	}
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
-	}
-	if token != "" {
-		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -94,13 +92,13 @@ func TestImpersonationFlow(t *testing.T) {
 	browser.Jar = jar
 
 	status, _ = postWith(t, &browser, server, http.MethodPost, "/api/auth/login",
-		`{"email":"admin@example.com","password":"password123"}`, "")
+		`{"email":"admin@example.com","password":"password123"}`)
 	if status != http.StatusOK {
 		t.Fatalf("admin login: want 200, got %d", status)
 	}
 
 	status, body := postWith(t, &browser, server, http.MethodPost, "/api/impersonation",
-		`{"user_id":"`+targetID+`"}`, "")
+		`{"user_id":"`+targetID+`"}`)
 	if status != http.StatusOK {
 		t.Fatalf("impersonate: want 200, got %d (%v)", status, body)
 	}
@@ -110,7 +108,7 @@ func TestImpersonationFlow(t *testing.T) {
 
 	// The cookie now carries the impersonated session: /api/me answers as
 	// the target and flags the impersonator.
-	status, me := postWith(t, &browser, server, http.MethodGet, "/api/me", "", "")
+	status, me := postWith(t, &browser, server, http.MethodGet, "/api/me", "")
 	if status != http.StatusOK {
 		t.Fatalf("me while impersonating: want 200, got %d", status)
 	}
@@ -141,11 +139,11 @@ func TestImpersonationFlow(t *testing.T) {
 	}
 
 	// Stopping restores the admin identity and ends the session.
-	status, _ = postWith(t, &browser, server, http.MethodPost, "/api/impersonation/stop", "", "")
+	status, _ = postWith(t, &browser, server, http.MethodPost, "/api/impersonation/stop", "")
 	if status != http.StatusNoContent {
 		t.Fatalf("stop impersonation: want 204, got %d", status)
 	}
-	status, me = postWith(t, &browser, server, http.MethodGet, "/api/me", "", "")
+	status, me = postWith(t, &browser, server, http.MethodGet, "/api/me", "")
 	if status != http.StatusOK {
 		t.Fatalf("me after stop: want 200, got %d", status)
 	}
@@ -154,7 +152,7 @@ func TestImpersonationFlow(t *testing.T) {
 	}
 
 	// The restored session is a plain admin session: stopping again is 400.
-	status, _ = postWith(t, &browser, server, http.MethodPost, "/api/impersonation/stop", "", "")
+	status, _ = postWith(t, &browser, server, http.MethodPost, "/api/impersonation/stop", "")
 	if status != http.StatusBadRequest {
 		t.Errorf("stop without impersonation: want 400, got %d", status)
 	}

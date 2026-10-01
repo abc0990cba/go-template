@@ -174,6 +174,53 @@ func TestResetPasswordConsumesTokenOnce(t *testing.T) {
 	}
 }
 
+func TestTokensExpireDeterministically(t *testing.T) {
+	ctx := context.Background()
+	// The clock walks past each token's TTL instead of the test sleeping.
+	current := time.Unix(1700000000, 0).UTC()
+	store := repository.NewMemoryStore()
+	sender := &captureMailer{}
+	svc := email.NewService(store, store, sender, auth.HashPassword, "https://app.example.com/", discardLogger()).
+		WithClock(func() time.Time { return current })
+	accounts := auth.NewService(store, nil, time.Hour)
+	if _, _, err := accounts.Register(ctx, "ada@example.com", "Ada", "password123"); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// A reset token lives one hour.
+	if err := svc.RequestPasswordReset(ctx, "ada@example.com"); err != nil {
+		t.Fatalf("reset request: %v", err)
+	}
+	resetToken := tokenOf(t, sender.sent[0])
+	current = current.Add(2 * time.Hour)
+	if err := svc.ResetPassword(ctx, resetToken, "newpassword123"); !kernel.IsValidationError(err) {
+		t.Errorf("expired reset token: want validation error, got %v", err)
+	}
+
+	// A verification token lives twenty-four hours.
+	ada, err := accounts.UserByEmail(ctx, "ada@example.com")
+	if err != nil {
+		t.Fatalf("load ada: %v", err)
+	}
+	if err := svc.SendVerification(ctx, ada); err != nil {
+		t.Fatalf("send verification: %v", err)
+	}
+	verifyToken := tokenOf(t, sender.sent[1])
+	current = current.Add(23 * time.Hour)
+	if err := svc.VerifyEmail(ctx, verifyToken); err != nil {
+		t.Fatalf("verify within TTL: %v", err)
+	}
+
+	if err := svc.SendVerification(ctx, ada); err != nil {
+		t.Fatalf("send verification: %v", err)
+	}
+	verifyToken = tokenOf(t, sender.sent[2])
+	current = current.Add(25 * time.Hour)
+	if err := svc.VerifyEmail(ctx, verifyToken); !kernel.IsValidationError(err) {
+		t.Errorf("expired verify token: want validation error, got %v", err)
+	}
+}
+
 func TestVerifyEmailFlow(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()

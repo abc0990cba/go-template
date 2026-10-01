@@ -4,8 +4,6 @@ package apikeys_test
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
 	"testing"
 	"time"
@@ -15,10 +13,9 @@ import (
 	"github.com/your-org/go-template/internal/repository"
 )
 
-func newService(t *testing.T) (*apikeys.Service, *repository.MemoryStore) {
+func newService(t *testing.T) *apikeys.Service {
 	t.Helper()
-	store := repository.NewMemoryStore()
-	return apikeys.NewService(store), store
+	return apikeys.NewService(repository.NewMemoryStore())
 }
 
 func TestScopesAllow(t *testing.T) {
@@ -49,7 +46,7 @@ func TestScopesAllow(t *testing.T) {
 }
 
 func TestCreateAndResolve(t *testing.T) {
-	svc, _ := newService(t)
+	svc := newService(t)
 	ctx := context.Background()
 
 	// A name is required.
@@ -98,7 +95,7 @@ func TestCreateAndResolve(t *testing.T) {
 }
 
 func TestCreateWithoutTTLNeverExpires(t *testing.T) {
-	svc, _ := newService(t)
+	svc := newService(t)
 	ctx := context.Background()
 
 	key, secret, err := svc.Create(ctx, "u1", "forever", []string{"*:*"}, 0)
@@ -114,30 +111,29 @@ func TestCreateWithoutTTLNeverExpires(t *testing.T) {
 }
 
 func TestExpiredKeyDoesNotResolve(t *testing.T) {
-	svc, store := newService(t)
 	ctx := context.Background()
+	// The clock is walked past the TTL instead of seeding an already-dead
+	// row: resolution is where expiry is enforced.
+	current := time.Unix(1700000000, 0).UTC()
+	store := repository.NewMemoryStore()
+	svc := apikeys.NewService(store).WithClock(func() time.Time { return current })
 
-	// A key already past its expiry is inserted directly: the service only
-	// mints live keys, resolution is where expiry is enforced.
-	raw := apikeys.Prefix + "expiredkey0001"
-	sum := sha256.Sum256([]byte(raw))
-	past := time.Now().Add(-time.Hour)
-	err := store.CreateAPIKey(ctx, apikeys.Key{
-		ID: "k-dead", UserID: "u1", Name: "dead",
-		Prefix:    raw[:len(apikeys.Prefix)+6],
-		Scopes:    []string{"users:read"},
-		CreatedAt: past, ExpiresAt: &past,
-	}, base64.RawURLEncoding.EncodeToString(sum[:]))
+	_, secret, err := svc.Create(ctx, "u1", "ci", nil, time.Hour)
 	if err != nil {
-		t.Fatalf("seed expired key: %v", err)
+		t.Fatalf("create: %v", err)
 	}
-	if _, _, err := svc.Resolve(ctx, raw); !errors.Is(err, kernel.ErrNotFound) {
+	if _, _, err := svc.Resolve(ctx, secret); err != nil {
+		t.Fatalf("live key: %v", err)
+	}
+
+	current = current.Add(2 * time.Hour)
+	if _, _, err := svc.Resolve(ctx, secret); !errors.Is(err, kernel.ErrNotFound) {
 		t.Errorf("expired key resolve: want ErrNotFound, got %v", err)
 	}
 }
 
 func TestRevoke(t *testing.T) {
-	svc, _ := newService(t)
+	svc := newService(t)
 	ctx := context.Background()
 
 	key, secret, err := svc.Create(ctx, "u1", "ci", nil, 0)

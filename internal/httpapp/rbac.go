@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/your-org/go-template/internal/apikeys"
 	"github.com/your-org/go-template/internal/rbac"
 )
 
@@ -52,7 +53,9 @@ func (a *App) requestDomain(c *gin.Context) string {
 }
 
 // requirePermission guards a route with a catalog permission; denials are
-// 403 problem+json, never redirects.
+// 403 problem+json, never redirects. A request authenticated by API key is
+// additionally narrowed to the key's own scopes: the key can reduce what
+// its owner may do, never widen it.
 func (a *App) requirePermission(obj, act string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := a.currentUser(c)
@@ -60,8 +63,23 @@ func (a *App) requirePermission(obj, act string) gin.HandlerFunc {
 			a.forbidden(c)
 			return
 		}
+		if scopes, ok := a.requestScopes(c); ok && !apikeys.ScopesAllow(scopes, obj, act) {
+			a.forbidden(c)
+			return
+		}
 		c.Next()
 	}
+}
+
+// requestScopes reports the API key's scopes when the request was
+// authenticated by key rather than by session or JWT.
+func (a *App) requestScopes(c *gin.Context) ([]string, bool) {
+	raw, ok := c.Get("auth_scopes")
+	if !ok {
+		return nil, false
+	}
+	scopes, ok := raw.([]string)
+	return scopes, ok
 }
 
 func (a *App) forbidden(c *gin.Context) {

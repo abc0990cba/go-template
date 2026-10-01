@@ -52,6 +52,14 @@ func NewID() string {
 	return base64.RawURLEncoding.EncodeToString(b)
 }
 
+// Clock returns the current time. Expiry-sensitive services take one so
+// tests can walk time deterministically instead of sleeping; SystemClock is
+// the production value.
+type Clock func() time.Time
+
+// SystemClock is the wall clock the production wiring uses.
+func SystemClock() time.Time { return time.Now() }
+
 // ListOptions controls every paginated listing. Mode selects the pagination
 // strategy: "offset" pages by Offset, "cursor" and "keyset" continue after
 // the entity id (or enrichment sequence) in After. Status and Type

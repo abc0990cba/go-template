@@ -59,7 +59,7 @@ type App struct {
 
 // Options carries the HTTP layer's optional dependencies; zero values keep
 // the previous behavior (in-memory rate limiting, no idempotency, store-only
-// readiness).
+// readiness, the config-built OAuth manager).
 type Options struct {
 	// LimiterFactory builds one limiter per scope ("api", "auth"); nil uses
 	// in-memory token buckets.
@@ -67,6 +67,9 @@ type Options struct {
 	Idempotency    kernel.IdempotencyRepo
 	DemoEnricher   streams.DemoPublisher
 	ReadyProbes    []func(ctx context.Context) error
+	// OAuth replaces the manager built from config (tests point it at mock
+	// provider endpoints without rebuilding the router).
+	OAuth *oauth.Manager
 }
 
 // NewRouter builds the complete Gin engine: middleware, health endpoints,
@@ -86,9 +89,13 @@ func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Lo
 		limiters["auth"] = o.LimiterFactory("auth", cfg.AuthRateRPS, cfg.AuthRateBurst)
 		limiters["user"] = o.LimiterFactory("user", cfg.UserRateRPS, cfg.UserRateBurst)
 	}
+	oauthManager := o.OAuth
+	if oauthManager == nil {
+		oauthManager = oauth.NewManager(cfg)
+	}
 	app := &App{
 		cfg: cfg, services: services, logger: logger, pinger: pinger,
-		oauth: oauth.NewManager(cfg), hub: hub,
+		oauth: oauthManager, hub: hub,
 		limiters:         limiters,
 		idempotencyStore: o.Idempotency,
 		readyProbes:      o.ReadyProbes,

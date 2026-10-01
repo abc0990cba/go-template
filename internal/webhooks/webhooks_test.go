@@ -30,7 +30,6 @@ func (f *flagSettings) Bool(_ context.Context, _ string) bool { return f.enabled
 type receiver struct {
 	mu       sync.Mutex
 	requests []capturedRequest
-	status   int
 }
 
 type capturedRequest struct {

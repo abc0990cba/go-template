@@ -4,7 +4,6 @@ package auth
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -48,7 +47,7 @@ func (h *HTTP) oauthLogin(c *gin.Context) {
 		UserID:       user.ID,
 		CodeVerifier: verifier,
 		// Redirect target is fixed; the field exists for future flows.
-		ExpiresAt: time.Now().Add(h.OAuthStateTTL),
+		ExpiresAt: h.Now().Add(h.OAuthStateTTL),
 	}
 	if err := h.Svc.SaveState(c.Request.Context(), state); err != nil {
 		h.Logger.Error("save oauth state failed", "err", err)

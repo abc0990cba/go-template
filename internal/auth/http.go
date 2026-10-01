@@ -13,6 +13,7 @@ import (
 
 	"github.com/your-org/go-template/internal/audit"
 	"github.com/your-org/go-template/internal/httpx"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/mfa"
 	"github.com/your-org/go-template/internal/notifications"
 	"github.com/your-org/go-template/internal/platform/oauth"
@@ -45,12 +46,18 @@ type HTTP struct {
 	CookieSecure bool
 	// OAuthStateTTL bounds the single-use CSRF state of the link flow.
 	OAuthStateTTL time.Duration
+	// Now dates the state's expiry; nil means the system clock (tests walk
+	// time deterministically with an injected clock).
+	Now kernel.Clock
 }
 
 // RegisterHTTP mounts the auth routes: login/logout on the public group
 // under the tight auth budget, the session probe and profile self-service
 // on the authorized group, and impersonation behind its permission guard.
 func RegisterHTTP(public, authorized *gin.RouterGroup, h HTTP) {
+	if h.Now == nil {
+		h.Now = kernel.SystemClock
+	}
 	public.POST("/auth/register", h.AuthRateLimit, h.register)
 	public.POST("/auth/login", h.AuthRateLimit, h.login)
 	public.POST("/auth/logout", h.logout)
@@ -68,6 +75,9 @@ func RegisterHTTP(public, authorized *gin.RouterGroup, h HTTP) {
 // RegisterRoot mounts the server-side OAuth redirect routes on the root
 // engine — they live outside /api by contract with the SPA.
 func RegisterRoot(r *gin.Engine, h HTTP) {
+	if h.Now == nil {
+		h.Now = kernel.SystemClock
+	}
 	r.GET("/auth/:provider/login", h.authRequired(h.oauthLogin))
 	r.GET("/auth/:provider/callback", h.oauthCallback)
 }

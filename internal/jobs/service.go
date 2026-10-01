@@ -67,6 +67,8 @@ type Observer interface {
 	JobFinished(ctx context.Context, typ, status string, duration time.Duration)
 }
 
+// enrichBatchURL is the default enrichment upstream; WithEnrichmentURL
+// replaces it (tests point it at a stub server).
 const enrichBatchURL = "https://randomuser.me/api/?results=1"
 
 // Service implements enqueueing and local processing of background jobs.
@@ -86,6 +88,7 @@ type Service struct {
 	breakers       *reliability.Breakers
 	bulkheads      *reliability.Bulkheads
 	maxConcurrency int
+	enrichURL      string
 }
 
 // NewService wires the job service. The outbound client serves the
@@ -97,7 +100,15 @@ func NewService(store Store, reports analytics.ReportStore, queue Queue, observe
 		store: store, reports: reports, queue: queue, observer: observer, events: events,
 		client: client, breakers: breakers, bulkheads: bulkheads,
 		maxConcurrency: maxConcurrency, logger: logger,
+		enrichURL: enrichBatchURL,
 	}
+}
+
+// WithEnrichmentURL points the enrichment batch upstream somewhere else;
+// tests inject a stub server this way.
+func (s *Service) WithEnrichmentURL(url string) *Service {
+	s.enrichURL = url
+	return s
 }
 
 // WithJobNotifier registers a callback fired on every job status transition
@@ -292,7 +303,7 @@ func (s *Service) fetchExternalProfile(ctx context.Context) (string, error) {
 	var payload string
 	err := s.bulkheads.Do(ctx, "enrichment.http", func() error {
 		return s.breakers.Do(ctx, "enrichment.http", func() error {
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, enrichBatchURL, nil)
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.enrichURL, nil)
 			if err != nil {
 				return err
 			}

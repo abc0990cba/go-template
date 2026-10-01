@@ -74,4 +74,17 @@ func TestRegisterLoginAndLinkProviders(t *testing.T) {
 	if _, err := svc.ConsumeState(ctx, "st-1"); !errors.Is(err, kernel.ErrNotFound) {
 		t.Fatalf("state reuse: want ErrNotFound, got %v", err)
 	}
+
+	// An expired state is rejected: the clock walks past the TTL without
+	// anyone sleeping.
+	current := time.Unix(1700000000, 0).UTC()
+	timedSvc := auth.NewService(repository.NewMemoryStore(), nil, time.Hour).WithClock(func() time.Time { return current })
+	expiring := auth.OAuthState{State: "st-2", Provider: "google", UserID: user.ID, ExpiresAt: current.Add(time.Minute)}
+	if err := timedSvc.SaveState(ctx, expiring); err != nil {
+		t.Fatalf("save expiring state: %v", err)
+	}
+	current = current.Add(2 * time.Minute)
+	if _, err := timedSvc.ConsumeState(ctx, "st-2"); !errors.Is(err, kernel.ErrNotFound) {
+		t.Fatalf("expired state: want ErrNotFound, got %v", err)
+	}
 }

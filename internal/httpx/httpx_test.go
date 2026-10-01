@@ -89,7 +89,7 @@ func TestProblemShape(t *testing.T) {
 	c, rec := testContext(http.MethodGet, "/api/x", "", nil)
 	Problem(c, http.StatusTeapot, "short and stout", errors.New("details"))
 	var body map[string]any
-	if err := json.Unmarshal([]byte(rec.Body.String()), &body); err != nil {
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("problem body: %v (%s)", err, rec.Body.String())
 	}
 	if body["type"] != "about:blank" || body["title"] != "short and stout" || body["detail"] != "details" {

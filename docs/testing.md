@@ -11,12 +11,13 @@ Test layers, all wired into CI:
 Coverage:
 
 - `make coverage` measures `./internal/...` with the race detector.
-- `make coverage-check` enforces a floor on the whole internal tree with
-  `-coverpkg=./internal/...`, so never-tested packages count as zero. CI runs
-  it in the build-test job. The floor (`COVERAGE_FLOOR`, default 42) tracks
-  the measured baseline — currently ~43%; raise it as coverage grows
-  (target 70%). The httpapp handlers and the OAuth manager are the largest
-  uncovered areas.
+- `make coverage-check` enforces a floor on the whole hand-written tree:
+  `-coverpkg=./internal/...` counts never-tested packages as zero, and
+  generated files (OpenAPI types, sqlc queries — guarded by the codegen job
+  instead) are filtered from the profile. CI runs it in the build-test job.
+  The floor (`COVERAGE_FLOOR`, default 46) tracks the measured baseline —
+  currently ~50%: raise it as coverage grows (target 70%). The httpapp
+  handlers and the Postgres adapters are the largest uncovered areas.
 
 Rules:
 

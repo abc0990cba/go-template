@@ -30,10 +30,17 @@ type Store interface {
 // shown exactly once at creation; only its hash is stored.
 type Service struct {
 	store Store
+	now   kernel.Clock
 }
 
 // NewService builds the service.
-func NewService(store Store) *Service { return &Service{store: store} }
+func NewService(store Store) *Service { return &Service{store: store, now: kernel.SystemClock} }
+
+// WithClock replaces the wall clock; tests walk time deterministically.
+func (s *Service) WithClock(now kernel.Clock) *Service {
+	s.now = now
+	return s
+}
 
 // Create issues a key. Scopes are "obj:act" strings that must be a subset
 // of the owner's own permissions — the key can never widen access.
@@ -47,7 +54,7 @@ func (s *Service) Create(ctx context.Context, userID, name string, scopes []stri
 	}
 	secret := Prefix + base64.RawURLEncoding.EncodeToString(raw)
 	sum := sha256.Sum256([]byte(secret))
-	now := time.Now()
+	now := s.now()
 	var expires *time.Time
 	if ttl > 0 {
 		t := now.Add(ttl)
@@ -88,7 +95,7 @@ func (s *Service) Resolve(ctx context.Context, raw string) (Key, users.User, err
 	if err != nil {
 		return Key{}, users.User{}, kernel.ErrNotFound
 	}
-	if stored.ExpiresAt != nil && time.Now().After(*stored.ExpiresAt) {
+	if stored.ExpiresAt != nil && s.now().After(*stored.ExpiresAt) {
 		return Key{}, users.User{}, kernel.ErrNotFound
 	}
 	sum := sha256.Sum256([]byte(raw))

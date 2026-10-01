@@ -77,13 +77,17 @@ coverage:
 	go test -race -covermode=atomic -coverprofile=coverage.out ./internal/...
 	go tool cover -func=coverage.out | tail -1
 
-# The floor guards the whole internal tree (never-tested packages count as
-# 0), so it reads a -coverpkg profile rather than only the tested packages.
-COVERAGE_FLOOR ?= 42
+# The floor guards the whole hand-written internal tree: -coverpkg counts
+# never-tested packages as zero, and generated files (OpenAPI types, sqlc
+# queries — guarded by the codegen job instead) are excluded from the
+# statement sums. The merged profile repeats a block once per instrumenting
+# test binary, so the awk dedupes by block and keeps the max hit count —
+# the same semantics as `go tool cover -func`.
+COVERAGE_FLOOR ?= 46
 
 coverage-check:
 	go test -race -covermode=atomic -coverpkg=./internal/... -coverprofile=coverage.out ./internal/... ./cmd/...
-	go tool cover -func=coverage.out | awk -v floor="$(COVERAGE_FLOOR)" '/^total:/ { gsub(/%/, "", $$3); if ($$3 + 0 < floor) { printf "coverage %.1f%% is below the %.0f%% floor\n", $$3, floor; exit 1 } else { printf "coverage %.1f%% meets the %.0f%% floor\n", $$3, floor } }'
+	awk -v floor="$(COVERAGE_FLOOR)" '!/api\.gen\.go|platform\/postgres\/db\// && NF == 3 && $$2 ~ /^[0-9]+$$/ { if (!seen[$$1]++) { stmts[$$1] = $$2 } if ($$3 + 0 > hit[$$1]) { hit[$$1] = $$3 + 0 } } END { for (b in stmts) { total += stmts[b]; if (hit[b] > 0) covered += stmts[b] } if (total == 0) { print "no coverage data"; exit 1 } pct = 100 * covered / total; if (pct < floor) { printf "coverage %.1f%% is below the %.0f%% floor\n", pct, floor; exit 1 } else { printf "coverage %.1f%% meets the %.0f%% floor\n", pct, floor } }' coverage.out
 
 generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate

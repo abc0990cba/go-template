@@ -18,6 +18,7 @@ import (
 
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/platform/oauth"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
 )
@@ -47,6 +48,34 @@ func newSecurityServer(t *testing.T, mutate func(*config.Config)) (*httptest.Ser
 		server.Config.Handler = NewRouter(cfg, services, logger, store, observ.Build{}, hub)
 	}
 	return server, &cfg, rebuild
+}
+
+// newOAuthSecurityServer builds the full router with an OAuth manager
+// constructed after the server's URL is known, so the redirect URIs baked
+// into the manager point at the test server without a handler rebuild.
+func newOAuthSecurityServer(t *testing.T, mutate func(*config.Config)) *httptest.Server {
+	t.Helper()
+	cfg, err := config.Load()
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if mutate != nil {
+		mutate(&cfg)
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	store := repository.NewMemoryStore()
+	hub := realtime.NewHub()
+	services := newTestContainer(t, store, realtime.NewFanSink(hub), logger)
+	// The manager bakes the redirect URI from BaseURL at construction; the
+	// placeholder listener exists only to learn the URL, and the real
+	// handler is swapped in before any request is made.
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(server.Close)
+	cfg.BaseURL = server.URL
+	server.Config.Handler = NewRouter(cfg, services, logger, store, observ.Build{}, hub, Options{OAuth: oauth.NewManager(cfg)})
+	jar, _ := cookiejar.New(nil)
+	server.Client().Jar = jar
+	return server
 }
 
 // TestOriginCheckRejectsCrossSitePosts replaces the old HTML-form CSRF
@@ -161,17 +190,13 @@ func newMockGoogleProvider(t *testing.T) *httptest.Server {
 // provider: session → authorize redirect → callback exchange → linked.
 func TestOAuthFlowWithMockProvider(t *testing.T) {
 	mock := newMockGoogleProvider(t)
-	server, cfg, rebuild := newSecurityServer(t, func(cfg *config.Config) {
+	server := newOAuthSecurityServer(t, func(cfg *config.Config) {
 		cfg.GoogleClientID = "test-client"
 		cfg.GoogleSecret = "test-secret"
 		cfg.GoogleAuthURL = mock.URL + "/auth"
 		cfg.GoogleTokenURL = mock.URL + "/token"
 		cfg.GoogleUserInfo = mock.URL + "/userinfo"
 	})
-	// The manager bakes the redirect URI from BaseURL at construction; point
-	// it at the real server and rebuild.
-	cfg.BaseURL = server.URL
-	rebuild()
 
 	// A client that reports redirects instead of following them.
 	noFollow := *server.Client()
@@ -303,15 +328,13 @@ func newMockTwitterProvider(t *testing.T) *httptest.Server {
 // token endpoint and the link never happens.
 func TestOAuthFlowWithPKCEProvider(t *testing.T) {
 	mock := newMockTwitterProvider(t)
-	server, cfg, rebuild := newSecurityServer(t, func(cfg *config.Config) {
+	server := newOAuthSecurityServer(t, func(cfg *config.Config) {
 		cfg.TwitterClientID = "test-client"
 		cfg.TwitterSecret = "test-secret"
 		cfg.TwitterAuthURL = mock.URL + "/auth"
 		cfg.TwitterTokenURL = mock.URL + "/token"
 		cfg.TwitterUserInfo = mock.URL + "/users/me"
 	})
-	cfg.BaseURL = server.URL
-	rebuild()
 
 	noFollow := *server.Client()
 	noFollow.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {

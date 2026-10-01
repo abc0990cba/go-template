@@ -91,6 +91,7 @@ type Service struct {
 	store      Store
 	events     analytics.Sink
 	sessionTTL time.Duration
+	now        kernel.Clock
 	// cache is optional: the user record behind a live session is the
 	// hottest read in the app (every request resolves it). Invalidated by
 	// the user service on writes — both share the same keys.
@@ -101,11 +102,14 @@ type Service struct {
 // NewService wires the auth service; the session TTL is the sliding expiry
 // every session read renews.
 func NewService(store Store, events analytics.Sink, sessionTTL time.Duration) *Service {
-	return &Service{store: store, events: events, sessionTTL: sessionTTL}
+	return &Service{store: store, events: events, sessionTTL: sessionTTL, now: kernel.SystemClock}
 }
 
 // WithCache attaches the read-through user cache.
 func (s *Service) WithCache(c cache.Cache) *Service { s.cache = c; return s }
+
+// WithClock replaces the wall clock; tests walk time deterministically.
+func (s *Service) WithClock(now kernel.Clock) *Service { s.now = now; return s }
 
 // emit records an analytics event attributed to the acting user when a sink
 // is configured.
@@ -227,7 +231,7 @@ func (s *Service) SaveState(ctx context.Context, state OAuthState) error {
 // ConsumeState validates and removes an OAuth state; consumed or expired
 // states are not usable again.
 func (s *Service) ConsumeState(ctx context.Context, state string) (OAuthState, error) {
-	return s.store.ConsumeOAuthState(ctx, state, time.Now())
+	return s.store.ConsumeOAuthState(ctx, state, s.now())
 }
 
 // LinkIdentity attaches a verified provider profile to the user. The

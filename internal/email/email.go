@@ -35,6 +35,7 @@ type Service struct {
 	resetTTL    time.Duration
 	verifyTTL   time.Duration
 	logger      *slog.Logger
+	now         kernel.Clock
 	notifyOwner func(context.Context, string, string, string, string, string)
 }
 
@@ -50,7 +51,14 @@ func NewService(tokens Store, auth AuthWriter, sender mailer.Sender, hash func(s
 		resetTTL:  time.Hour,
 		verifyTTL: 24 * time.Hour,
 		logger:    logger,
+		now:       kernel.SystemClock,
 	}
+}
+
+// WithClock replaces the wall clock; tests walk time deterministically.
+func (s *Service) WithClock(now kernel.Clock) *Service {
+	s.now = now
+	return s
 }
 
 // WithNotifier registers the in-app notification callback (wired to the
@@ -141,7 +149,7 @@ func (s *Service) consumeToken(ctx context.Context, rawToken, kind string) (Toke
 	if err != nil || token.Kind != kind {
 		return Token{}, kernel.Invalid("token is invalid or expired")
 	}
-	if token.UsedAt != nil || time.Now().After(token.ExpiresAt) {
+	if token.UsedAt != nil || s.now().After(token.ExpiresAt) {
 		return Token{}, kernel.Invalid("token is invalid or expired")
 	}
 	if err := s.tokens.MarkEmailTokenUsed(ctx, token.ID); err != nil {
@@ -154,7 +162,7 @@ func (s *Service) newToken(kind, userID string, ttl time.Duration) (string, Toke
 	raw := make([]byte, 32)
 	_, _ = rand.Read(raw)
 	token := base64.RawURLEncoding.EncodeToString(raw)
-	return token, Token{ID: kernel.NewID(), UserID: userID, Kind: kind, ExpiresAt: time.Now().Add(ttl), CreatedAt: time.Now()}
+	return token, Token{ID: kernel.NewID(), UserID: userID, Kind: kind, ExpiresAt: s.now().Add(ttl), CreatedAt: s.now()}
 }
 
 func hashEmailToken(raw string) string {

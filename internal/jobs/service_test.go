@@ -4,10 +4,12 @@ package jobs_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"testing"
@@ -251,5 +253,93 @@ func TestProcessOneIsANoOpWithDistributedQueue(t *testing.T) {
 	}
 	if processed, _ := f.svc.ProcessOne(ctx); processed {
 		t.Error("process one with queue: want no-op false")
+	}
+}
+
+// enrichmentFixture points the service's enrichment upstream at a stub
+// server answering with the given status and body.
+func enrichmentFixture(t *testing.T, status int, body string) *fixture {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	f := newFixture(t, nil)
+	f.svc.WithEnrichmentURL(server.URL)
+	return f
+}
+
+func runEnrichBatch(t *testing.T, f *fixture, payload string) jobs.Job {
+	t.Helper()
+	ctx := context.Background()
+	if _, err := f.svc.Enqueue(ctx, jobs.TypeEnrichBatch, payload, "u1"); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if _, err := f.svc.ProcessOne(ctx); err != nil {
+		t.Fatalf("process one: %v", err)
+	}
+	listed, _, _ := f.svc.List(ctx, listOpts())
+	return listed[0]
+}
+
+func TestEnrichBatchStoresUpstreamProfiles(t *testing.T) {
+	f := enrichmentFixture(t, http.StatusOK, `{"results":[{"gender":"female"}]}`)
+	job := runEnrichBatch(t, f, `{"count":2}`)
+
+	if job.Status != "done" {
+		t.Fatalf("batch: want done, got %+v", job)
+	}
+	profiles, _, err := f.store.ListEnrichments(context.Background(), listOpts())
+	if err != nil || len(profiles) != 2 {
+		t.Fatalf("enrichments: want 2, got %d (%v)", len(profiles), err)
+	}
+	for _, profile := range profiles {
+		if profile.Source != "randomuser.me" {
+			t.Errorf("source: want randomuser.me, got %q", profile.Source)
+		}
+		if !json.Valid([]byte(profile.Payload)) {
+			t.Errorf("payload must stay jsonb-safe: %q", profile.Payload)
+		}
+	}
+}
+
+func TestEnrichBatchWrapsNonJSONUpstream(t *testing.T) {
+	// A payload that stops being JSON must not break the jsonb column: the
+	// record is rewritten with an external ref.
+	f := enrichmentFixture(t, http.StatusOK, `<html>not json</html>`)
+	job := runEnrichBatch(t, f, `{"count":1}`)
+
+	if job.Status != "done" {
+		t.Fatalf("batch: want done, got %+v", job)
+	}
+	profiles, _, _ := f.store.ListEnrichments(context.Background(), listOpts())
+	if len(profiles) != 1 || !strings.Contains(profiles[0].Payload, "external_ref") {
+		t.Errorf("fallback payload: want external_ref rewrite, got %+v", profiles)
+	}
+}
+
+func TestEnrichBatchRetriesThenFailsOnUpstreamOutage(t *testing.T) {
+	// A 5xx is transient: the batch retries, still fails, and the job
+	// records the upstream status.
+	f := enrichmentFixture(t, http.StatusInternalServerError, "boom")
+	job := runEnrichBatch(t, f, `{"count":1}`)
+
+	if job.Status != "failed" || !strings.Contains(job.Error, "transient upstream status 500") {
+		t.Fatalf("5xx batch: want failed with transient cause, got %+v", job)
+	}
+	if profiles, _, _ := f.store.ListEnrichments(context.Background(), listOpts()); len(profiles) != 0 {
+		t.Errorf("failed batch must store nothing: %d", len(profiles))
+	}
+}
+
+func TestEnrichBatchDoesNotRetryPermanentFailures(t *testing.T) {
+	// A 4xx is permanent: the error is not retried and does not count
+	// toward the circuit breaker.
+	f := enrichmentFixture(t, http.StatusUnauthorized, `{"error":"nope"}`)
+	job := runEnrichBatch(t, f, `{"count":1}`)
+
+	if job.Status != "failed" || !strings.Contains(job.Error, "permanent upstream status 401") {
+		t.Fatalf("4xx batch: want failed with permanent cause, got %+v", job)
 	}
 }
