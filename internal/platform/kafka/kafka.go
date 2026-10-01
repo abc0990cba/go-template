@@ -15,10 +15,9 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // Config carries the client wiring from config.Config.
@@ -37,7 +36,7 @@ type Client struct {
 	breakers *reliability.Breakers
 }
 
-var _ service.EventPublisher = (*Client)(nil)
+var _ streams.Publisher = (*Client)(nil)
 
 // Open connects and verifies the cluster is reachable. The consumer group
 // and topic are created implicitly by the broker configuration.
@@ -132,7 +131,7 @@ func (c *Client) Consume(ctx context.Context, handle MessageHandler) error {
 			switch {
 			case err == nil:
 				commit = append(commit, rec)
-			case service.IsTerminalStreamError(err):
+			case streams.IsTerminal(err):
 				// Already parked in the dead-letter queue; committing is
 				// what stops the poison message from looping forever.
 				c.log.Warn("kafka message parked", "topic", rec.Topic, "key", string(rec.Key), "err", err)
@@ -172,7 +171,7 @@ func (c *Client) handle(ctx context.Context, rec *kgo.Record, handle MessageHand
 
 // PublishUserEvent relays one outbox event to the events topic, keyed by the
 // aggregate so per-entity ordering holds downstream.
-func (c *Client) PublishUserEvent(ctx context.Context, event model.OutboxEvent) error {
+func (c *Client) PublishUserEvent(ctx context.Context, event streams.OutboxEvent) error {
 	return c.Publish(ctx, c.events, event.AggregateID, []byte(event.Payload), event.Headers)
 }
 

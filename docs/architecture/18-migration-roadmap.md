@@ -1,5 +1,16 @@
 # 18 — Migration Roadmap: to Package-by-Feature
 
+> **Status: COMPLETE (2026-10-01).** All five phases landed in a single
+> session: guardrails in CI (`make check-size`), the kernel extraction, the
+> tickets pilot, all 18 remaining features rolled over, and the optional
+> DDD tactics where they pay (tickets state machine, streams apply).
+> Verification at the end: `go vet` clean (incl. integration/e2e tags),
+> `go test -race` green, full testcontainers integration suite green, the
+> production compose image healthy, and the 33-check regression walkthrough
+> `PASS=33 FAIL=0` against the refactored code. The e2e
+> `TestTicketApprovalFlow` failure is pre-existing (reproduced on a HEAD
+> worktree — the approvals-inbox premise of the test, not the code).
+
 **In one sentence:** five incremental phases move the codebase from
 package-by-layer to package-by-feature (the [recommended option
 B](17-architecture-options.md)) — each phase is small, keeps `make test`

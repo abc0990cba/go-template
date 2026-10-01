@@ -15,10 +15,11 @@ import (
 
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/platform/postgres"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
+	"github.com/your-org/go-template/internal/users"
 )
 
 // jsonEqual compares a stored JSONB payload with the expected object,
@@ -33,9 +34,9 @@ func jsonEqual(raw string, expected map[string]any) bool {
 
 // streamsStore is the slice of the store surface the streams tests need.
 type streamsStore interface {
-	service.StreamsRepo
-	service.IdempotencyRepo
-	service.UsersRepo
+	streams.Store
+	kernel.IdempotencyRepo
+	users.Store
 }
 
 func TestStreamsContract(t *testing.T) {
@@ -73,26 +74,26 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Now()
-	user := model.User{ID: "sc-u-1", Email: "streams@example.com", Name: "Streams", ExternalRef: "sc-ref-1", CreatedAt: now, UpdatedAt: now}
+	user := users.User{ID: "sc-u-1", Email: "streams@example.com", Name: "Streams", ExternalRef: "sc-ref-1", CreatedAt: now, UpdatedAt: now}
 	if err := store.CreateUser(ctx, user, ""); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 
-	event := func(source, eventID string, seq int64, payload string) model.StreamEvent {
-		return model.StreamEvent{Source: source, EventID: eventID, ExternalRef: "sc-ref-1", Seq: seq, OccurredAt: now, Payload: payload}
+	event := func(source, eventID string, seq int64, payload string) streams.Event {
+		return streams.Event{Source: source, EventID: eventID, ExternalRef: "sc-ref-1", Seq: seq, OccurredAt: now, Payload: payload}
 	}
 
 	t.Run("apply then dedupe then stale", func(t *testing.T) {
-		result, err := store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
-		if err != nil || result.Status != model.StreamApplied {
+		result, err := store.ApplyStreamEvent(ctx, event(streams.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
+		if err != nil || result.Status != streams.StatusApplied {
 			t.Fatalf("apply = %+v err %v, want applied", result, err)
 		}
-		result, err = store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-1", 5, `{"company":"Overwritten"}`))
-		if err != nil || result.Status != model.StreamDeduped {
+		result, err = store.ApplyStreamEvent(ctx, event(streams.SourceKafka, "ce-1", 5, `{"company":"Overwritten"}`))
+		if err != nil || result.Status != streams.StatusDeduped {
 			t.Fatalf("redelivery = %+v err %v, want deduped", result, err)
 		}
-		result, err = store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-2", 4, `{"company":"Stale"}`))
-		if err != nil || result.Status != model.StreamStale {
+		result, err = store.ApplyStreamEvent(ctx, event(streams.SourceKafka, "ce-2", 4, `{"company":"Stale"}`))
+		if err != nil || result.Status != streams.StatusStale {
 			t.Fatalf("stale seq = %+v err %v, want stale", result, err)
 		}
 		got, err := store.GetUser(ctx, "sc-u-1")
@@ -106,8 +107,8 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 	})
 
 	t.Run("both sources land without overwriting", func(t *testing.T) {
-		result, err := store.ApplyStreamEvent(ctx, event(model.SourceNats, "ce-3", 1, `{"phone":"+15550000"}`))
-		if err != nil || result.Status != model.StreamApplied {
+		result, err := store.ApplyStreamEvent(ctx, event(streams.SourceNats, "ce-3", 1, `{"phone":"+15550000"}`))
+		if err != nil || result.Status != streams.StatusApplied {
 			t.Fatalf("contact apply = %+v err %v", result, err)
 		}
 		got, _ := store.GetUser(ctx, "sc-u-1")
@@ -129,7 +130,7 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 		if err != nil || len(events) != 2 {
 			t.Fatalf("claim = %d events err %v, want 2", len(events), err)
 		}
-		if events[0].EventType != model.OutboxUserEnriched || events[0].AggregateID != "sc-u-1" {
+		if events[0].EventType != streams.OutboxUserEnriched || events[0].AggregateID != "sc-u-1" {
 			t.Fatalf("claimed event = %+v", events[0])
 		}
 		if err := store.MarkOutboxProcessed(ctx, []string{events[0].ID}); err != nil {
@@ -145,8 +146,8 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 	})
 
 	t.Run("unknown ref is ErrNotFound", func(t *testing.T) {
-		_, err := store.ApplyStreamEvent(ctx, model.StreamEvent{
-			Source: model.SourceKafka, EventID: "ce-x", ExternalRef: "nobody", Seq: 1, OccurredAt: now, Payload: `{}`,
+		_, err := store.ApplyStreamEvent(ctx, streams.Event{
+			Source: streams.SourceKafka, EventID: "ce-x", ExternalRef: "nobody", Seq: 1, OccurredAt: now, Payload: `{}`,
 		})
 		if err == nil {
 			t.Fatal("unknown ref: want error")
@@ -154,7 +155,7 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 	})
 
 	t.Run("dead letters park and replay-flag", func(t *testing.T) {
-		letter := model.DeadLetter{ID: "dl-1", Source: model.SourceKafka, Topic: "user-profile.v1", Payload: `{"bad`, Reason: model.DeadLetterMalformed, Attempts: 1}
+		letter := streams.DeadLetter{ID: "dl-1", Source: streams.SourceKafka, Topic: "user-profile.v1", Payload: `{"bad`, Reason: streams.ReasonMalformed, Attempts: 1}
 		if err := store.SaveDeadLetter(ctx, letter); err != nil {
 			t.Fatalf("save: %v", err)
 		}
@@ -179,7 +180,7 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 	})
 
 	t.Run("idempotency reserve is atomic", func(t *testing.T) {
-		record := model.IdempotencyRecord{
+		record := kernel.IdempotencyRecord{
 			Key: "k-1", UserID: "sc-u-1", Method: "POST", Path: "/api/tickets",
 			RequestHash: "hash-1", ExpiresAt: time.Now().Add(time.Hour),
 		}
@@ -217,19 +218,19 @@ func runStreamsContract(t *testing.T, store streamsStore) {
 		// caught it. The inbox only accelerates dedupe; the seq columns
 		// protect against re-application, which is why the retention window
 		// may safely forget old rows.
-		result, err := store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
-		if err != nil || result.Status != model.StreamDeduped {
+		result, err := store.ApplyStreamEvent(ctx, event(streams.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
+		if err != nil || result.Status != streams.StatusDeduped {
 			t.Fatalf("pre-prune redelivery = %+v err %v, want deduped", result, err)
 		}
 		if n, err := store.PruneProcessedEvents(ctx, 0); err != nil || n == 0 {
 			t.Fatalf("prune = %d rows, err %v; want the inbox swept", n, err)
 		}
-		result, err = store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
-		if err != nil || result.Status != model.StreamStale {
+		result, err = store.ApplyStreamEvent(ctx, event(streams.SourceKafka, "ce-1", 5, `{"company":"Acme"}`))
+		if err != nil || result.Status != streams.StatusStale {
 			t.Fatalf("post-prune redelivery = %+v err %v, want stale via the seq guard", result, err)
 		}
 		// A longer window keeps fresh rows: the next sweep removes nothing.
-		if _, err := store.ApplyStreamEvent(ctx, event(model.SourceKafka, "ce-4", 6, `{"company":"Globex"}`)); err != nil {
+		if _, err := store.ApplyStreamEvent(ctx, event(streams.SourceKafka, "ce-4", 6, `{"company":"Globex"}`)); err != nil {
 			t.Fatalf("apply ce-4: %v", err)
 		}
 		if n, err := store.PruneProcessedEvents(ctx, time.Hour); err != nil || n != 0 {

@@ -38,14 +38,12 @@ pattern, the contract tests' dual-adapter structure, `internal/reliability`
 
 ## 15.3 Step 3 — The "add a feature" recipe (the real workflow)
 
-> **Note:** the codebase is being reorganized to package-by-feature (see
-> the [architecture assessment](16-current-architecture-assessment.md),
-> [options](17-architecture-options.md) and
-> [roadmap](18-migration-roadmap.md)). Once phases 2–3 land, "add a
-> feature" becomes *create `internal/<feature>/{feature.go, http.go,
-> store.go}`* — the target-state playbook is at the end of
-> [18](18-migration-roadmap.md). The recipe below works for the current
-> layout and for the target layout; only the file locations differ.
+> **Note:** the package-by-feature reorganization is **done** (ADR
+> [0021](decisions/0021-package-by-feature.md)) — "add a feature" now means
+> *create `internal/<feature>/` with its service, `http.go` and `store.go`,
+> then two one-line registrations*. The playbook at the end of
+> [18](18-migration-roadmap.md) is the operative checklist; the recipe
+> below shows the same flow mapped to today's layout.
 
 Worked example: adding a **"Newsletter subscriptions"** resource. Every
 step has a concrete file to touch; time estimate for a CRUD+list feature

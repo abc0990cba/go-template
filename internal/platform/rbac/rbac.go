@@ -11,8 +11,7 @@ import (
 	casbinmodel "github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 
-	"github.com/your-org/go-template/internal/model"
-	"github.com/your-org/go-template/internal/repository"
+	"github.com/your-org/go-template/internal/rbac"
 )
 
 // ModelText is the Casbin model: policies p(sub, dom, obj, act), role
@@ -41,15 +40,15 @@ m = (g(r.sub, p.sub, r.dom) || g(r.sub, p.sub, "*")) && (r.dom == p.dom || p.dom
 // contract.
 var _ persist.Adapter = (*Adapter)(nil)
 
-// Adapter persists Casbin policies through the RuleStore port, so the
+// Adapter persists Casbin policies through the rbac.RuleStore port, so the
 // engine's autosaved mutations land in PostgreSQL (or the memory fake)
 // without the service layer knowing about Casbin's storage interface.
 type Adapter struct {
-	store repository.RuleStore
+	store rbac.RuleStore
 }
 
 // NewAdapter builds an adapter over the store.
-func NewAdapter(store repository.RuleStore) *Adapter {
+func NewAdapter(store rbac.RuleStore) *Adapter {
 	return &Adapter{store: store}
 }
 
@@ -147,14 +146,14 @@ func (a *Adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int,
 	return nil
 }
 
-func ruleFromValues(ptype string, rule []string) model.PolicyRule {
+func ruleFromValues(ptype string, rule []string) rbac.PolicyRule {
 	padded := make([]string, 4)
 	copy(padded, rule)
-	return model.PolicyRule{
+	return rbac.PolicyRule{
 		PType: ptype, Subject: padded[0], Domain: padded[1], Object: padded[2], Action: padded[3],
 	}
 }
 
-func ruleValues(rule model.PolicyRule) []string {
+func ruleValues(rule rbac.PolicyRule) []string {
 	return []string{rule.Subject, rule.Domain, rule.Object, rule.Action}
 }

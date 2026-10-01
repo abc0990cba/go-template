@@ -1,5 +1,16 @@
 # 16 — Current Architecture Assessment
 
+> **Update (2026-10-01): this assessment described the pre-refactor state,
+> and every finding below has since been resolved.** The codebase now uses
+> package-by-feature ([ADR 0021](decisions/0021-package-by-feature.md)):
+> sentinel errors live in `internal/kernel` (W1), store interfaces are
+> consumer-side and the adapter→domain inversion is gone (W2), the
+> `ports.go`/`container.go`/`router.go` hubs were dissolved into per-feature
+> packages with one-line registrations (W3), and every hand-written
+> production file is ≤ 400 lines, enforced by `make check-size` in CI (W4).
+> The chapter is kept as the "before" record; see
+> [04 §4.1](04-components-and-code-map.md) for the "after".
+
 **In one sentence:** the codebase is a well-disciplined layered (hexagonal)
 monolith whose *technical* hygiene is good — infra never leaks into
 business logic, both store adapters are contract-tested — but its

@@ -1,8 +1,6 @@
 package httpapp
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
@@ -29,13 +27,6 @@ func (a *App) securityHeaders() gin.HandlerFunc {
 			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self'; font-src 'self' data:")
 		c.Next()
 	}
-}
-
-// newRandomToken is shared by session tokens and OAuth state.
-func newRandomToken() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 // originCheck guards state-changing /api requests against cross-site posts.

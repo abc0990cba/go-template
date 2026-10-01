@@ -13,7 +13,7 @@ import (
 	kafkaplatform "github.com/your-org/go-template/internal/platform/kafka"
 	natsplatform "github.com/your-org/go-template/internal/platform/nats"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // Streams bundles the optional broker clients; nil means that side is
@@ -21,14 +21,14 @@ import (
 type Streams struct {
 	Kafka     *kafkaplatform.Client
 	NATS      *natsplatform.Client
-	Publisher service.EventPublisher
+	Publisher streams.Publisher
 }
 
 // Brokers opens the configured broker clients from configuration. Failures
 // are logged, not fatal: the app runs without the streams.
 func Brokers(ctx context.Context, cfg config.Config, logger *slog.Logger, breakers *reliability.Breakers) *Streams {
 	out := &Streams{}
-	var publishers []service.EventPublisher
+	var publishers []streams.Publisher
 
 	if len(cfg.KafkaBrokers) > 0 {
 		kafkaCfg := kafkaplatform.Config{
@@ -67,7 +67,7 @@ func Brokers(ctx context.Context, cfg config.Config, logger *slog.Logger, breake
 	case 1:
 		out.Publisher = publishers[0]
 	default:
-		out.Publisher = service.MultiPublisher{Publishers: publishers}
+		out.Publisher = streams.MultiPublisher{Publishers: publishers}
 	}
 	return out
 }

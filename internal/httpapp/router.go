@@ -11,32 +11,47 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/your-org/go-template/internal/analytics"
+	"github.com/your-org/go-template/internal/apikeys"
+	"github.com/your-org/go-template/internal/audit"
+	"github.com/your-org/go-template/internal/auth"
+	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/email"
+	"github.com/your-org/go-template/internal/export"
+	"github.com/your-org/go-template/internal/files"
+	"github.com/your-org/go-template/internal/invitations"
+	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/kernel"
+	"github.com/your-org/go-template/internal/mfa"
+	"github.com/your-org/go-template/internal/notifications"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/oauth"
 	"github.com/your-org/go-template/internal/platform/ratelimit"
+	"github.com/your-org/go-template/internal/rbac"
 	"github.com/your-org/go-template/internal/realtime"
-	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/search"
+	"github.com/your-org/go-template/internal/settings"
+	"github.com/your-org/go-template/internal/streams"
+	"github.com/your-org/go-template/internal/tickets"
+	"github.com/your-org/go-template/internal/tokens"
+	"github.com/your-org/go-template/internal/users"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // App carries the handler dependencies; all handlers are methods on it.
 type App struct {
 	cfg      config.Config
-	services *service.Container
+	services *bootstrap.Container
 	logger   *slog.Logger
-	pinger   service.Pinger
+	pinger   kernel.Pinger
 	oauth    *oauth.Manager
 	hub      *realtime.Hub
 	// limiters shed excess traffic per scope; memory in dev, Redis-backed
 	// when the factory is wired.
 	limiters map[string]ratelimit.Limiter
 	// idempotencyStore stores Idempotency-Key reservations; nil disables it.
-	idempotencyStore service.IdempotencyRepo
-	// demoEnricher publishes the admin console's test enrichment events;
-	// nil disables the buttons.
-	demoEnricher service.EnrichDemoPublisher
+	idempotencyStore kernel.IdempotencyRepo
 	// readyProbes are extra readiness checks (broker pings), run after the
 	// store ping.
 	readyProbes []func(ctx context.Context) error
@@ -49,14 +64,14 @@ type Options struct {
 	// LimiterFactory builds one limiter per scope ("api", "auth"); nil uses
 	// in-memory token buckets.
 	LimiterFactory func(scope string, rps float64, burst int) ratelimit.Limiter
-	Idempotency    service.IdempotencyRepo
-	DemoEnricher   service.EnrichDemoPublisher
+	Idempotency    kernel.IdempotencyRepo
+	DemoEnricher   streams.DemoPublisher
 	ReadyProbes    []func(ctx context.Context) error
 }
 
 // NewRouter builds the complete Gin engine: middleware, health endpoints,
 // OpenAPI docs, the /api group with the SSE stream, and the embedded SPA.
-func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logger, pinger service.Pinger, build observ.Build, hub *realtime.Hub, opts ...Options) http.Handler {
+func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Logger, pinger kernel.Pinger, build observ.Build, hub *realtime.Hub, opts ...Options) http.Handler {
 	var o Options
 	if len(opts) > 0 {
 		o = opts[0]
@@ -76,7 +91,6 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 		oauth: oauth.NewManager(cfg), hub: hub,
 		limiters:         limiters,
 		idempotencyStore: o.Idempotency,
-		demoEnricher:     o.DemoEnricher,
 		readyProbes:      o.ReadyProbes,
 	}
 	r := gin.New()
@@ -99,19 +113,6 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	// Every /api request passes the shared rate limiter; auth endpoints add
 	// a much tighter per-IP budget on top.
 	api := r.Group("/api", app.originCheck(), app.apiRateLimit())
-	api.POST("/auth/register", app.authRateLimit(), app.apiRegister)
-	api.POST("/auth/login", app.authRateLimit(), app.apiLogin)
-	api.POST("/auth/mfa/challenge", app.authRateLimit(), app.apiMFAChallenge)
-	// OAuth-style token grants for non-browser clients; opt-in per
-	// deployment via APP_JWT_SECRET (otherwise 501).
-	api.POST("/auth/token", app.authRateLimit(), app.apiToken)
-	api.POST("/auth/token/revoke", app.authRateLimit(), app.apiTokenRevoke)
-	api.POST("/auth/logout", app.apiLogout)
-	api.GET("/oauth/providers", app.apiOAuthProviders)
-	api.GET("/settings/public", app.apiPublicSettings)
-	api.POST("/auth/forgot-password", app.authRateLimit(), app.apiForgotPassword)
-	api.POST("/auth/reset-password", app.authRateLimit(), app.apiResetPassword)
-	api.POST("/auth/verify-email", app.apiVerifyEmail)
 
 	// Authenticated routes resolve the caller, then the active Casbin
 	// domain (X-Org-Id header, else the user's single org, else the
@@ -120,127 +121,97 @@ func NewRouter(cfg config.Config, services *service.Container, logger *slog.Logg
 	// identity limiter throttles each principal on top of the per-IP budget
 	// the whole /api group already paid.
 	authorized := api.Group("", app.apiAuthRequired, app.identityRateLimit(), app.orgDomain)
-	authorized.GET("/me", app.apiMe)
-	authorized.GET("/search", app.apiSearch)
-	// GDPR data export: request, status, download (owner-only by contract).
-	authorized.POST("/users/me/export", app.apiRequestExport)
-	authorized.GET("/users/me/export", app.apiExportStatus)
-	authorized.GET("/users/me/export/download", app.apiExportDownload)
-	// Files: uploads are self-service (owner-scoped metadata); reads are
-	// gated by attachment visibility (ticket canView rules) in the service.
-	authorized.POST("/files", app.apiUploadFile)
-	authorized.GET("/files/:id", app.apiGetFile)
-	authorized.GET("/files/:id/content", app.apiDownloadFile)
-	authorized.GET("/files/:id/url", app.apiFilePresign)
-	authorized.DELETE("/files/:id", app.apiDeleteFile)
-	authorized.GET("/users", app.requirePermission("users", "read"), app.etag(), app.apiUsers)
-	authorized.POST("/users", app.requirePermission("users", "create"), app.apiCreateUser)
-	authorized.GET("/users/:id", app.requirePermission("users", "read"), app.etag(), app.apiGetUser)
-	authorized.PUT("/users/:id", app.requirePermission("users", "update"), app.apiUpdateUser)
-	authorized.DELETE("/users/:id", app.requirePermission("users", "delete"), app.apiDeleteUser)
-	authorized.GET("/users/:id/activity", app.requirePermission("audit", "read"), app.apiUserActivity)
-	authorized.DELETE("/users/:id/mfa", app.requirePermission("users", "update"), app.apiMFAReset)
-	authorized.GET("/jobs", app.requirePermission("jobs", "read"), app.etag(), app.apiJobs)
-	authorized.GET("/jobs/:id", app.requirePermission("jobs", "read"), app.apiGetJob)
-	authorized.POST("/jobs/process", app.requirePermission("jobs", "execute"), app.apiProcessJob)
-	authorized.POST("/jobs/enrichment", app.requirePermission("jobs", "execute"), app.apiEnrichEnrichment)
-	authorized.GET("/enrichment-profiles", app.requirePermission("enrichments", "read"), app.apiEnrichmentProfiles)
-	authorized.GET("/reports", app.requirePermission("reports", "read"), app.apiReports)
-	authorized.POST("/reports", app.requirePermission("reports", "create"), app.apiGenerateReport)
-	authorized.GET("/reports/:id", app.requirePermission("reports", "read"), app.apiGetReport)
-	authorized.GET("/analytics/summary", app.requirePermission("analytics", "read"), app.etag(), app.apiAnalytics)
-	authorized.GET("/analytics/timeseries", app.requirePermission("analytics", "read"), app.apiTimeseries)
-	authorized.GET("/analytics/events", app.requirePermission("analytics", "read"), app.apiRecentEvents)
-	authorized.GET("/analytics/breakdown", app.requirePermission("analytics", "read"), app.apiAnalyticsBreakdown)
-	authorized.GET("/analytics/dau", app.requirePermission("analytics", "read"), app.apiAnalyticsDAU)
-	authorized.GET("/me/identities", app.apiIdentities)
-	authorized.GET("/sessions", app.apiSessions)
-	authorized.GET("/auth/mfa/status", app.apiMFAStatus)
-	authorized.POST("/auth/mfa/enroll", app.apiMFAEnroll)
-	authorized.POST("/auth/mfa/verify", app.apiMFAVerify)
-	authorized.POST("/auth/mfa/disable", app.apiMFADisable)
-	authorized.POST("/profile/logout-all", app.apiLogoutAll)
-	authorized.POST("/profile/unlink/:provider", app.apiUnlinkProvider)
 	authorized.GET("/events/stream", app.sseStream)
-	authorized.GET("/notifications", app.apiNotifications)
-	authorized.GET("/notifications/unread-count", app.apiUnreadCount)
-	authorized.POST("/notifications/:id/read", app.apiMarkNotificationRead)
-	authorized.POST("/notifications/read-all", app.apiMarkAllNotificationsRead)
-	authorized.POST("/impersonation", app.requirePermission("impersonation", "execute"), app.apiImpersonate)
-	authorized.POST("/impersonation/stop", app.apiStopImpersonation)
-	authorized.GET("/audit", app.requirePermission("audit", "read"), app.apiAudit)
-	authorized.GET("/settings", app.requirePermission("settings", "read"), app.apiSettings)
-	authorized.PUT("/settings/:key", app.requirePermission("settings", "update"), app.apiUpdateSetting)
-	authorized.GET("/api-keys", app.apiListAPIKeys)
-	authorized.POST("/api-keys", app.apiCreateAPIKey)
-	authorized.DELETE("/api-keys/:id", app.apiRevokeAPIKey)
-	authorized.GET("/webhooks", app.requirePermission("webhooks", "read"), app.apiListWebhooks)
-	authorized.POST("/webhooks", app.requirePermission("webhooks", "create"), app.apiCreateWebhook)
-	authorized.PUT("/webhooks/:id", app.requirePermission("webhooks", "update"), app.apiUpdateWebhook)
-	authorized.DELETE("/webhooks/:id", app.requirePermission("webhooks", "delete"), app.apiDeleteWebhook)
-	authorized.GET("/webhooks/:id/deliveries", app.requirePermission("webhooks", "read"), app.apiWebhookDeliveries)
-	authorized.POST("/webhooks/:id/test", app.requirePermission("webhooks", "execute"), app.apiTestWebhook)
 
-	// Event streams administration: the transactional outbox and the
-	// dead-letter queue with its replay path.
-	authorized.GET("/streams/outbox", app.requirePermission("streams", "read"), app.apiListOutbox)
-	authorized.GET("/streams/dead-letters", app.requirePermission("streams", "read"), app.apiListDeadLetters)
-	authorized.POST("/streams/dead-letters/:id/replay", app.requirePermission("streams", "replay"), app.apiReplayDeadLetter)
-	authorized.POST("/users/:id/enrich-demo", app.requirePermission("users", "update"), app.apiTriggerEnrichDemo)
+	// Feature surfaces registered from their own packages.
+	auth.RegisterHTTP(api, authorized, auth.HTTP{
+		Svc: services.Auth, RBAC: services.RBAC, Users: services.Users, MFA: services.MFA,
+		Notifications: services.Notifications, Audit: services.Audit, Settings: services.Settings,
+		OAuth: app.oauth, Logger: logger,
+		AuthRateLimit: app.authRateLimit(), RequirePermission: app.requirePermission,
+		SessionTTL: cfg.SessionTTL, CookieSecure: cfg.CookieSecure, OAuthStateTTL: cfg.OAuthStateTTL,
+	})
+	rbac.RegisterHTTP(authorized, rbac.HTTP{
+		Svc: services.RBAC, Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+	})
+	invitations.RegisterHTTP(authorized, invitations.HTTP{
+		Svc: services.Invitations, Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+	})
+	email.RegisterHTTP(api, email.HTTP{Svc: services.Email, Settings: services.Settings, Audit: services.Audit, AuthRateLimit: app.authRateLimit()})
+	mfa.RegisterHTTP(api, authorized, mfa.HTTP{
+		Svc: services.MFA, Settings: services.Settings, Notifications: services.Notifications,
+		Audit: services.Audit, Logger: logger,
+		AuthRateLimit: app.authRateLimit(), RequirePermission: app.requirePermission,
+		SessionTTL: cfg.SessionTTL, CookieSecure: cfg.CookieSecure,
+	})
+	apikeys.RegisterHTTP(authorized, apikeys.HTTP{Svc: services.APIKeys, Audit: services.Audit})
+	audit.RegisterHTTP(authorized, audit.HTTP{Svc: services.Audit, RequirePermission: app.requirePermission})
+	notifications.RegisterHTTP(authorized, notifications.HTTP{Svc: services.Notifications})
+	settings.RegisterHTTP(api, authorized, settings.HTTP{Svc: services.Settings, Audit: services.Audit, RequirePermission: app.requirePermission})
+	analytics.RegisterHTTP(authorized, analytics.HTTP{
+		Reports: services.Reports, Analytics: services.Analytics,
+		// Jobs is a func, not a typed port: the jobs package imports
+		// analytics for report persistence, so a signature naming jobs.Job
+		// here would cycle the import graph.
+		Jobs: func(ctx context.Context, typ, payload, createdBy string) (any, error) {
+			return services.Jobs.Enqueue(ctx, typ, payload, createdBy)
+		},
+		RequirePermission: app.requirePermission, ETag: app.etag,
+	})
+	jobs.RegisterHTTP(authorized, jobs.HTTP{
+		Svc: services.Jobs, Logger: logger,
+		RequirePermission: app.requirePermission, ETag: app.etag,
+	})
+	files.RegisterHTTP(authorized, files.HTTP{
+		Svc: services.Files, Tickets: services.Tickets, Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+	})
+	tickets.RegisterHTTP(authorized, tickets.HTTP{
+		Svc: services.Tickets, RBAC: services.RBAC, Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+		ETag:              app.etag, Idempotency: app.idempotency,
+	})
+	webhooks.RegisterHTTP(authorized, webhooks.HTTP{
+		Svc: services.Webhooks, Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+	})
+	export.RegisterHTTP(authorized, export.HTTP{
+		Svc: services.Exports, Jobs: services.Jobs, Audit: services.Audit, Logger: logger,
+	})
+	users.RegisterHTTP(authorized, users.HTTP{
+		Svc: services.Users, Logger: logger,
+		// Audit is a closure over audit.Record, not a *audit.Service field:
+		// audit reads the users.User actor out of the request context, so a
+		// users→audit import would cycle the graph.
+		Audit: func(c *gin.Context, action, resourceType, resourceID string, before, after any) {
+			audit.Record(services.Audit, c, action, resourceType, resourceID, before, after)
+		},
+		RequirePermission: app.requirePermission, ETag: app.etag,
+	})
+	streams.RegisterHTTP(authorized, streams.HTTP{
+		Svc: services.Streams, Users: services.Users, Demo: o.DemoEnricher,
+		Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+	})
+	search.RegisterHTTP(authorized, search.HTTP{
+		Svc: services.Search, Logger: logger,
+	})
 
-	// Tickets: requesters file and track their own, approvers decide on
-	// their queue. Fine-grained ownership and step-role checks live in the
-	// service; these guards keep the catalog permissions. Filing a ticket
-	// accepts an Idempotency-Key so client retries replay instead of
-	// double-filing.
-	authorized.GET("/tickets", app.requirePermission("tickets", "read"), app.etag(), app.apiListTickets)
-	authorized.GET("/tickets/counts", app.requirePermission("tickets", "read"), app.apiTicketCounts)
-	authorized.POST("/tickets", app.idempotency(), app.requirePermission("tickets", "create"), app.apiCreateTicket)
-	authorized.GET("/tickets/:id", app.requirePermission("tickets", "read"), app.apiGetTicket)
-	authorized.PATCH("/tickets/:id", app.requirePermission("tickets", "update"), app.apiUpdateTicket)
-	authorized.DELETE("/tickets/:id", app.requirePermission("tickets", "delete"), app.apiDeleteTicket)
-	authorized.POST("/tickets/:id/actions", app.requirePermission("tickets", "read"), app.apiTicketAction)
-	authorized.GET("/tickets/:id/comments", app.requirePermission("tickets", "read"), app.apiTicketComments)
-	authorized.POST("/tickets/:id/comments", app.requirePermission("tickets", "read"), app.apiAddTicketComment)
-	authorized.GET("/tickets/:id/events", app.requirePermission("tickets", "read"), app.apiTicketEvents)
-	authorized.GET("/tickets/:id/attachments", app.requirePermission("tickets", "read"), app.apiTicketAttachments)
-	authorized.GET("/approvals", app.requirePermission("tickets", "approve"), app.apiApprovals)
-	authorized.GET("/ticket-types", app.requirePermission("tickets", "read"), app.apiTicketTypes)
-	authorized.POST("/ticket-types", app.requirePermission("ticket_types", "create"), app.apiCreateTicketType)
-	authorized.PATCH("/ticket-types/:id", app.requirePermission("ticket_types", "update"), app.apiUpdateTicketType)
-	authorized.DELETE("/ticket-types/:id", app.requirePermission("ticket_types", "delete"), app.apiDeleteTicketType)
+	// OAuth-style token grants for non-browser clients; opt-in per
+	// deployment via APP_JWT_SECRET (otherwise 501).
+	tokens.RegisterHTTP(api, tokens.HTTP{
+		Svc: services.Tokens, Audit: services.Audit, Logger: logger,
+		AuthRateLimit: app.authRateLimit(),
+	})
 
-	// RBAC administration.
-	authorized.GET("/rbac/catalog", app.apiRbacCatalog)
-	authorized.GET("/roles", app.requirePermission("roles", "read"), app.apiRoles)
-	authorized.POST("/roles", app.requirePermission("roles", "create"), app.apiCreateRole)
-	authorized.PUT("/roles/:key", app.requirePermission("roles", "update"), app.apiUpdateRole)
-	authorized.DELETE("/roles/:key", app.requirePermission("roles", "delete"), app.apiDeleteRole)
-	authorized.GET("/roles/:key/permissions", app.requirePermission("roles", "read"), app.apiRolePermissions)
-	authorized.PUT("/roles/:key/permissions", app.requirePermission("roles", "update"), app.apiSetRolePermissions)
-	authorized.GET("/policies", app.requirePermission("policies", "read"), app.apiPolicies)
-	authorized.POST("/policies", app.requirePermission("policies", "create"), app.apiAddPolicy)
-	authorized.DELETE("/policies", app.requirePermission("policies", "delete"), app.apiRemovePolicy)
-	authorized.GET("/users/:id/roles", app.requirePermission("users", "read"), app.apiUserRoles)
-	authorized.POST("/users/:id/roles", app.requirePermission("users", "update"), app.apiAssignUserRole)
-	authorized.DELETE("/users/:id/roles", app.requirePermission("users", "update"), app.apiUnassignUserRole)
-	authorized.GET("/orgs", app.requirePermission("orgs", "read"), app.apiOrgs)
-	authorized.POST("/orgs", app.requirePermission("orgs", "create"), app.apiCreateOrg)
-	authorized.GET("/orgs/:id", app.requirePermission("orgs", "read"), app.apiGetOrg)
-	authorized.PUT("/orgs/:id", app.requirePermission("orgs", "update"), app.apiUpdateOrg)
-	authorized.DELETE("/orgs/:id", app.requirePermission("orgs", "delete"), app.apiDeleteOrg)
-	authorized.GET("/orgs/:id/members", app.requirePermission("orgs", "read"), app.apiOrgMembers)
-	authorized.POST("/orgs/:id/members", app.requirePermission("orgs", "update"), app.apiAddOrgMember)
-	authorized.DELETE("/orgs/:id/members/:userId", app.requirePermission("orgs", "update"), app.apiRemoveOrgMember)
-	authorized.GET("/orgs/:id/invitations", app.requirePermission("orgs", "read"), app.apiOrgInvitations)
-	authorized.POST("/orgs/:id/invitations", app.requirePermission("orgs", "update"), app.apiInviteOrgMember)
-	authorized.DELETE("/orgs/:id/invitations/:invId", app.requirePermission("orgs", "update"), app.apiRevokeOrgInvitation)
-	authorized.GET("/invitations", app.apiMyInvitations)
-	authorized.POST("/invitations/accept", app.apiAcceptInvitation)
-
-	// OAuth link flows stay on the server: redirects and callbacks.
-	r.GET("/auth/:provider/login", app.apiAuthHandler(app.oauthLogin))
-	r.GET("/auth/:provider/callback", app.oauthCallback)
+	// OAuth link flows stay on the server: redirects and callbacks (outside
+	// /api, per the SPA's contract).
+	auth.RegisterRoot(r, auth.HTTP{
+		Svc: services.Auth, OAuth: app.oauth, Logger: logger,
+		SessionTTL: cfg.SessionTTL, CookieSecure: cfg.CookieSecure, OAuthStateTTL: cfg.OAuthStateTTL,
+	})
 	return r
 }
 
@@ -307,7 +278,7 @@ func (a *App) sessionToken(c *gin.Context) string {
 // subgroup.
 func (a *App) apiAuthRequired(c *gin.Context) {
 	token := a.sessionToken(c)
-	if strings.HasPrefix(token, service.APIKeyPrefix) {
+	if strings.HasPrefix(token, apikeys.Prefix) {
 		key, _, err := a.services.APIKeys.Resolve(c.Request.Context(), token)
 		if err != nil {
 			a.problem(c, http.StatusUnauthorized, "unauthorized", nil)
@@ -359,37 +330,10 @@ func (a *App) jwtAuth(c *gin.Context, token string) {
 	c.Set("user", user)
 }
 
-// apiAuthHandler guards the server-side OAuth redirect routes, which still
-// answer redirects rather than problem+json.
-func (a *App) apiAuthHandler(next gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, err := a.services.Auth.CurrentUser(c.Request.Context(), a.sessionToken(c))
-		if err != nil {
-			c.Redirect(http.StatusSeeOther, "/login")
-			return
-		}
-		c.Set("user_id", user.ID)
-		c.Set("user", user)
-		next(c)
-	}
-}
-
 // currentUser returns the user resolved by apiAuth.
-func (a *App) currentUser(c *gin.Context) model.User {
+func (a *App) currentUser(c *gin.Context) users.User {
 	user, _ := c.Get("user")
-	return user.(model.User)
-}
-
-// setSession issues the session cookie with the hardening flags; the TTL
-// itself is enforced server-side.
-func (a *App) setSession(c *gin.Context, token string) {
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("app_session", token, int(a.cfg.SessionTTL.Seconds()), "/", "", a.cfg.CookieSecure, true)
-}
-
-func (a *App) clearSession(c *gin.Context) {
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("app_session", "", -1, "/", "", a.cfg.CookieSecure, true)
+	return user.(users.User)
 }
 
 func intQuery(c *gin.Context, name string, fallback int) int {
@@ -400,8 +344,8 @@ func intQuery(c *gin.Context, name string, fallback int) int {
 	return value
 }
 
-func listOptions(c *gin.Context) repository.ListOptions {
-	return repository.ListOptions{
+func listOptions(c *gin.Context) kernel.ListOptions {
+	return kernel.ListOptions{
 		Query: c.Query("q"), Mode: c.DefaultQuery("mode", "offset"), Limit: intQuery(c, "limit", 25),
 		Offset: intQuery(c, "offset", 0), After: c.Query("after"),
 		Status: c.Query("status"), Type: c.Query("type"),

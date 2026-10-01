@@ -6,6 +6,8 @@
 // plain e2e suite keeps working without the streams.
 package e2e
 
+import ()
+
 import (
 	"context"
 	"encoding/json"

@@ -3,11 +3,13 @@ package postgres
 import (
 	"context"
 
-	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/platform/postgres/db"
+	"github.com/your-org/go-template/internal/tokens"
 )
 
-func (s *Store) CreateRefreshToken(ctx context.Context, token model.RefreshToken) error {
+var _ tokens.Store = (*Store)(nil)
+
+func (s *Store) CreateRefreshToken(ctx context.Context, token tokens.RefreshToken) error {
 	return mapErr(s.q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
 		ID:        token.ID,
 		UserID:    token.UserID,
@@ -19,12 +21,12 @@ func (s *Store) CreateRefreshToken(ctx context.Context, token model.RefreshToken
 	}))
 }
 
-func (s *Store) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (model.RefreshToken, error) {
+func (s *Store) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (tokens.RefreshToken, error) {
 	row, err := s.q.GetRefreshTokenByHash(ctx, tokenHash)
 	if err != nil {
-		return model.RefreshToken{}, mapErr(err)
+		return tokens.RefreshToken{}, mapErr(err)
 	}
-	out := model.RefreshToken{
+	out := tokens.RefreshToken{
 		ID:         row.ID,
 		UserID:     row.UserID,
 		FamilyID:   row.FamilyID,

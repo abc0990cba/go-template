@@ -5,43 +5,15 @@ package postgres
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/platform/postgres/db"
-	"github.com/your-org/go-template/internal/repository"
+	"github.com/your-org/go-template/internal/tickets"
 )
-
-// stepsToJSON renders the approval chain for the jsonb column.
-func stepsToJSON(steps []model.TicketStep) string {
-	raw, err := json.Marshal(steps)
-	if err != nil {
-		return "[]"
-	}
-	return string(raw)
-}
-
-// stepsFromJSON parses the stored chain; a corrupt value degrades to an
-// empty chain instead of failing every read.
-func stepsFromJSON(raw string) []model.TicketStep {
-	var steps []model.TicketStep
-	if err := json.Unmarshal([]byte(raw), &steps); err != nil || steps == nil {
-		return []model.TicketStep{}
-	}
-	return steps
-}
-
-func ticketTypeFromRow(row db.TicketType) model.TicketType {
-	return model.TicketType{
-		ID: row.ID, OrgID: row.OrgID, Key: row.Key, Name: row.Name,
-		Description: row.Description, Steps: stepsFromJSON(row.Steps), Active: row.Active,
-		CreatedBy: row.CreatedBy, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
-	}
-}
 
 // ts converts an optional time to the pgx nullable type.
 func ts(t *time.Time) pgtype.Timestamptz {
@@ -60,8 +32,8 @@ func tsPtr(t pgtype.Timestamptz) *time.Time {
 	return &value
 }
 
-func ticketFromRow(row db.Ticket) model.Ticket {
-	return model.Ticket{
+func ticketFromRow(row db.Ticket) tickets.Ticket {
+	return tickets.Ticket{
 		ID: row.ID, Number: int(row.Number), OrgID: row.OrgID, TypeID: row.TypeID,
 		TypeKey: row.TypeKey, Title: row.Title, Description: row.Description,
 		Priority: row.Priority, Status: row.Status, CurrentStep: int(row.CurrentStep),
@@ -70,71 +42,9 @@ func ticketFromRow(row db.Ticket) model.Ticket {
 	}
 }
 
-// CreateTicketType stores one type; the (org_id, key) unique index guards
-// duplicates.
-func (s *Store) CreateTicketType(ctx context.Context, typ model.TicketType) error {
-	return mapErr(s.q.InsertTicketType(ctx, db.InsertTicketTypeParams{
-		ID: typ.ID, OrgID: typ.OrgID, Key: typ.Key, Name: typ.Name,
-		Description: typ.Description, Column6: stepsToJSON(typ.Steps), Active: typ.Active,
-		CreatedBy: typ.CreatedBy, CreatedAt: typ.CreatedAt, UpdatedAt: typ.UpdatedAt,
-	}))
-}
-
-// GetTicketType returns the type by id.
-func (s *Store) GetTicketType(ctx context.Context, id string) (model.TicketType, error) {
-	row, err := s.q.GetTicketType(ctx, id)
-	if err != nil {
-		return model.TicketType{}, mapErr(err)
-	}
-	return ticketTypeFromRow(row), nil
-}
-
-// GetTicketTypeByKey resolves a type in one organization's namespace.
-func (s *Store) GetTicketTypeByKey(ctx context.Context, orgID, key string) (model.TicketType, error) {
-	row, err := s.q.GetTicketTypeByKey(ctx, db.GetTicketTypeByKeyParams{OrgID: orgID, Key: key})
-	if err != nil {
-		return model.TicketType{}, mapErr(err)
-	}
-	return ticketTypeFromRow(row), nil
-}
-
-// UpdateTicketType rewrites the mutable fields.
-func (s *Store) UpdateTicketType(ctx context.Context, typ model.TicketType) error {
-	return mapErr(s.q.UpdateTicketType(ctx, db.UpdateTicketTypeParams{
-		ID: typ.ID, Name: typ.Name, Description: typ.Description,
-		Column4: stepsToJSON(typ.Steps), Active: typ.Active,
-	}))
-}
-
-// DeleteTicketType removes the type and reports ErrNotFound when absent.
-func (s *Store) DeleteTicketType(ctx context.Context, id string) error {
-	n, err := s.q.DeleteTicketType(ctx, id)
-	if err != nil {
-		return mapErr(err)
-	}
-	if n == 0 {
-		return repository.ErrNotFound
-	}
-	return nil
-}
-
-// ListTicketTypes returns the platform-wide types plus the organization's
-// own, ordered by key.
-func (s *Store) ListTicketTypes(ctx context.Context, orgID string) ([]model.TicketType, error) {
-	rows, err := s.q.ListTicketTypes(ctx, orgID)
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	types := make([]model.TicketType, 0, len(rows))
-	for _, row := range rows {
-		types = append(types, ticketTypeFromRow(row))
-	}
-	return types, nil
-}
-
 // CreateTicket stores the ticket; the INSERT assigns the per-organization
 // sequence number and returns it.
-func (s *Store) CreateTicket(ctx context.Context, ticket model.Ticket) (int, error) {
+func (s *Store) CreateTicket(ctx context.Context, ticket tickets.Ticket) (int, error) {
 	number, err := s.q.InsertTicket(ctx, db.InsertTicketParams{
 		ID: ticket.ID, OrgID: ticket.OrgID, TypeID: ticket.TypeID, TypeKey: ticket.TypeKey,
 		Title: ticket.Title, Description: ticket.Description, Priority: ticket.Priority,
@@ -148,16 +58,16 @@ func (s *Store) CreateTicket(ctx context.Context, ticket model.Ticket) (int, err
 }
 
 // GetTicket returns the ticket by id.
-func (s *Store) GetTicket(ctx context.Context, id string) (model.Ticket, error) {
+func (s *Store) GetTicket(ctx context.Context, id string) (tickets.Ticket, error) {
 	row, err := s.q.GetTicket(ctx, id)
 	if err != nil {
-		return model.Ticket{}, mapErr(err)
+		return tickets.Ticket{}, mapErr(err)
 	}
 	return ticketFromRow(row), nil
 }
 
 // UpdateTicket rewrites the mutable columns.
-func (s *Store) UpdateTicket(ctx context.Context, ticket model.Ticket) error {
+func (s *Store) UpdateTicket(ctx context.Context, ticket tickets.Ticket) error {
 	n, err := s.q.UpdateTicket(ctx, db.UpdateTicketParams{
 		ID: ticket.ID, Title: ticket.Title, Description: ticket.Description,
 		Priority: ticket.Priority, Status: ticket.Status,
@@ -168,7 +78,7 @@ func (s *Store) UpdateTicket(ctx context.Context, ticket model.Ticket) error {
 		return mapErr(err)
 	}
 	if n == 0 {
-		return fmt.Errorf("%w: ticket not found", repository.ErrNotFound)
+		return fmt.Errorf("%w: ticket not found", kernel.ErrNotFound)
 	}
 	return nil
 }
@@ -180,14 +90,14 @@ func (s *Store) DeleteTicket(ctx context.Context, id string) error {
 		return mapErr(err)
 	}
 	if n == 0 {
-		return repository.ErrNotFound
+		return kernel.ErrNotFound
 	}
 	return nil
 }
 
 // ListTickets pages tickets newest first; cursor/keyset continue after
 // After, and the returned cursor is empty on the last page.
-func (s *Store) ListTickets(ctx context.Context, opts repository.TicketOptions) ([]model.Ticket, string, error) {
+func (s *Store) ListTickets(ctx context.Context, opts kernel.TicketOptions) ([]tickets.Ticket, string, error) {
 	const def = 25
 	limit := int32(def)
 	if opts.Limit > 0 && opts.Limit <= 100 {
@@ -223,13 +133,13 @@ func (s *Store) ListTickets(ctx context.Context, opts repository.TicketOptions) 
 }
 
 // ticketsPage trims the limit+1th row and derives the next cursor.
-func ticketsPage(rows []db.Ticket, limit int32) ([]model.Ticket, string) {
+func ticketsPage(rows []db.Ticket, limit int32) ([]tickets.Ticket, string) {
 	next := ""
 	if len(rows) > int(limit) {
 		rows = rows[:limit]
 		next = rows[limit-1].ID
 	}
-	tickets := make([]model.Ticket, 0, len(rows))
+	tickets := make([]tickets.Ticket, 0, len(rows))
 	for _, row := range rows {
 		tickets = append(tickets, ticketFromRow(row))
 	}
@@ -251,7 +161,7 @@ func (s *Store) CountTicketsByStatus(ctx context.Context, orgID, createdBy strin
 
 // ReplaceApprovals rewrites the ticket's steps in one transaction: the old
 // chain goes away, then every step is inserted fresh.
-func (s *Store) ReplaceApprovals(ctx context.Context, ticketID string, steps []model.TicketApproval) error {
+func (s *Store) ReplaceApprovals(ctx context.Context, ticketID string, steps []tickets.TicketApproval) error {
 	return s.tx(ctx, func(q *db.Queries) error {
 		if err := q.DeleteTicketApprovals(ctx, ticketID); err != nil {
 			return mapErr(err)
@@ -275,8 +185,8 @@ func (s *Store) ReplaceApprovals(ctx context.Context, ticketID string, steps []m
 }
 
 // approvalFromRow converts one stored step.
-func approvalFromRow(row db.TicketApproval) model.TicketApproval {
-	return model.TicketApproval{
+func approvalFromRow(row db.TicketApproval) tickets.TicketApproval {
+	return tickets.TicketApproval{
 		ID: row.ID, TicketID: row.TicketID, StepIndex: int(row.StepIndex),
 		Name: row.Name, ApproverRole: row.ApproverRole, Status: row.Status,
 		DecidedBy: row.DecidedBy, DecidedAt: tsPtr(row.DecidedAt), Comment: row.Comment,
@@ -285,12 +195,12 @@ func approvalFromRow(row db.TicketApproval) model.TicketApproval {
 }
 
 // ListApprovals returns the ticket's steps in order.
-func (s *Store) ListApprovals(ctx context.Context, ticketID string) ([]model.TicketApproval, error) {
+func (s *Store) ListApprovals(ctx context.Context, ticketID string) ([]tickets.TicketApproval, error) {
 	rows, err := s.q.ListTicketApprovals(ctx, ticketID)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	steps := make([]model.TicketApproval, 0, len(rows))
+	steps := make([]tickets.TicketApproval, 0, len(rows))
 	for _, row := range rows {
 		steps = append(steps, approvalFromRow(row))
 	}
@@ -298,7 +208,7 @@ func (s *Store) ListApprovals(ctx context.Context, ticketID string) ([]model.Tic
 }
 
 // UpdateApproval rewrites one step's decision data.
-func (s *Store) UpdateApproval(ctx context.Context, approval model.TicketApproval) error {
+func (s *Store) UpdateApproval(ctx context.Context, approval tickets.TicketApproval) error {
 	return mapErr(s.q.UpdateTicketApproval(ctx, db.UpdateTicketApprovalParams{
 		ID: approval.ID, Status: approval.Status, DecidedBy: approval.DecidedBy,
 		DecidedAt: ts(approval.DecidedAt), Comment: approval.Comment,
@@ -307,7 +217,7 @@ func (s *Store) UpdateApproval(ctx context.Context, approval model.TicketApprova
 
 // ListTicketsForApprover pages in-review tickets whose current pending step
 // matches one of the given roles.
-func (s *Store) ListTicketsForApprover(ctx context.Context, orgID string, roles []string, opts repository.ListOptions) ([]model.Ticket, string, error) {
+func (s *Store) ListTicketsForApprover(ctx context.Context, orgID string, roles []string, opts kernel.ListOptions) ([]tickets.Ticket, string, error) {
 	const def = 25
 	limit := int32(def)
 	if opts.Limit > 0 && opts.Limit <= 100 {
@@ -346,7 +256,7 @@ func (s *Store) CountTicketsForApprover(ctx context.Context, orgID string, roles
 
 // ListDecidedApprovals returns the user's past decisions with their ticket
 // snapshots, newest first.
-func (s *Store) ListDecidedApprovals(ctx context.Context, userID string, limit, offset int) ([]model.TicketDecision, error) {
+func (s *Store) ListDecidedApprovals(ctx context.Context, userID string, limit, offset int) ([]tickets.TicketDecision, error) {
 	lim := int32(25)
 	if limit > 0 && limit <= 100 {
 		lim = int32(limit)
@@ -359,16 +269,16 @@ func (s *Store) ListDecidedApprovals(ctx context.Context, userID string, limit, 
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	decisions := make([]model.TicketDecision, 0, len(rows))
+	decisions := make([]tickets.TicketDecision, 0, len(rows))
 	for _, row := range rows {
-		decisions = append(decisions, model.TicketDecision{
-			Approval: model.TicketApproval{
+		decisions = append(decisions, tickets.TicketDecision{
+			Approval: tickets.TicketApproval{
 				ID: row.ID, TicketID: row.TicketID, StepIndex: int(row.StepIndex),
 				Name: row.Name, ApproverRole: row.ApproverRole, Status: row.Status,
 				DecidedBy: row.DecidedBy, DecidedAt: tsPtr(row.DecidedAt), Comment: row.Comment,
 				CreatedAt: row.CreatedAt,
 			},
-			Ticket: model.Ticket{
+			Ticket: tickets.Ticket{
 				ID: row.TicketID, Number: int(row.Number), OrgID: row.OrgID, TypeID: row.TypeID,
 				TypeKey: row.TypeKey, Title: row.Title, Description: row.Description,
 				Priority: row.Priority, Status: row.Status_2, CurrentStep: int(row.CurrentStep),
@@ -378,66 +288,4 @@ func (s *Store) ListDecidedApprovals(ctx context.Context, userID string, limit, 
 		})
 	}
 	return decisions, nil
-}
-
-// AddTicketComment appends one comment.
-func (s *Store) AddTicketComment(ctx context.Context, comment model.TicketComment) error {
-	return mapErr(s.q.InsertTicketComment(ctx, db.InsertTicketCommentParams{
-		ID: comment.ID, TicketID: comment.TicketID, AuthorID: comment.AuthorID,
-		Body: comment.Body, CreatedAt: comment.CreatedAt,
-	}))
-}
-
-// ListTicketComments pages the ticket's comments newest first.
-func (s *Store) ListTicketComments(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketComment, error) {
-	lim, off := pageBounds(limit, offset)
-	rows, err := s.q.ListTicketComments(ctx, db.ListTicketCommentsParams{TicketID: ticketID, Lim: lim, Off: off})
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	comments := make([]model.TicketComment, 0, len(rows))
-	for _, row := range rows {
-		comments = append(comments, model.TicketComment{
-			ID: row.ID, TicketID: row.TicketID, AuthorID: row.AuthorID, Body: row.Body, CreatedAt: row.CreatedAt,
-		})
-	}
-	return comments, nil
-}
-
-// AddTicketEvent appends one timeline entry.
-func (s *Store) AddTicketEvent(ctx context.Context, event model.TicketEvent) error {
-	return mapErr(s.q.InsertTicketEvent(ctx, db.InsertTicketEventParams{
-		ID: event.ID, TicketID: event.TicketID, ActorID: event.ActorID,
-		Action: event.Action, Detail: event.Detail, CreatedAt: event.CreatedAt,
-	}))
-}
-
-// ListTicketEvents pages the ticket's timeline newest first.
-func (s *Store) ListTicketEvents(ctx context.Context, ticketID string, limit, offset int) ([]model.TicketEvent, error) {
-	lim, off := pageBounds(limit, offset)
-	rows, err := s.q.ListTicketEvents(ctx, db.ListTicketEventsParams{TicketID: ticketID, Lim: lim, Off: off})
-	if err != nil {
-		return nil, mapErr(err)
-	}
-	events := make([]model.TicketEvent, 0, len(rows))
-	for _, row := range rows {
-		events = append(events, model.TicketEvent{
-			ID: row.ID, TicketID: row.TicketID, ActorID: row.ActorID,
-			Action: row.Action, Detail: row.Detail, CreatedAt: row.CreatedAt,
-		})
-	}
-	return events, nil
-}
-
-// pageBounds clamps a limit/offset pair into sqlc's int32 arguments.
-func pageBounds(limit, offset int) (int32, int32) {
-	lim := int32(25)
-	if limit > 0 && limit <= 100 {
-		lim = int32(limit)
-	}
-	off := int32(0)
-	if offset > 0 {
-		off = int32(min(offset, 1<<31-1)) // #nosec G115 -- clamped to int32 range
-	}
-	return lim, off
 }

@@ -22,13 +22,13 @@ import (
 	"github.com/twmb/franz-go/pkg/kadm"
 	"github.com/twmb/franz-go/pkg/kgo"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/kernel"
 	kafkaplatform "github.com/your-org/go-template/internal/platform/kafka"
 	natsplatform "github.com/your-org/go-template/internal/platform/nats"
 	"github.com/your-org/go-template/internal/platform/postgres"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
+	"github.com/your-org/go-template/internal/users"
 )
 
 const (
@@ -94,7 +94,7 @@ func TestStreamsBrokerEndToEnd(t *testing.T) {
 
 	// The user both streams enrich.
 	now := time.Now()
-	user := model.User{ID: "e2e-u-1", Email: "e2e@example.com", Name: "E2E", ExternalRef: "e2e-ref", CreatedAt: now, UpdatedAt: now}
+	user := users.User{ID: "e2e-u-1", Email: "e2e@example.com", Name: "E2E", ExternalRef: "e2e-ref", CreatedAt: now, UpdatedAt: now}
 	if err := store.CreateUser(ctx, user, ""); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
@@ -116,8 +116,8 @@ func TestStreamsBrokerEndToEnd(t *testing.T) {
 	t.Cleanup(natsClient.Close)
 
 	observer := observStreams{}
-	svc := service.NewStreamsService(store, observer, logger)
-	publisher := service.MultiPublisher{Publishers: []service.EventPublisher{kafkaClient, natsClient}}
+	svc := streams.NewService(store, observer, logger)
+	publisher := streams.MultiPublisher{Publishers: []streams.Publisher{kafkaClient, natsClient}}
 	svc.WithRelayPublisher(publisher)
 
 	// Consumers under ctx cancelled at test end; supervised like the worker.
@@ -177,16 +177,16 @@ func TestStreamsBrokerEndToEnd(t *testing.T) {
 		Data: json.RawMessage(`{"phone":"x"}`),
 	}))
 	waitFor(t, 20*time.Second, "two dead letters parked", func() bool {
-		letters, _, err := store.ListDeadLetters(ctx, repository.DeadLetterOptions{Pending: true})
+		letters, _, err := store.ListDeadLetters(ctx, kernel.DeadLetterOptions{Pending: true})
 		if err != nil {
 			return false
 		}
 		malformed, unknown := false, false
 		for _, letter := range letters {
 			switch letter.Reason {
-			case model.DeadLetterMalformed:
+			case streams.ReasonMalformed:
 				malformed = true
-			case model.DeadLetterUnknownUser:
+			case streams.ReasonUnknownUser:
 				unknown = true
 			}
 		}
@@ -195,13 +195,13 @@ func TestStreamsBrokerEndToEnd(t *testing.T) {
 
 	// 5. The late-user story: the parked event's user arrives after the fact.
 	//    Replay fails while the user is missing, then lands the event.
-	letters, _, err := store.ListDeadLetters(ctx, repository.DeadLetterOptions{Pending: true})
+	letters, _, err := store.ListDeadLetters(ctx, kernel.DeadLetterOptions{Pending: true})
 	if err != nil {
 		t.Fatalf("list letters: %v", err)
 	}
 	var unknownID string
 	for _, letter := range letters {
-		if letter.Reason == model.DeadLetterUnknownUser {
+		if letter.Reason == streams.ReasonUnknownUser {
 			unknownID = letter.ID
 		}
 	}
@@ -217,7 +217,7 @@ func TestStreamsBrokerEndToEnd(t *testing.T) {
 	}
 	// The user shows up; replay applies the event exactly once.
 	late := now.Add(time.Second)
-	lateUser := model.User{ID: "e2e-u-2", Email: "late@example.com", Name: "Late", ExternalRef: "late-e2e-ref", CreatedAt: late, UpdatedAt: late}
+	lateUser := users.User{ID: "e2e-u-2", Email: "late@example.com", Name: "Late", ExternalRef: "late-e2e-ref", CreatedAt: late, UpdatedAt: late}
 	if err := store.CreateUser(ctx, lateUser, ""); err != nil {
 		t.Fatalf("create late user: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestStreamsBrokerEndToEnd(t *testing.T) {
 
 	// 6. The outbox relay publishes the user.enriched events to Kafka:
 	//    two from the original applies, one from the replay.
-	published, err := svc.RelayOutboxOnce(ctx, publisher, service.RelayConfig{Batch: 100, LeaseSeconds: 60, MaxAttempts: 3})
+	published, err := svc.RelayOutboxOnce(ctx, publisher, streams.RelayConfig{Batch: 100, LeaseSeconds: 60, MaxAttempts: 3})
 	if err != nil || published != 3 {
 		t.Fatalf("relay published = %d err %v, want 3", published, err)
 	}

@@ -17,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/jobs"
 )
 
 // Build carries version metadata exposed on /version and stamped on the
@@ -254,10 +254,10 @@ func InjectHeaders(ctx context.Context, headers map[string]string) {
 	Propagator.Inject(ctx, propagation.MapCarrier(headers))
 }
 
-// JobMetrics adapts the Prometheus counters to service.JobObserver.
+// JobMetrics adapts the Prometheus counters to jobs.Observer.
 type JobMetrics struct{}
 
-var _ service.JobObserver = JobMetrics{}
+var _ jobs.Observer = JobMetrics{}
 
 // NewJobObserver returns the Prometheus-backed job observer.
 func NewJobObserver() JobMetrics { return JobMetrics{} }

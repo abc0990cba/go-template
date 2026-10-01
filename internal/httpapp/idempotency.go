@@ -16,7 +16,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/httpx"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/observ"
 )
 
@@ -65,12 +66,12 @@ func (a *App) idempotency() gin.HandlerFunc {
 		sum := sha256.Sum256(body)
 		hash := hex.EncodeToString(sum[:])
 
-		stored, already, err := a.idempotencyStore.ReserveIdempotency(ctx, model.IdempotencyRecord{
+		stored, already, err := a.idempotencyStore.ReserveIdempotency(ctx, kernel.IdempotencyRecord{
 			Key: key, UserID: user.ID, Method: c.Request.Method, Path: c.Request.URL.Path,
 			RequestHash: hash, ExpiresAt: time.Now().Add(a.cfg.IdempotencyTTL),
 		})
 		if err != nil {
-			a.fail(c, err)
+			httpx.Fail(c, a.logger, err)
 			c.Abort()
 			return
 		}

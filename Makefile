@@ -1,4 +1,4 @@
-.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
+.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
 run:
 	go run ./cmd/api
 
@@ -41,6 +41,14 @@ web-build:
 
 web-lint:
 	cd web && npm run lint && npm run format:check
+
+check-size: ## fail if any hand-written production Go file exceeds 400 lines
+	@oversized=$$(find internal cmd -name '*.go' \
+		! -name '*_test.go' ! -name '*.gen.go' ! -path '*postgres/db*' -exec wc -l {} + | \
+		awk '$$1 > 400 && $$2 != "total" {print $$1 "\t" $$2}'); \
+	if [ -n "$$oversized" ]; then \
+		echo "FILES OVER THE 400-LINE BUDGET:"; echo "$$oversized"; exit 1; \
+	else echo "size budget OK (all hand-written production files <= 400 lines)"; fi
 
 web-test:
 	cd web && npm test

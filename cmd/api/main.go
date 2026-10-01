@@ -18,12 +18,16 @@ import (
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/your-org/go-template/internal/analytics"
+	"github.com/your-org/go-template/internal/cache"
+	"github.com/your-org/go-template/internal/notifications"
 	platformcache "github.com/your-org/go-template/internal/platform/cache"
 
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/export"
 	"github.com/your-org/go-template/internal/httpapp"
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/mailer"
 	asynqqueue "github.com/your-org/go-template/internal/platform/queue"
@@ -31,7 +35,8 @@ import (
 	"github.com/your-org/go-template/internal/platform/rbac"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/tickets"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // Build metadata, stamped at link time:
@@ -99,12 +104,12 @@ func main() {
 	// the ClickHouse buffer keep their behavior, and the hub publishes the
 	// event to connected browsers.
 	fan := realtime.NewFanSink(hub, nonNil(repos.Events)...)
-	var events service.EventSink = fan
+	var events analytics.Sink = fan
 
 	jobQueue, closeQueue := openQueue(cfg)
 	defer closeQueue()
 
-	var webhookDispatcher service.WebhookDispatcher
+	var webhookDispatcher webhooks.Dispatcher
 	if jobQueue != nil {
 		webhookDispatcher = asynqqueue.NewWebhookEnqueuer(cfg.RedisAddr)
 	}
@@ -115,7 +120,7 @@ func main() {
 
 	// Read-through cache: shared via Redis when configured, in-process
 	// otherwise. Users + expanded permissions are the hot reads.
-	var appCache service.Cache
+	var appCache cache.Cache
 	if redisClient != nil {
 		appCache = platformcache.NewRedis(redisClient)
 	} else {
@@ -146,9 +151,9 @@ func main() {
 	}
 
 	sender := openMailer(cfg, logger)
-	services := service.NewContainer(service.Deps{
+	services := bootstrap.NewContainer(bootstrap.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
-		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
+		Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
 		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
 		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
 		MFA:               repos.MFA,
@@ -160,7 +165,7 @@ func main() {
 		Blobs:             blobs,
 		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers, Bulkheads: bulkheads,
 		StreamsObserver: observ.NewStreamsObserver(),
-		Realtime: func(n model.Notification) {
+		Realtime: func(n notifications.Notification) {
 			hub.Publish(realtime.NewEvent(realtime.TypeNotification, n))
 			if bridge != nil {
 				bridge.Publish(realtime.NewEvent(realtime.TypeNotification, n))
@@ -171,19 +176,19 @@ func main() {
 	}, logger, cfg)
 	// The export builder runs wherever jobs execute: the worker in queue
 	// mode, the api's /api/jobs/process in single-process dev mode.
-	services.Jobs.WithExporter(service.NewExportService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
+	services.Jobs.WithExporter(export.NewService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
 
 	if err := services.RBAC.EnsureSystemRoles(ctx); err != nil {
 		logger.Error("seed system roles", "err", err)
 		os.Exit(1)
 	}
-	services.Jobs.WithJobNotifier(func(job model.Job) {
+	services.Jobs.WithJobNotifier(func(job jobs.Job) {
 		hub.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
 		if bridge != nil {
 			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
 		}
 	})
-	services.Tickets.WithNotifier(func(ticket model.Ticket) {
+	services.Tickets.WithNotifier(func(ticket tickets.Ticket) {
 		hub.Publish(realtime.NewEvent(realtime.TypeTicketUpdated, ticket))
 		if bridge != nil {
 			bridge.Publish(realtime.NewEvent(realtime.TypeTicketUpdated, ticket))
@@ -277,8 +282,8 @@ func openRealtimeBridge(ctx context.Context, cfg config.Config, hub *realtime.Hu
 }
 
 // nonNil filters nil sinks so the fan sink only wraps real ones.
-func nonNil(sinks ...service.EventSink) []service.EventSink {
-	out := make([]service.EventSink, 0, len(sinks))
+func nonNil(sinks ...analytics.Sink) []analytics.Sink {
+	out := make([]analytics.Sink, 0, len(sinks))
 	for _, sink := range sinks {
 		if sink != nil {
 			out = append(out, sink)
@@ -351,7 +356,7 @@ func openRedis(cfg config.Config, logger *slog.Logger) *redis.Client {
 
 // openQueue returns the asynq-backed job queue, or nil in single-process
 // development mode where jobs run inline.
-func openQueue(cfg config.Config) (service.JobQueue, func()) {
+func openQueue(cfg config.Config) (jobs.Queue, func()) {
 	if cfg.RedisAddr == "" {
 		return nil, func() {}
 	}

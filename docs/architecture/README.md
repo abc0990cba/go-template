@@ -56,6 +56,7 @@ The set follows **world-standard documentation conventions**:
 | 16 | [Current Architecture Assessment](16-current-architecture-assessment.md) | How is the code organized *today* — folders, layers, real dependency directions, file sizes? |
 | 17 | [Architecture Options](17-architecture-options.md) | DDD, modular monolith, vertical slices, Clean Architecture — which fits best and why? |
 | 18 | [Migration Roadmap](18-migration-roadmap.md) | How do we get to the target structure step by step, and what does "add a feature" look like after? |
+| 19 | [Migration Record](19-migration-record.md) | The compact changelog of the package-by-feature migration: what moved where, why, and how it was verified. |
 
 ### Decisions
 

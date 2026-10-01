@@ -6,7 +6,14 @@ concentric layers — HTTP handlers → services (business logic) → ports
 cross-cutting middleware doing auth, rate limiting, tracing and
 idempotency *before* any handler runs.
 
-## 4.1 Directory map (annotated)
+## 4.1 Directory map (annotated, post-refactor layout)
+
+> Updated 2026-10-01: the codebase was reorganized from package-by-layer to
+> **package-by-feature** (ADR [0021](decisions/0021-package-by-feature.md),
+> the [assessment](16-current-architecture-assessment.md) and
+> [roadmap](18-migration-roadmap.md) record the before/after). Each feature
+> now owns one package: its types, business logic, HTTP handlers, and its
+> store interface.
 
 ```
 ├── cmd/
@@ -16,19 +23,31 @@ idempotency *before* any handler runs.
 │   ├── seed-demo/      Demo dataset loader (-reset to wipe first)
 │   └── devtools/       Local toolbox: publish/consume events, DLQ, breaker, hammer demos
 ├── internal/
-│   ├── api/            oapi-codegen GENERATED wire types only (api.gen.go) — do not edit
-│   ├── bootstrap/      Wiring: store (pg/memory), file store, brokers, demo data
-│   ├── config/         Env parsing + validation; *_FILE secret convention
-│   ├── httpapp/        HTTP layer: router, middleware, handlers, SSE, SPA, ETag
-│   ├── jobs/           Job contract: task types + payload encode/decode
-│   ├── model/          Domain structs shared by every layer
-│   ├── observ/         Prometheus metrics, OTel tracing setup, observers
-│   ├── platform/       ADAPTERS: cache, clickhouse, filestore, kafka, mailer,
-│   │                   nats, oauth, postgres, queue, ratelimit, rbac
+│   ├── api/            oapi-codegen GENERATED wire types only — do not edit
+│   ├── <feature>/      19 FEATURE PACKAGES (auth, users, rbac, tickets, streams, jobs,
+│   │                   files, export, webhooks, mfa, tokens, apikeys, email, invitations,
+│   │                   notifications, analytics, audit, settings, search): each owns
+│   │                   types + service + store.go (interface) + http.go (RegisterHTTP)
+│   ├── kernel/         Shared vocabulary: sentinel errors, NewID, ListOptions,
+│   │                   idempotency record/repo, Pinger — imports nothing internal
+│   ├── cache/          Cache port + read-through helpers (adapters in platform/cache)
+│   ├── httpx/          Cross-cutting HTTP helpers: problem+json, error mapping, binding,
+│   │                   list parsing, session cookies — never imports a feature
+│   ├── httpapp/        ASSEMBLY ONLY: middleware chain, auth dispatch (API key/JWT/
+│   │                   session), org-domain + permission guards, SSE snapshot, SPA,
+│   │                   health/version/docs/metrics, route registration
+│   ├── bootstrap/      Wiring: store (pg/memory), file store, brokers, demo data,
+│   │                   container.go (the composition root for both binaries)
+│   ├── platform/       ADAPTERS: postgres (sqlc), queue (asynq), cache, ratelimit,
+│   │                   filestore (S3/memory), mailer (SMTP/log), oauth, rbac (Casbin),
+│   │                   kafka, nats, clickhouse — implement the feature Store interfaces
+│   ├── repository/     In-memory store (implements every feature Store; one file per
+│   │                   feature) — kept equivalent by contract tests
 │   ├── realtime/       SSE hub, event types, Redis bridge, webhook fan-out sink
 │   ├── reliability/    Circuit breaker, retry with jitter, bounded concurrency
-│   ├── repository/     In-memory adapter (the whole store) + Casbin RuleStore
-│   └── service/        BUSINESS LOGIC: one file per domain + ports.go + container.go
+│   ├── observ/         Prometheus metrics, OTel tracing setup, metric observers
+│   ├── config/         Env parsing + validation; *_FILE secret convention
+│   └── jobs/           (merged into the jobs feature package: task contract)
 ├── web/                React SPA (Vite); embed.go does //go:embed dist
 ├── migrations/         postgres/ (18 migrations), clickhouse/ (events)
 ├── queries/            23 sqlc query files, 190 named queries
@@ -39,16 +58,18 @@ idempotency *before* any handler runs.
 └── docs/               feature guides + this architecture set
 ```
 
-The import rule that makes the layering real:
+The dependency rules that make it work:
 
 ```
-httpapp → service → (ports) ← platform, repository
+httpapp → feature packages → kernel/cache/httpx ← platform, repository
+feature → feature           (exported API only; cycles forbidden)
+platform, repository → feature packages (to implement their Store interfaces)
 ```
 
-`internal/service` never imports Gin, pgx, kafka or any adapter package;
-adapters never import services. Compile-time assertions in `ports.go` and
-`store.go` pin both adapters to every port
-(`var _ AuthRepo = (*repository.MemoryStore)(nil)`).
+Business logic never imports Gin, pgx, Kafka or any adapter package.
+Compile-time assertions (`var _ tickets.Store = (*repository.MemoryStore)(nil)`)
+pin both store adapters to every feature interface, and the contract tests
+run identical behavioral suites against both.
 
 ## 4.2 Component diagram
 

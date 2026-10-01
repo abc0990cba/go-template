@@ -15,8 +15,8 @@ import (
 	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 
-	"github.com/your-org/go-template/internal/model"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/analytics"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // Channel is the Redis pub/sub channel every process publishes to.
@@ -97,38 +97,38 @@ func (h *Hub) Subscribers() int {
 	return len(h.subs)
 }
 
-// FanSink is the service.EventSink the api process uses: it forwards every
+// FanSink is the analytics.Sink the api process uses: it forwards every
 // analytics event to the inner sinks (local trail, ClickHouse buffer) and
 // publishes it to the hub for live delivery.
 type FanSink struct {
 	mu    sync.Mutex
 	hub   *Hub
-	inner []service.EventSink
+	inner []analytics.Sink
 }
 
 // Register appends a late-wired inner sink; the api process uses it to hook
 // the webhook fan-out in after the service container exists.
-func (f *FanSink) Register(inner service.EventSink) {
+func (f *FanSink) Register(inner analytics.Sink) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.inner = append(f.inner, inner)
 }
 
 // NewFanSink wraps the given sinks; inner may be nil in tests.
-func NewFanSink(hub *Hub, inner ...service.EventSink) *FanSink {
+func NewFanSink(hub *Hub, inner ...analytics.Sink) *FanSink {
 	return &FanSink{hub: hub, inner: inner}
 }
 
-// AddEvent implements service.EventSink.
+// AddEvent implements analytics.Sink.
 func (f *FanSink) AddEvent(ctx context.Context, event, userID string) {
 	f.mu.Lock()
-	inner := make([]service.EventSink, len(f.inner))
+	inner := make([]analytics.Sink, len(f.inner))
 	copy(inner, f.inner)
 	f.mu.Unlock()
 	for _, sink := range inner {
 		sink.AddEvent(ctx, event, userID)
 	}
-	f.hub.Publish(NewEvent(TypeAnalyticsEvent, model.EventRecord{Name: event, OccurredAt: time.Now(), UserID: userID}))
+	f.hub.Publish(NewEvent(TypeAnalyticsEvent, analytics.EventRecord{Name: event, OccurredAt: time.Now(), UserID: userID}))
 }
 
 // RedisBridge relays events between the api and worker processes. The worker
@@ -183,10 +183,10 @@ func (b *RedisBridge) Close() error { return b.rdb.Close() }
 // WebhookSink adapts the webhook fan-out to the EventSink shape so the
 // fan sink can forward analytics events to subscribed endpoints.
 type WebhookSink struct {
-	Webhooks service.WebhookFan
+	Webhooks webhooks.Fan
 }
 
-// AddEvent implements service.EventSink.
+// AddEvent implements analytics.Sink.
 func (s WebhookSink) AddEvent(ctx context.Context, event, userID string) {
 	s.Webhooks.HandleEvent(ctx, event, userID)
 }

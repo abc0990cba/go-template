@@ -1,6 +1,6 @@
 # ADR 0021 — Reorganize to Package-by-Feature (Vertical Slices)
 
-**Status:** Accepted
+**Status:** Accepted — Implemented 2026-10-01 (all 19 feature packages migrated in one session; the compact changelog lives in the [Migration Record](../19-migration-record.md), the plan in the [roadmap](../18-migration-roadmap.md), the layout in [04 §4.1](../04-components-and-code-map.md))
 
 ## Context
 

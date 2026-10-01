@@ -18,7 +18,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/your-org/go-template/internal/config"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // demoEnvelope mirrors the enrichment wire format the streams decode.
@@ -41,7 +41,7 @@ type DemoEnricher struct {
 	contactSubject string
 }
 
-var _ service.EnrichDemoPublisher = (*DemoEnricher)(nil)
+var _ streams.DemoPublisher = (*DemoEnricher)(nil)
 
 // OpenDemoEnricher connects producer-only clients and ensures the topics and
 // the JetStream stream exist. It returns nil (with a warning) when neither

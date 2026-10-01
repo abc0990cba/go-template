@@ -4,6 +4,8 @@
 // docker-compose to read mail in a browser UI).
 package mailer
 
+import ()
+
 import (
 	"bytes"
 	"context"

@@ -11,11 +11,11 @@ import (
 	"github.com/hibiken/asynq"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
 
+	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/jobs"
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/platform/queue"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
 )
 
 func TestQueueEndToEnd(t *testing.T) {
@@ -39,8 +39,8 @@ func TestQueueEndToEnd(t *testing.T) {
 	store := repository.NewMemoryStore()
 	jobQueue := queue.New(addr)
 	t.Cleanup(func() { _ = jobQueue.Close() })
-	services := service.NewContainer(service.Deps{
-		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
+	services := bootstrap.NewContainer(bootstrap.Deps{
+		Auth: store, Users: store, Jobs: store, Reports: store,
 		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Mailer: nil, Queue: jobQueue,
 	}, testLogger(), testConfig(t))
 
@@ -51,7 +51,7 @@ func TestQueueEndToEnd(t *testing.T) {
 	t.Cleanup(server.Shutdown)
 
 	t.Run("report job runs through redis", func(t *testing.T) {
-		before, _, err := services.Reports.List(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
+		before, _, err := services.Reports.List(ctx, kernel.ListOptions{Mode: "offset", Limit: 100})
 		if err != nil {
 			t.Fatalf("list reports: %v", err)
 		}
@@ -60,7 +60,7 @@ func TestQueueEndToEnd(t *testing.T) {
 		}
 		waitForJob(t, ctx, services, "done", 15*time.Second)
 
-		after, _, err := services.Reports.List(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
+		after, _, err := services.Reports.List(ctx, kernel.ListOptions{Mode: "offset", Limit: 100})
 		if err != nil {
 			t.Fatalf("list reports: %v", err)
 		}
@@ -71,7 +71,7 @@ func TestQueueEndToEnd(t *testing.T) {
 
 	t.Run("task ids dedupe", func(t *testing.T) {
 		now := time.Now()
-		job := model.Job{ID: "dedup-1", Type: jobs.TypeReportGenerate, Status: "queued", CreatedAt: now, UpdatedAt: now}
+		job := jobs.Job{ID: "dedup-1", Type: jobs.TypeReportGenerate, Status: "queued", CreatedAt: now, UpdatedAt: now}
 		if err := jobQueue.Enqueue(ctx, job); err != nil {
 			t.Fatalf("first enqueue: %v", err)
 		}
@@ -87,11 +87,11 @@ func TestQueueEndToEnd(t *testing.T) {
 	})
 }
 
-func waitForJob(t *testing.T, ctx context.Context, services *service.Container, wantStatus string, timeout time.Duration) {
+func waitForJob(t *testing.T, ctx context.Context, services *bootstrap.Container, wantStatus string, timeout time.Duration) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		jobs, _, err := services.Jobs.List(ctx, repository.ListOptions{Mode: "offset", Limit: 100})
+		jobs, _, err := services.Jobs.List(ctx, kernel.ListOptions{Mode: "offset", Limit: 100})
 		if err != nil {
 			t.Fatalf("list jobs: %v", err)
 		}

@@ -17,14 +17,12 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/your-org/go-template/internal/model"
-
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/analytics"
 )
 
 var (
-	_ service.EventSink  = (*EventBuffer)(nil)
-	_ service.EventStats = (*Client)(nil)
+	_ analytics.Sink  = (*EventBuffer)(nil)
+	_ analytics.Stats = (*Client)(nil)
 )
 
 // Client wraps the ClickHouse connection.
@@ -115,7 +113,7 @@ func (c *Client) EventCounts(ctx context.Context) (map[string]int64, error) {
 }
 
 // EventTimeseries returns per-day per-event counts for the last days days.
-func (c *Client) EventTimeseries(ctx context.Context, days int) ([]model.EventDayPoint, error) {
+func (c *Client) EventTimeseries(ctx context.Context, days int) ([]analytics.EventDayPoint, error) {
 	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT toString(toDate(occurred_at)) AS day, event_name, toInt64(count()) "+
 			"FROM analytics_events WHERE occurred_at >= now() - toIntervalDay(?) "+
@@ -147,20 +145,20 @@ func (c *Client) EventTimeseries(ctx context.Context, days int) ([]model.EventDa
 		days2 = append(days2, day)
 	}
 	sort.Strings(days2)
-	points := make([]model.EventDayPoint, 0, len(days2))
+	points := make([]analytics.EventDayPoint, 0, len(days2))
 	for _, day := range days2 {
 		var total int64
 		for _, n := range byDay[day] {
 			total += n
 		}
-		points = append(points, model.EventDayPoint{Day: day, Events: byDay[day], Total: total})
+		points = append(points, analytics.EventDayPoint{Day: day, Events: byDay[day], Total: total})
 	}
 	return points, nil
 }
 
 // RecentEvents returns the newest events of the trail with their acting
 // user ids, newest first.
-func (c *Client) RecentEvents(ctx context.Context, limit int) ([]model.EventRecord, error) {
+func (c *Client) RecentEvents(ctx context.Context, limit int) ([]analytics.EventRecord, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
 	}
@@ -171,9 +169,9 @@ func (c *Client) RecentEvents(ctx context.Context, limit int) ([]model.EventReco
 		return nil, fmt.Errorf("query recent events: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	events := make([]model.EventRecord, 0, limit)
+	events := make([]analytics.EventRecord, 0, limit)
 	for rows.Next() {
-		var record model.EventRecord
+		var record analytics.EventRecord
 		if err := rows.Scan(&record.Name, &record.OccurredAt, &record.UserID, &record.Properties); err != nil {
 			return nil, fmt.Errorf("scan recent events: %w", err)
 		}
@@ -184,7 +182,7 @@ func (c *Client) RecentEvents(ctx context.Context, limit int) ([]model.EventReco
 
 // InsertEvents writes a batch of historical events (demo seed backfill) in
 // one prepared-batch insert.
-func (c *Client) InsertEvents(ctx context.Context, events []model.EventRecord) error {
+func (c *Client) InsertEvents(ctx context.Context, events []analytics.EventRecord) error {
 	if len(events) == 0 {
 		return nil
 	}
@@ -209,7 +207,7 @@ func (c *Client) InsertEvents(ctx context.Context, events []model.EventRecord) e
 
 // EventBreakdown groups the window's events by one JSON property
 // dimension; missing dimensions collapse into the empty name.
-func (c *Client) EventBreakdown(ctx context.Context, dimension string, days int) ([]model.NameCount, error) {
+func (c *Client) EventBreakdown(ctx context.Context, dimension string, days int) ([]analytics.NameCount, error) {
 	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT JSONExtractString(properties, ?) AS dim, toInt64(count()) "+
 			"FROM analytics_events WHERE occurred_at >= now() - toIntervalDay(?) "+
@@ -218,9 +216,9 @@ func (c *Client) EventBreakdown(ctx context.Context, dimension string, days int)
 		return nil, fmt.Errorf("query breakdown: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := make([]model.NameCount, 0, 10)
+	out := make([]analytics.NameCount, 0, 10)
 	for rows.Next() {
-		var row model.NameCount
+		var row analytics.NameCount
 		if err := rows.Scan(&row.Name, &row.Count); err != nil {
 			return nil, fmt.Errorf("scan breakdown: %w", err)
 		}
@@ -230,7 +228,7 @@ func (c *Client) EventBreakdown(ctx context.Context, dimension string, days int)
 }
 
 // DailyActiveUsers counts distinct event-attributed users per day.
-func (c *Client) DailyActiveUsers(ctx context.Context, days int) ([]model.DayCount, error) {
+func (c *Client) DailyActiveUsers(ctx context.Context, days int) ([]analytics.DayCount, error) {
 	rows, err := c.conn.Query(tracedCtx(ctx),
 		"SELECT toString(toDate(occurred_at)) AS day, toInt64(uniqExact(user_id)) "+
 			"FROM analytics_events WHERE occurred_at >= now() - toIntervalDay(?) AND user_id != '' "+
@@ -239,9 +237,9 @@ func (c *Client) DailyActiveUsers(ctx context.Context, days int) ([]model.DayCou
 		return nil, fmt.Errorf("query dau: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
-	out := make([]model.DayCount, 0, days)
+	out := make([]analytics.DayCount, 0, days)
 	for rows.Next() {
-		var row model.DayCount
+		var row analytics.DayCount
 		if err := rows.Scan(&row.Day, &row.Count); err != nil {
 			return nil, fmt.Errorf("scan dau: %w", err)
 		}

@@ -1,4 +1,4 @@
-// Package queue adapts asynq (Redis-backed) to the service JobQueue port:
+// Package queue adapts asynq (Redis-backed) to the jobs.Queue port:
 // task ids mirror job ids, which makes enqueueing idempotent, and options
 // bound retries and run time per task.
 package queue
@@ -12,8 +12,8 @@ import (
 	"github.com/hibiken/asynq"
 
 	"github.com/your-org/go-template/internal/jobs"
-	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // Queue is the asynq-backed producer.
@@ -28,7 +28,7 @@ func New(redisAddr string) *Queue {
 
 // Enqueue publishes the job as a task. The asynq task id equals the job id,
 // so a retried producer request cannot create a duplicate job.
-func (q *Queue) Enqueue(ctx context.Context, job model.Job) error {
+func (q *Queue) Enqueue(ctx context.Context, job jobs.Job) error {
 	var (
 		payload any
 		opts    []asynq.Option
@@ -80,10 +80,12 @@ func (q *Queue) Enqueue(ctx context.Context, job model.Job) error {
 func (q *Queue) Close() error { return q.client.Close() }
 
 // WebhookEnqueuer pushes webhook deliveries onto the asynq queue; it
-// implements the service.WebhookDispatcher port for multi-process mode.
+// implements the webhooks.Dispatcher port for multi-process mode.
 type WebhookEnqueuer struct {
 	client *asynq.Client
 }
+
+var _ webhooks.Dispatcher = (*WebhookEnqueuer)(nil)
 
 // NewWebhookEnqueuer opens the producer against a Redis address.
 func NewWebhookEnqueuer(redisAddr string) *WebhookEnqueuer {
@@ -91,7 +93,7 @@ func NewWebhookEnqueuer(redisAddr string) *WebhookEnqueuer {
 }
 
 // Deliver enqueues the delivery for the worker process.
-func (w *WebhookEnqueuer) Deliver(ctx context.Context, endpoint model.WebhookEndpoint, delivery model.WebhookDelivery, _ []byte) {
+func (w *WebhookEnqueuer) Deliver(ctx context.Context, endpoint webhooks.Endpoint, delivery webhooks.Delivery, _ []byte) {
 	body, err := json.Marshal(jobs.WebhookDeliver{
 		PayloadVersion: 1, EndpointID: endpoint.ID, DeliveryID: delivery.ID,
 	})

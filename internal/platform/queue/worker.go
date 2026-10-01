@@ -10,14 +10,14 @@ import (
 
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/observ"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // NewMux builds the worker handler set on top of the job service. Handlers
 // decode the versioned payloads, treat malformed ones as non-retryable, and
-// sync the operational job record around execution. webhooks may be nil to
-// skip the webhook task.
-func NewMux(jobService *service.JobService, logger *slog.Logger, webhooks *service.WebhooksService) *asynq.ServeMux {
+// sync the operational job record around execution. The webhooks service may
+// be nil to skip the webhook task.
+func NewMux(jobService *jobs.Service, logger *slog.Logger, webhooks *webhooks.Service) *asynq.ServeMux {
 	// The GDPR export handler lives in the jobs service via WithExporter.
 	mux := asynq.NewServeMux()
 

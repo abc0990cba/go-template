@@ -1,19 +1,19 @@
 package observ
 
-// Prometheus implementation of service.StreamsObserver: enrichment apply
-// outcomes, outbox relay health, and dead-letter depth.
+// Prometheus implementation of streams.Observer: enrichment apply outcomes,
+// outbox relay health, and dead-letter depth.
 
 import (
 	"time"
 
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
 )
 
-// StreamsMetrics adapts the stream gauges and counters to the service
+// StreamsMetrics adapts the stream gauges and counters to the streams
 // observer port.
 type StreamsMetrics struct{}
 
-var _ service.StreamsObserver = StreamsMetrics{}
+var _ streams.Observer = StreamsMetrics{}
 
 // NewStreamsObserver returns the Prometheus-backed streams observer.
 func NewStreamsObserver() StreamsMetrics { return StreamsMetrics{} }

@@ -16,9 +16,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/platform/postgres/db"
-	"github.com/your-org/go-template/internal/repository"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // ApplyStreamEvent merges one enrichment event into its user row with
@@ -32,8 +32,8 @@ import (
 //  4. The JSONB merge only touches the fields the source owns; a
 //     concurrent event for the other source never conflicts.
 //  5. The outbox row commits with the merge or not at all.
-func (s *Store) ApplyStreamEvent(ctx context.Context, event model.StreamEvent) (model.StreamApplyResult, error) {
-	var result model.StreamApplyResult
+func (s *Store) ApplyStreamEvent(ctx context.Context, event streams.Event) (streams.ApplyResult, error) {
+	var result streams.ApplyResult
 	err := s.tx(ctx, func(q *db.Queries) error {
 		lock, err := q.LockUserByExternalRefForSeq(ctx, textOrNull(event.ExternalRef))
 		if err != nil {
@@ -48,17 +48,17 @@ func (s *Store) ApplyStreamEvent(ctx context.Context, event model.StreamEvent) (
 			return mapErr(err)
 		}
 		if inserted == 0 {
-			result = model.StreamApplyResult{Status: model.StreamDeduped, UserID: userID}
+			result = streams.ApplyResult{Status: streams.StatusDeduped, UserID: userID}
 			return nil
 		}
 
 		var applied int64
 		switch event.Source {
-		case model.SourceKafka:
+		case streams.SourceKafka:
 			applied, err = q.ApplyUserProfile(ctx, db.ApplyUserProfileParams{
 				ID: userID, Column2: event.Payload, EnrichProfileSeq: event.Seq,
 			})
-		case model.SourceNats:
+		case streams.SourceNats:
 			applied, err = q.ApplyUserContact(ctx, db.ApplyUserContactParams{
 				ID: userID, Column2: event.Payload, EnrichContactSeq: event.Seq,
 			})
@@ -69,7 +69,7 @@ func (s *Store) ApplyStreamEvent(ctx context.Context, event model.StreamEvent) (
 			return mapErr(err)
 		}
 		if applied == 0 {
-			result = model.StreamApplyResult{Status: model.StreamStale, UserID: userID}
+			result = streams.ApplyResult{Status: streams.StatusStale, UserID: userID}
 			return nil
 		}
 
@@ -88,12 +88,12 @@ func (s *Store) ApplyStreamEvent(ctx context.Context, event model.StreamEvent) (
 			headers = []byte("{}")
 		}
 		if err := q.InsertOutboxEvent(ctx, db.InsertOutboxEventParams{
-			ID: uuid.NewString(), EventType: model.OutboxUserEnriched, AggregateID: userID,
+			ID: uuid.NewString(), EventType: streams.OutboxUserEnriched, AggregateID: userID,
 			Column4: string(payload), Column5: string(headers),
 		}); err != nil {
 			return mapErr(err)
 		}
-		result = model.StreamApplyResult{Status: model.StreamApplied, UserID: userID}
+		result = streams.ApplyResult{Status: streams.StatusApplied, UserID: userID}
 		return nil
 	})
 	return result, err
@@ -111,7 +111,7 @@ func (s *Store) StreamSeqs(ctx context.Context, userID string) (profile, contact
 // ClaimOutboxBatch leases up to limit unprocessed events whose previous
 // lease (if any) has expired. SKIP LOCKED keeps concurrent relays from
 // double-claiming.
-func (s *Store) ClaimOutboxBatch(ctx context.Context, limit, leaseSeconds, maxAttempts int) ([]model.OutboxEvent, error) {
+func (s *Store) ClaimOutboxBatch(ctx context.Context, limit, leaseSeconds, maxAttempts int) ([]streams.OutboxEvent, error) {
 	rows, err := s.q.ClaimOutboxBatch(ctx, db.ClaimOutboxBatchParams{
 		LeaseSecs:   int32(leaseSeconds), // #nosec G115 -- caller clamps
 		MaxAttempts: int32(maxAttempts),  // #nosec G115 -- caller clamps
@@ -120,7 +120,7 @@ func (s *Store) ClaimOutboxBatch(ctx context.Context, limit, leaseSeconds, maxAt
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	events := make([]model.OutboxEvent, 0, len(rows))
+	events := make([]streams.OutboxEvent, 0, len(rows))
 	for _, row := range rows {
 		events = append(events, outboxFromRow(row))
 	}
@@ -153,7 +153,7 @@ func (s *Store) CountOutboxPending(ctx context.Context) (int, error) {
 
 // ListOutbox pages events newest first; opts.Status "pending" filters to
 // unpublished rows.
-func (s *Store) ListOutbox(ctx context.Context, opts repository.ListOptions) ([]model.OutboxEvent, string, error) {
+func (s *Store) ListOutbox(ctx context.Context, opts kernel.ListOptions) ([]streams.OutboxEvent, string, error) {
 	limit := int32(25)
 	if opts.Limit > 0 && opts.Limit <= 100 {
 		limit = int32(opts.Limit)
@@ -172,19 +172,19 @@ func (s *Store) ListOutbox(ctx context.Context, opts repository.ListOptions) ([]
 		rows = rows[:limit]
 		next = rows[limit-1].ID
 	}
-	events := make([]model.OutboxEvent, 0, len(rows))
+	events := make([]streams.OutboxEvent, 0, len(rows))
 	for _, row := range rows {
 		events = append(events, outboxFromRow(row))
 	}
 	return events, next, nil
 }
 
-func outboxFromRow(row db.Outbox) model.OutboxEvent {
+func outboxFromRow(row db.Outbox) streams.OutboxEvent {
 	var headers map[string]string
 	if row.Headers != "" {
 		_ = json.Unmarshal([]byte(row.Headers), &headers)
 	}
-	return model.OutboxEvent{
+	return streams.OutboxEvent{
 		ID: row.ID, EventType: row.EventType, AggregateID: row.AggregateID,
 		Payload: row.Payload, Headers: headers,
 		CreatedAt: row.CreatedAt, ClaimedAt: timeFromPtr(row.ClaimedAt),
@@ -195,7 +195,7 @@ func outboxFromRow(row db.Outbox) model.OutboxEvent {
 
 // SaveDeadLetter parks an unprocessable message; duplicate ids are ignored so
 // redeliveries cannot stack copies.
-func (s *Store) SaveDeadLetter(ctx context.Context, letter model.DeadLetter) error {
+func (s *Store) SaveDeadLetter(ctx context.Context, letter streams.DeadLetter) error {
 	if letter.ID == "" {
 		letter.ID = uuid.NewString()
 	}
@@ -206,17 +206,17 @@ func (s *Store) SaveDeadLetter(ctx context.Context, letter model.DeadLetter) err
 }
 
 // GetDeadLetter returns one parked message.
-func (s *Store) GetDeadLetter(ctx context.Context, id string) (model.DeadLetter, error) {
+func (s *Store) GetDeadLetter(ctx context.Context, id string) (streams.DeadLetter, error) {
 	row, err := s.q.GetDeadLetter(ctx, id)
 	if err != nil {
-		return model.DeadLetter{}, mapErr(err)
+		return streams.DeadLetter{}, mapErr(err)
 	}
 	return deadLetterFromRow(row), nil
 }
 
 // ListDeadLetters pages parked messages newest first; opts.Pending filters to
 // not-yet-replayed ones.
-func (s *Store) ListDeadLetters(ctx context.Context, opts repository.DeadLetterOptions) ([]model.DeadLetter, string, error) {
+func (s *Store) ListDeadLetters(ctx context.Context, opts kernel.DeadLetterOptions) ([]streams.DeadLetter, string, error) {
 	limit := int32(25)
 	if opts.Limit > 0 && opts.Limit <= 100 {
 		limit = int32(opts.Limit)
@@ -234,7 +234,7 @@ func (s *Store) ListDeadLetters(ctx context.Context, opts repository.DeadLetterO
 		rows = rows[:limit]
 		next = rows[limit-1].ID
 	}
-	letters := make([]model.DeadLetter, 0, len(rows))
+	letters := make([]streams.DeadLetter, 0, len(rows))
 	for _, row := range rows {
 		letters = append(letters, deadLetterFromRow(row))
 	}
@@ -249,7 +249,7 @@ func (s *Store) MarkDeadLetterReplayed(ctx context.Context, id string) error {
 		return mapErr(err)
 	}
 	if n == 0 {
-		return repository.ErrNotFound
+		return kernel.ErrNotFound
 	}
 	return nil
 }
@@ -260,8 +260,8 @@ func (s *Store) CountDeadLettersPending(ctx context.Context) (int, error) {
 	return int(n), mapErr(err)
 }
 
-func deadLetterFromRow(row db.DeadLetter) model.DeadLetter {
-	return model.DeadLetter{
+func deadLetterFromRow(row db.DeadLetter) streams.DeadLetter {
+	return streams.DeadLetter{
 		ID: row.ID, Source: row.Source, Topic: row.Topic, Payload: row.Payload,
 		Reason: row.Reason, Attempts: int(row.Attempts),
 		CreatedAt: row.CreatedAt, ReplayedAt: timeFromPtr(row.ReplayedAt),
@@ -270,7 +270,7 @@ func deadLetterFromRow(row db.DeadLetter) model.DeadLetter {
 
 // ReserveIdempotency inserts the reservation atomically. When the (user, key)
 // pair already exists it returns the stored record with already=true.
-func (s *Store) ReserveIdempotency(ctx context.Context, record model.IdempotencyRecord) (model.IdempotencyRecord, bool, error) {
+func (s *Store) ReserveIdempotency(ctx context.Context, record kernel.IdempotencyRecord) (kernel.IdempotencyRecord, bool, error) {
 	row, err := s.q.ReserveIdempotencyKey(ctx, db.ReserveIdempotencyKeyParams{
 		Key: record.Key, UserID: record.UserID, Method: record.Method, Path: record.Path,
 		RequestHash: record.RequestHash, ExpiresAt: record.ExpiresAt,
@@ -279,12 +279,12 @@ func (s *Store) ReserveIdempotency(ctx context.Context, record model.Idempotency
 		return idempotencyFromRow(row), false, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
-		return model.IdempotencyRecord{}, false, mapErr(err)
+		return kernel.IdempotencyRecord{}, false, mapErr(err)
 	}
 	// Conflict: someone reserved this (user, key) first; read their record.
 	existing, err := s.q.GetIdempotencyKey(ctx, db.GetIdempotencyKeyParams{Key: record.Key, UserID: record.UserID})
 	if err != nil {
-		return model.IdempotencyRecord{}, false, mapErr(err)
+		return kernel.IdempotencyRecord{}, false, mapErr(err)
 	}
 	return idempotencyFromRow(existing), true, nil
 }
@@ -309,8 +309,8 @@ func (s *Store) PruneProcessedEvents(ctx context.Context, olderThan time.Duratio
 	return n, mapErr(err)
 }
 
-func idempotencyFromRow(row db.IdempotencyKey) model.IdempotencyRecord {
-	return model.IdempotencyRecord{
+func idempotencyFromRow(row db.IdempotencyKey) kernel.IdempotencyRecord {
+	return kernel.IdempotencyRecord{
 		Key: row.Key, UserID: row.UserID, Method: row.Method, Path: row.Path,
 		RequestHash: row.RequestHash, Status: int(row.Status),
 		ResponseBody: row.ResponseBody, ContentType: row.ContentType,

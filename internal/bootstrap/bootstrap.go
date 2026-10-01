@@ -11,48 +11,64 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/your-org/go-template/internal/analytics"
+	"github.com/your-org/go-template/internal/apikeys"
+	"github.com/your-org/go-template/internal/audit"
+	"github.com/your-org/go-template/internal/auth"
 	"github.com/your-org/go-template/internal/config"
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/email"
+	"github.com/your-org/go-template/internal/files"
+	"github.com/your-org/go-template/internal/invitations"
+	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/kernel"
+	"github.com/your-org/go-template/internal/mfa"
+	"github.com/your-org/go-template/internal/notifications"
 	ch "github.com/your-org/go-template/internal/platform/clickhouse"
 	platformfilestore "github.com/your-org/go-template/internal/platform/filestore"
 	"github.com/your-org/go-template/internal/platform/postgres"
+	"github.com/your-org/go-template/internal/rbac"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/search"
+	"github.com/your-org/go-template/internal/settings"
+	"github.com/your-org/go-template/internal/streams"
+	"github.com/your-org/go-template/internal/tickets"
+	"github.com/your-org/go-template/internal/tokens"
+	"github.com/your-org/go-template/internal/users"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // Repos bundles the store ports; a single adapter fills them all.
 type Repos struct {
-	Auth          service.AuthRepo
-	Users         service.UsersRepo
-	Jobs          service.JobsRepo
-	Reports       service.ReportsRepo
-	Analytics     service.AnalyticsRepo
-	Orgs          service.OrgsRepo
-	Roles         service.RolesRepo
-	Audit         service.AuditRepo
-	Settings      service.SettingsRepo
-	Notifications service.NotificationsRepo
-	EmailTokens   service.EmailTokensRepo
-	APIKeys       service.APIKeysRepo
-	Webhooks      service.WebhooksRepo
-	Tickets       service.TicketsRepo
-	Streams       service.StreamsRepo
-	Idempotency   service.IdempotencyRepo
-	MFA           service.MFARepo
-	Tokens        service.TokenRepo
-	Search        service.SearchRepo
-	Invitations   service.InvitationsRepo
-	Files         service.FilesRepo
-	Rules         repository.RuleStore
-	Pinger        service.Pinger
+	Auth          auth.Store
+	Users         users.Store
+	Jobs          jobs.Store
+	Reports       analytics.ReportStore
+	Orgs          rbac.OrgsStore
+	Roles         rbac.RolesStore
+	Audit         audit.Store
+	Settings      settings.Store
+	Notifications notifications.Store
+	EmailTokens   email.Store
+	APIKeys       apikeys.Store
+	Webhooks      webhooks.Store
+	Tickets       tickets.Store
+	Streams       streams.Store
+	Idempotency   kernel.IdempotencyRepo
+	MFA           mfa.Store
+	Tokens        tokens.Store
+	Search        search.Store
+	Invitations   invitations.Store
+	Files         files.Store
+	Rules         rbac.RuleStore
+	Pinger        kernel.Pinger
 	// PoolStats snapshots pgxpool statistics for the Prometheus collector;
 	// nil in memory mode (no pool to observe).
 	PoolStats func() *pgxpool.Stat
 	// Events receives the analytics event trail; nil means the process does
 	// not persist events (plain PostgreSQL mode).
-	Events service.EventSink
+	Events analytics.Sink
 	// EventStats reads aggregates from ClickHouse; nil without ClickHouse.
-	EventStats service.EventStats
+	EventStats analytics.Stats
 	// Warehouse accepts historical event batches (the demo seed backfill);
 	// nil when events cannot be written in bulk.
 	Warehouse EventBackfiller
@@ -61,7 +77,7 @@ type Repos struct {
 
 // EventBackfiller writes a batch of historical events in one insert.
 type EventBackfiller interface {
-	InsertEvents(ctx context.Context, events []model.EventRecord) error
+	InsertEvents(ctx context.Context, events []analytics.EventRecord) error
 	// DeleteDemoEvents removes seed-generated events (demo reset).
 	DeleteDemoEvents(ctx context.Context) error
 }
@@ -72,8 +88,8 @@ type EventBackfiller interface {
 // the app runs without the analytics warehouse.
 func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 	var (
-		events   service.EventSink
-		stats    service.EventStats
+		events   analytics.Sink
+		stats    analytics.Stats
 		closeAll = func() {}
 	)
 	var client *ch.Client
@@ -98,7 +114,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 			events = store
 		}
 		return Repos{
-			Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
+			Auth: store, Users: store, Jobs: store, Reports: store,
 			Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 			Pinger: store, Events: events, EventStats: store, Warehouse: store, Kind: "memory",
 		}, closeAll, nil
@@ -128,7 +144,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 		warehouse = client
 	}
 	return Repos{
-		Auth: store, Users: store, Jobs: store, Reports: store, Analytics: store,
+		Auth: store, Users: store, Jobs: store, Reports: store,
 		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 		Pinger: store, Events: events, EventStats: stats, Warehouse: warehouse, Kind: "postgres",
 		PoolStats: store.Stats,
@@ -139,14 +155,14 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 // (APP_DEMO_EMAIL / APP_DEMO_PASSWORD) and makes it a superadmin. It is
 // idempotent: an existing account is left untouched. Do not set these
 // variables in production.
-func SeedDemoUser(auth *service.AuthService, rbac *service.RBACService, email, password string, logger *slog.Logger) {
+func SeedDemoUser(authSvc *auth.Service, rbacSvc *rbac.Service, email, password string, logger *slog.Logger) {
 	if email == "" || password == "" {
 		return
 	}
-	user, _, err := auth.Register(context.Background(), email, "Demo User", password)
+	user, _, err := authSvc.Register(context.Background(), email, "Demo User", password)
 	switch {
-	case errors.Is(err, repository.ErrConflict):
-		existing, getErr := auth.UserByEmail(context.Background(), email)
+	case errors.Is(err, kernel.ErrConflict):
+		existing, getErr := authSvc.UserByEmail(context.Background(), email)
 		if getErr != nil {
 			logger.Warn("demo user lookup failed", "err", getErr)
 			return
@@ -158,15 +174,15 @@ func SeedDemoUser(auth *service.AuthService, rbac *service.RBACService, email, p
 	default:
 		logger.Info("demo user seeded", "email", email)
 	}
-	if rbac != nil {
-		if err := rbac.AssignRole(user.ID, "superadmin", service.PlatformDomain); err != nil {
+	if rbacSvc != nil {
+		if err := rbacSvc.AssignRole(user.ID, "superadmin", rbac.PlatformDomain); err != nil {
 			logger.Warn("demo user role grant failed", "err", err)
 		}
 	}
 }
 
 // compoundSink fans events out to every sink (local trail + warehouse).
-type compoundSink []service.EventSink
+type compoundSink []analytics.Sink
 
 func (sinks compoundSink) AddEvent(ctx context.Context, event, userID string) {
 	for _, sink := range sinks {
@@ -178,8 +194,8 @@ func (sinks compoundSink) AddEvent(ctx context.Context, event, userID string) {
 // failure degrades to the in-process store with a warning), in-process
 // otherwise. Both binaries share this so exports can be produced by the
 // worker whatever the deployment mode.
-func FileStore(cfg config.Config, ctx context.Context, logger *slog.Logger) service.FileStore {
-	var blobs service.FileStore = platformfilestore.NewMemory()
+func FileStore(cfg config.Config, ctx context.Context, logger *slog.Logger) files.FileStore {
+	var blobs files.FileStore = platformfilestore.NewMemory()
 	if cfg.S3Bucket == "" {
 		return blobs
 	}

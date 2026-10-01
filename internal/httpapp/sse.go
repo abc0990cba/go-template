@@ -8,9 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/analytics"
+	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/realtime"
-	"github.com/your-org/go-template/internal/repository"
 )
 
 // SSE stream tuning: heartbeats keep proxies from idling the connection out,
@@ -25,8 +26,8 @@ const (
 // snapshot is the periodic state push; it lets the UI converge even when it
 // missed live events.
 type snapshot struct {
-	Summary model.AnalyticsSummary `json:"summary"`
-	Jobs    []model.Job            `json:"jobs"`
+	Summary analytics.AnalyticsSummary `json:"summary"`
+	Jobs    []jobs.Job                 `json:"jobs"`
 }
 
 // sseStream pushes analytics events, job transitions, and periodic
@@ -77,7 +78,7 @@ func (a *App) sseStream(c *gin.Context) {
 // buildSnapshot merges the analytics summary and the newest jobs into one
 // event scoped to this connection.
 func (a *App) buildSnapshot(ctx context.Context) realtime.Event {
-	jobs, _, err := a.services.Jobs.List(ctx, repository.ListOptions{Mode: "offset", Limit: sseSnapshotJobPage})
+	jobs, _, err := a.services.Jobs.List(ctx, kernel.ListOptions{Mode: "offset", Limit: sseSnapshotJobPage})
 	if err != nil {
 		a.logger.Warn("snapshot jobs unavailable", "err", err)
 		jobs = nil

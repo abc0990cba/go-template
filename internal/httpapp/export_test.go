@@ -5,15 +5,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/export"
+	"github.com/your-org/go-template/internal/files"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/filestore"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
 )
 
-func newExportServer(t *testing.T) (*httptest.Server, *service.Container) {
+func newExportServer(t *testing.T) (*httptest.Server, *bootstrap.Container) {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
@@ -23,8 +25,8 @@ func newExportServer(t *testing.T) (*httptest.Server, *service.Container) {
 	store := repository.NewMemoryStore()
 	services := newTestContainer(t, store, nil, logger)
 	blobs := filestore.NewMemory()
-	services.Files = service.NewFilesService(store, blobs, services.Tickets, 10<<20, logger)
-	services.Exports = service.NewExportService(store, store, store, store, store, store, blobs)
+	services.Files = files.NewService(store, blobs, services.Tickets, 10<<20, logger)
+	services.Exports = export.NewService(store, store, store, store, store, store, blobs)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))
 	t.Cleanup(server.Close)
 	return server, services

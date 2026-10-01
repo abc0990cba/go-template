@@ -7,9 +7,7 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,17 +15,15 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/export"
 	"github.com/your-org/go-template/internal/jobs"
-	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/queue"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/service"
 )
 
 func main() {
@@ -77,9 +73,9 @@ func main() {
 
 	blobs := bootstrap.FileStore(cfg, ctx, logger)
 
-	services := service.NewContainer(service.Deps{
+	services := bootstrap.NewContainer(bootstrap.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
-		Analytics: repos.Analytics, Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
+		Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit, Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys, Webhooks: repos.Webhooks, Tickets: repos.Tickets,
 		Streams: repos.Streams,
 		MFA:     repos.MFA, Tokens: repos.Tokens, Search: repos.Search, Invitations: repos.Invitations, Files: repos.Files,
 		Blobs:    blobs,
@@ -89,7 +85,7 @@ func main() {
 	}, logger, cfg)
 
 	if services.Files != nil {
-		services.Jobs.WithExporter(service.NewExportService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
+		services.Jobs.WithExporter(export.NewService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
 	}
 
 	// Brokers are optional: each side that fails to open disables its
@@ -103,7 +99,7 @@ func main() {
 		go pruneLoop(ctx, repos.Idempotency, logger)
 	}
 
-	// GDPR export ZIPs expire after ExportRetention (docs/data-export.md);
+	// GDPR export ZIPs expire after export.Retention (docs/data-export.md);
 	// the builder exposes the sweep, this loop schedules it.
 	if services.Exports != nil {
 		go exportPruneLoop(ctx, services.Exports, logger)
@@ -132,7 +128,7 @@ func main() {
 	if cfg.RedisAddr != "" {
 		bridge := realtime.NewRedisBridge(cfg.RedisAddr, realtime.NewHub(), logger)
 		defer func() { _ = bridge.Close() }()
-		services.Jobs.WithJobNotifier(func(job model.Job) {
+		services.Jobs.WithJobNotifier(func(job jobs.Job) {
 			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
 		})
 	}
@@ -168,7 +164,7 @@ func newLogger(format string, level slog.Level) *slog.Logger {
 // startStreams launches the enrichment consumers and the outbox relay in
 // supervised background goroutines; they stop when ctx is cancelled. A nil
 // broker side simply starts nothing.
-func startStreams(ctx context.Context, services *service.Container, brokers *bootstrap.Streams, cfg config.Config, logger *slog.Logger) {
+func startStreams(ctx context.Context, services *bootstrap.Container, brokers *bootstrap.Streams, cfg config.Config, logger *slog.Logger) {
 	started := false
 	if brokers.Kafka != nil {
 		started = true
@@ -214,151 +210,8 @@ func supervise(ctx context.Context, name string, logger *slog.Logger, run func(c
 	}
 }
 
-// relayLoop drains the transactional outbox on a fixed interval.
-func relayLoop(ctx context.Context, streams *service.StreamsService, publisher service.EventPublisher, cfg config.Config, logger *slog.Logger) {
-	relay := service.RelayConfig{Batch: cfg.OutboxBatch, LeaseSeconds: 60, MaxAttempts: cfg.OutboxMaxAttempts}
-	ticker := time.NewTicker(cfg.OutboxInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			n, err := streams.RelayOutboxOnce(ctx, publisher, relay)
-			if err != nil {
-				logger.Warn("outbox relay pass failed", "published", n, "err", err)
-			} else if n > 0 {
-				logger.Debug("outbox relay published", "events", n)
-			}
-		}
-	}
-}
-
-// pruneLoop deletes expired idempotency reservations on a fixed interval.
-func pruneLoop(ctx context.Context, repo service.IdempotencyRepo, logger *slog.Logger) {
-	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if n, err := repo.PruneIdempotency(ctx); err != nil {
-				logger.Debug("idempotency prune failed", "err", err)
-			} else if n > 0 {
-				observ.PrunedRows.WithLabelValues("idempotency_keys").Add(float64(n))
-				logger.Debug("idempotency keys pruned", "count", n)
-			}
-		}
-	}
-}
-
-// exportPruneLoop deletes expired GDPR export bundles hourly; the retention
-// window lives in the export service (ExportRetention).
-func exportPruneLoop(ctx context.Context, exports *service.ExportService, logger *slog.Logger) {
-	ticker := time.NewTicker(time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			n, err := exports.Prune(ctx)
-			if err != nil {
-				logger.Debug("export prune failed", "err", err)
-			} else if n > 0 {
-				observ.PrunedRows.WithLabelValues("export_files").Add(float64(n))
-				logger.Info("export bundles pruned", "count", n)
-			}
-		}
-	}
-}
-
-// processedEventsPruneLoop bounds the exactly-once inbox; the retention
-// window must stay longer than any redelivery delay the brokers produce.
-func processedEventsPruneLoop(ctx context.Context, repo service.StreamsRepo, olderThan time.Duration, logger *slog.Logger) {
-	ticker := time.NewTicker(time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			n, err := repo.PruneProcessedEvents(ctx, olderThan)
-			if err != nil {
-				logger.Debug("processed events prune failed", "err", err)
-			} else if n > 0 {
-				observ.PrunedRows.WithLabelValues("processed_events").Add(float64(n))
-				logger.Debug("processed events pruned", "count", n)
-			}
-		}
-	}
-}
-
-// mfaChallengePruneLoop drops expired MFA login challenges every 10 minutes.
-func mfaChallengePruneLoop(ctx context.Context, mfa *service.MFAService, logger *slog.Logger) {
-	ticker := time.NewTicker(10 * time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := mfa.PruneChallenges(ctx); err != nil {
-				logger.Debug("mfa challenge prune failed", "err", err)
-			}
-		}
-	}
-}
-
-// refreshTokenPruneLoop drops long-expired refresh tokens hourly.
-func refreshTokenPruneLoop(ctx context.Context, tokens *service.TokenService, logger *slog.Logger) {
-	ticker := time.NewTicker(time.Hour)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			if err := tokens.Prune(ctx); err != nil {
-				logger.Debug("refresh token prune failed", "err", err)
-			}
-		}
-	}
-}
-
-// serveMetrics exposes /metrics on its own listener; an empty address keeps
-// the worker without a network listener, as compose expects by default.
-func serveMetrics(addr string, logger *slog.Logger) func() {
-	if addr == "" {
-		return func() {}
-	}
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-	srv := &http.Server{Addr: addr, Handler: mux, ReadHeaderTimeout: 3 * time.Second}
-	serveErr := make(chan error, 1)
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serveErr <- err
-		}
-	}()
-	logger.Info("metrics listening", "addr", addr)
-	return func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := srv.Shutdown(shutdownCtx); err != nil {
-			_ = srv.Close()
-		}
-		select {
-		case err := <-serveErr:
-			logger.Debug("metrics server stopped with error", "err", err)
-		default:
-		}
-	}
-}
-
 // runLocal is the single-process development path: poll the shared store.
-func runLocal(ctx context.Context, services *service.Container, kind string, logger *slog.Logger) {
+func runLocal(ctx context.Context, services *bootstrap.Container, kind string, logger *slog.Logger) {
 	logger.Info("worker started", "mode", "local-poll", "store", kind)
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -376,7 +229,7 @@ func runLocal(ctx context.Context, services *service.Container, kind string, log
 }
 
 // runAsynq runs the distributed worker plus the periodic task scheduler.
-func runAsynq(ctx context.Context, services *service.Container, cfg config.Config, kind string, logger *slog.Logger) {
+func runAsynq(ctx context.Context, services *bootstrap.Container, cfg config.Config, kind string, logger *slog.Logger) {
 	opt := asynq.RedisClientOpt{Addr: cfg.RedisAddr}
 	srv := asynq.NewServer(opt, asynq.Config{
 		Concurrency:    cfg.MaxConcurrency,

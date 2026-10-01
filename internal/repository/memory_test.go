@@ -6,11 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/auth"
+	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/kernel"
+	"github.com/your-org/go-template/internal/users"
 )
 
-func testUser(id, email string, createdAt time.Time) model.User {
-	return model.User{ID: id, Email: email, Name: "name-" + id, CreatedAt: createdAt, UpdatedAt: createdAt}
+func testUser(id, email string, createdAt time.Time) users.User {
+	return users.User{ID: id, Email: email, Name: "name-" + id, CreatedAt: createdAt, UpdatedAt: createdAt}
 }
 
 // seedUsers stores five users with hourly timestamps; u1 is the oldest, so
@@ -36,8 +39,8 @@ func TestCreateUserRejectsDuplicateEmailCaseInsensitively(t *testing.T) {
 	}
 	for _, email := range []string{"ada@example.com", "ADA@EXAMPLE.COM", "Ada@Example.com"} {
 		err := store.CreateUser(ctx, testUser("u2", email, time.Now()), "")
-		if !errors.Is(err, ErrConflict) {
-			t.Errorf("create with email %q: want ErrConflict, got %v", email, err)
+		if !errors.Is(err, kernel.ErrConflict) {
+			t.Errorf("create with email %q: want kernel.ErrConflict, got %v", email, err)
 		}
 	}
 }
@@ -61,11 +64,11 @@ func TestUserLifecycle(t *testing.T) {
 		t.Errorf("user id: want u1, got %q", stored.ID)
 	}
 
-	if _, _, err := store.GetUserByEmail(ctx, "missing@example.com"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("missing email: want ErrNotFound, got %v", err)
+	if _, _, err := store.GetUserByEmail(ctx, "missing@example.com"); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("missing email: want kernel.ErrNotFound, got %v", err)
 	}
-	if _, err := store.GetUser(ctx, "nope"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("missing id: want ErrNotFound, got %v", err)
+	if _, err := store.GetUser(ctx, "nope"); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("missing id: want kernel.ErrNotFound, got %v", err)
 	}
 
 	stored.Name = "renamed"
@@ -73,15 +76,15 @@ func TestUserLifecycle(t *testing.T) {
 		t.Fatalf("update: %v", err)
 	}
 	ghost := testUser("ghost", "ghost@example.com", time.Now())
-	if err := store.UpdateUser(ctx, ghost); !errors.Is(err, ErrNotFound) {
-		t.Errorf("update missing: want ErrNotFound, got %v", err)
+	if err := store.UpdateUser(ctx, ghost); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("update missing: want kernel.ErrNotFound, got %v", err)
 	}
 
 	if err := store.DeleteUser(ctx, "u1"); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if err := store.DeleteUser(ctx, "u1"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("delete missing: want ErrNotFound, got %v", err)
+	if err := store.DeleteUser(ctx, "u1"); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("delete missing: want kernel.ErrNotFound, got %v", err)
 	}
 }
 
@@ -92,57 +95,57 @@ func TestListUsersPagination(t *testing.T) {
 
 	cases := []struct {
 		name     string
-		opts     ListUsersOptions
+		opts     kernel.ListOptions
 		wantIDs  []string
 		wantNext string
 		wantNil  bool
 	}{
 		{
 			name:    "offset default limit returns all",
-			opts:    ListUsersOptions{Mode: "offset"},
+			opts:    kernel.ListOptions{Mode: "offset"},
 			wantIDs: []string{"u5", "u4", "u3", "u2", "u1"},
 		},
 		{
 			name:     "offset page with next cursor",
-			opts:     ListUsersOptions{Mode: "offset", Limit: 2},
+			opts:     kernel.ListOptions{Mode: "offset", Limit: 2},
 			wantIDs:  []string{"u5", "u4"},
 			wantNext: "u4",
 		},
 		{
 			name:    "offset tail page has no next cursor",
-			opts:    ListUsersOptions{Mode: "offset", Limit: 2, Offset: 4},
+			opts:    kernel.ListOptions{Mode: "offset", Limit: 2, Offset: 4},
 			wantIDs: []string{"u1"},
 		},
 		{
 			name:    "offset beyond result set",
-			opts:    ListUsersOptions{Mode: "offset", Offset: 10},
+			opts:    kernel.ListOptions{Mode: "offset", Offset: 10},
 			wantNil: true,
 		},
 		{
 			name:     "cursor continues after id",
-			opts:     ListUsersOptions{Mode: "cursor", Limit: 2, After: "u4"},
+			opts:     kernel.ListOptions{Mode: "cursor", Limit: 2, After: "u4"},
 			wantIDs:  []string{"u3", "u2"},
 			wantNext: "u2",
 		},
 		{
 			name:     "keyset continues after id",
-			opts:     ListUsersOptions{Mode: "keyset", Limit: 2, After: "u4"},
+			opts:     kernel.ListOptions{Mode: "keyset", Limit: 2, After: "u4"},
 			wantIDs:  []string{"u3", "u2"},
 			wantNext: "u2",
 		},
 		{
 			name:    "limit is clamped to the default when out of range",
-			opts:    ListUsersOptions{Mode: "offset", Limit: 1000},
+			opts:    kernel.ListOptions{Mode: "offset", Limit: 1000},
 			wantIDs: []string{"u5", "u4", "u3", "u2", "u1"},
 		},
 		{
 			name:    "query filters by email and name",
-			opts:    ListUsersOptions{Query: "u4"},
+			opts:    kernel.ListOptions{Query: "u4"},
 			wantIDs: []string{"u4"},
 		},
 		{
 			name:    "query is case insensitive",
-			opts:    ListUsersOptions{Query: "NAME-U3"},
+			opts:    kernel.ListOptions{Query: "NAME-U3"},
 			wantIDs: []string{"u3"},
 		},
 	}
@@ -177,7 +180,7 @@ func TestListUsersPagination(t *testing.T) {
 func TestIdentities(t *testing.T) {
 	store := NewMemoryStore()
 	ctx := context.Background()
-	identity := model.AuthIdentity{UserID: "u1", Provider: "google", ProviderSubject: "sub-1", Email: "ada@example.com"}
+	identity := auth.Identity{UserID: "u1", Provider: "google", ProviderSubject: "sub-1", Email: "ada@example.com"}
 
 	if err := store.LinkIdentity(ctx, identity); err != nil {
 		t.Fatalf("link: %v", err)
@@ -188,8 +191,8 @@ func TestIdentities(t *testing.T) {
 
 	hijack := identity
 	hijack.UserID = "u2"
-	if err := store.LinkIdentity(ctx, hijack); !errors.Is(err, ErrConflict) {
-		t.Errorf("link same subject to another user: want ErrConflict, got %v", err)
+	if err := store.LinkIdentity(ctx, hijack); !errors.Is(err, kernel.ErrConflict) {
+		t.Errorf("link same subject to another user: want kernel.ErrConflict, got %v", err)
 	}
 
 	got, err := store.GetIdentity(ctx, "google", "sub-1")
@@ -199,11 +202,11 @@ func TestIdentities(t *testing.T) {
 	if got.UserID != "u1" {
 		t.Errorf("identity owner: want u1, got %s", got.UserID)
 	}
-	if _, err := store.GetIdentity(ctx, "google", "missing"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("missing identity: want ErrNotFound, got %v", err)
+	if _, err := store.GetIdentity(ctx, "google", "missing"); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("missing identity: want kernel.ErrNotFound, got %v", err)
 	}
 
-	if err := store.LinkIdentity(ctx, model.AuthIdentity{UserID: "u2", Provider: "github", ProviderSubject: "gh-1"}); err != nil {
+	if err := store.LinkIdentity(ctx, auth.Identity{UserID: "u2", Provider: "github", ProviderSubject: "gh-1"}); err != nil {
 		t.Fatalf("link github: %v", err)
 	}
 	identities, err := store.ListIdentities(ctx, "u2")
@@ -228,24 +231,24 @@ func TestOAuthStateExpiryAndSingleUse(t *testing.T) {
 	ctx := context.Background()
 	now := time.Now()
 
-	if err := store.SaveOAuthState(ctx, model.OAuthState{State: "s1", Provider: "google", UserID: "u1", ExpiresAt: now.Add(time.Minute)}); err != nil {
+	if err := store.SaveOAuthState(ctx, auth.OAuthState{State: "s1", Provider: "google", UserID: "u1", ExpiresAt: now.Add(time.Minute)}); err != nil {
 		t.Fatalf("save state: %v", err)
 	}
-	if err := store.SaveOAuthState(ctx, model.OAuthState{State: "expired", Provider: "google", ExpiresAt: now.Add(-time.Minute)}); err != nil {
+	if err := store.SaveOAuthState(ctx, auth.OAuthState{State: "expired", Provider: "google", ExpiresAt: now.Add(-time.Minute)}); err != nil {
 		t.Fatalf("save expired state: %v", err)
 	}
 
 	if _, err := store.ConsumeOAuthState(ctx, "s1", now); err != nil {
 		t.Fatalf("consume fresh state: %v", err)
 	}
-	if _, err := store.ConsumeOAuthState(ctx, "s1", now); !errors.Is(err, ErrNotFound) {
-		t.Errorf("state is single use: want ErrNotFound, got %v", err)
+	if _, err := store.ConsumeOAuthState(ctx, "s1", now); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("state is single use: want kernel.ErrNotFound, got %v", err)
 	}
-	if _, err := store.ConsumeOAuthState(ctx, "expired", now); !errors.Is(err, ErrNotFound) {
-		t.Errorf("consume expired state: want ErrNotFound, got %v", err)
+	if _, err := store.ConsumeOAuthState(ctx, "expired", now); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("consume expired state: want kernel.ErrNotFound, got %v", err)
 	}
-	if _, err := store.ConsumeOAuthState(ctx, "unknown", now); !errors.Is(err, ErrNotFound) {
-		t.Errorf("consume unknown state: want ErrNotFound, got %v", err)
+	if _, err := store.ConsumeOAuthState(ctx, "unknown", now); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("consume unknown state: want kernel.ErrNotFound, got %v", err)
 	}
 }
 
@@ -263,8 +266,8 @@ func TestSessions(t *testing.T) {
 	if err := store.DeleteSession(ctx, "tok"); err != nil {
 		t.Fatalf("delete session: %v", err)
 	}
-	if _, err := store.GetSession(ctx, "tok", time.Hour); !errors.Is(err, ErrNotFound) {
-		t.Errorf("deleted session: want ErrNotFound, got %v", err)
+	if _, err := store.GetSession(ctx, "tok", time.Hour); !errors.Is(err, kernel.ErrNotFound) {
+		t.Errorf("deleted session: want kernel.ErrNotFound, got %v", err)
 	}
 }
 
@@ -274,13 +277,13 @@ func TestJobsListIsNewestFirst(t *testing.T) {
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
 	for i, id := range []string{"j1", "j2", "j3"} {
-		job := model.Job{ID: id, Type: "user.enrich_batch", Status: "queued", CreatedAt: base.Add(time.Duration(i) * time.Minute), UpdatedAt: base}
+		job := jobs.Job{ID: id, Type: "user.enrich_batch", Status: "queued", CreatedAt: base.Add(time.Duration(i) * time.Minute), UpdatedAt: base}
 		if err := store.SaveJob(ctx, job); err != nil {
 			t.Fatalf("save job %s: %v", id, err)
 		}
 	}
 
-	jobs, _, err := store.ListJobs(ctx, ListOptions{})
+	jobs, _, err := store.ListJobs(ctx, kernel.ListOptions{})
 	if err != nil {
 		t.Fatalf("list jobs: %v", err)
 	}
@@ -302,24 +305,24 @@ func TestAnalyticsSummary(t *testing.T) {
 	if err := store.CreateUser(ctx, testUser("u2", "bob@example.com", time.Now()), "hash"); err != nil {
 		t.Fatalf("create u2: %v", err)
 	}
-	if err := store.LinkIdentity(ctx, model.AuthIdentity{UserID: "u1", Provider: "google", ProviderSubject: "google:ada@example.com"}); err != nil {
+	if err := store.LinkIdentity(ctx, auth.Identity{UserID: "u1", Provider: "google", ProviderSubject: "google:ada@example.com"}); err != nil {
 		t.Fatalf("link google: %v", err)
 	}
-	if err := store.LinkIdentity(ctx, model.AuthIdentity{UserID: "u1", Provider: "github", ProviderSubject: "github:ada@example.com"}); err != nil {
+	if err := store.LinkIdentity(ctx, auth.Identity{UserID: "u1", Provider: "github", ProviderSubject: "github:ada@example.com"}); err != nil {
 		t.Fatalf("link github: %v", err)
 	}
 	now := time.Now()
-	jobs := []model.Job{
+	seeded := []jobs.Job{
 		{ID: "j1", Status: "queued", CreatedAt: now, UpdatedAt: now},
 		{ID: "j2", Status: "done", CreatedAt: now, UpdatedAt: now},
 		{ID: "j3", Status: "failed", CreatedAt: now, UpdatedAt: now},
 	}
-	for _, job := range jobs {
+	for _, job := range seeded {
 		if err := store.SaveJob(ctx, job); err != nil {
 			t.Fatalf("save job %s: %v", job.ID, err)
 		}
 	}
-	if err := store.AddEnrichment(ctx, model.EnrichmentProfile{UserID: "u1", Source: "randomuser.me"}); err != nil {
+	if err := store.AddEnrichment(ctx, jobs.EnrichmentProfile{UserID: "u1", Source: "randomuser.me"}); err != nil {
 		t.Fatalf("add enrichment: %v", err)
 	}
 

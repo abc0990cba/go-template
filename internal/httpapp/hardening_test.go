@@ -19,11 +19,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
+	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
 )
 
 // chunkedOversizeLogin posts valid JSON whose length is hidden from
@@ -91,7 +91,7 @@ func TestHSTSTogglesWithSecureCookies(t *testing.T) {
 	}
 }
 
-func newMaintenanceServer(t *testing.T) (*httptest.Server, *service.Container) {
+func newMaintenanceServer(t *testing.T) (*httptest.Server, *bootstrap.Container) {
 	t.Helper()
 	prevTTL := maintenanceMemoTTL
 	maintenanceMemoTTL = 0 // every request re-reads the flag

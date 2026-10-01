@@ -14,7 +14,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/kernel"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // streamEventKey builds the dedupe map key.
@@ -30,7 +31,7 @@ func idempotencyKey(userID, key string) string {
 // ApplyStreamEvent applies one event with exactly-once semantics, locking
 // the whole sequence under the store mutex exactly as the SQL version locks
 // the user row.
-func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event model.StreamEvent) (model.StreamApplyResult, error) {
+func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event streams.Event) (streams.ApplyResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -43,17 +44,17 @@ func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event model.StreamEven
 		}
 	}
 	if !found {
-		return model.StreamApplyResult{}, ErrNotFound
+		return streams.ApplyResult{}, kernel.ErrNotFound
 	}
 
 	key := streamEventKey(event.Source, event.EventID)
 	if _, done := s.processedEvents[key]; done {
-		return model.StreamApplyResult{Status: model.StreamDeduped, UserID: owner}, nil
+		return streams.ApplyResult{Status: streams.StatusDeduped, UserID: owner}, nil
 	}
 
 	var applied bool
 	switch event.Source {
-	case model.SourceKafka:
+	case streams.SourceKafka:
 		if event.Seq > s.enrichSeqs[owner].profile {
 			user := s.users[owner]
 			user.EnrichProfile = mergeJSON(user.EnrichProfile, event.Payload)
@@ -65,7 +66,7 @@ func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event model.StreamEven
 			s.enrichSeqs[owner] = seqs
 			applied = true
 		}
-	case model.SourceNats:
+	case streams.SourceNats:
 		if event.Seq > s.enrichSeqs[owner].contact {
 			user := s.users[owner]
 			user.EnrichContact = mergeJSON(user.EnrichContact, event.Payload)
@@ -78,12 +79,12 @@ func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event model.StreamEven
 			applied = true
 		}
 	default:
-		return model.StreamApplyResult{}, fmt.Errorf("unknown stream source %q", event.Source)
+		return streams.ApplyResult{}, fmt.Errorf("unknown stream source %q", event.Source)
 	}
-	s.processedEvents[key] = model.StreamApplyResult{UserID: owner}
+	s.processedEvents[key] = streams.ApplyResult{UserID: owner}
 	s.processedAt[key] = time.Now()
 	if !applied {
-		return model.StreamApplyResult{Status: model.StreamStale, UserID: owner}, nil
+		return streams.ApplyResult{Status: streams.StatusStale, UserID: owner}, nil
 	}
 
 	payload, err := json.Marshal(map[string]any{
@@ -91,17 +92,17 @@ func (s *MemoryStore) ApplyStreamEvent(_ context.Context, event model.StreamEven
 		"source": event.Source, "seq": event.Seq,
 	})
 	if err != nil {
-		return model.StreamApplyResult{}, err
+		return streams.ApplyResult{}, err
 	}
-	s.outboxItems = append(s.outboxItems, &model.OutboxEvent{
+	s.outboxItems = append(s.outboxItems, &streams.OutboxEvent{
 		ID:          uuid.NewString(),
-		EventType:   model.OutboxUserEnriched,
+		EventType:   streams.OutboxUserEnriched,
 		AggregateID: owner,
 		Payload:     string(payload),
 		Headers:     event.Headers,
 		CreatedAt:   time.Now(),
 	})
-	return model.StreamApplyResult{Status: model.StreamApplied, UserID: owner}, nil
+	return streams.ApplyResult{Status: streams.StatusApplied, UserID: owner}, nil
 }
 
 // mergeJSON overlays the incoming JSON object onto the stored one, field by
@@ -133,19 +134,19 @@ func (s *MemoryStore) StreamSeqs(_ context.Context, userID string) (profile, con
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if _, ok := s.users[userID]; !ok {
-		return 0, 0, ErrNotFound
+		return 0, 0, kernel.ErrNotFound
 	}
 	seqs := s.enrichSeqs[userID]
 	return seqs.profile, seqs.contact, nil
 }
 
 // ClaimOutboxBatch leases unprocessed events whose lease expired.
-func (s *MemoryStore) ClaimOutboxBatch(_ context.Context, limit, leaseSeconds, maxAttempts int) ([]model.OutboxEvent, error) {
+func (s *MemoryStore) ClaimOutboxBatch(_ context.Context, limit, leaseSeconds, maxAttempts int) ([]streams.OutboxEvent, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
 	lease := time.Duration(leaseSeconds) * time.Second
-	var claimed []model.OutboxEvent
+	var claimed []streams.OutboxEvent
 	for _, item := range s.outboxItems {
 		if len(claimed) >= limit {
 			break
@@ -215,10 +216,10 @@ func (s *MemoryStore) CountOutboxPending(_ context.Context) (int, error) {
 
 // ListOutbox pages events newest first; opts.Status "pending" filters to
 // unpublished rows.
-func (s *MemoryStore) ListOutbox(_ context.Context, opts ListOptions) ([]model.OutboxEvent, string, error) {
+func (s *MemoryStore) ListOutbox(_ context.Context, opts kernel.ListOptions) ([]streams.OutboxEvent, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	rows := make([]model.OutboxEvent, 0, len(s.outboxItems))
+	rows := make([]streams.OutboxEvent, 0, len(s.outboxItems))
 	for _, item := range s.outboxItems {
 		if opts.Status == "pending" && item.ProcessedAt != nil {
 			continue
@@ -237,7 +238,7 @@ func (s *MemoryStore) ListOutbox(_ context.Context, opts ListOptions) ([]model.O
 	}
 	start := max(opts.Offset, 0)
 	if start >= len(rows) {
-		return []model.OutboxEvent{}, "", nil
+		return []streams.OutboxEvent{}, "", nil
 	}
 	end := min(start+limit, len(rows))
 	next := ""
@@ -247,105 +248,9 @@ func (s *MemoryStore) ListOutbox(_ context.Context, opts ListOptions) ([]model.O
 	return rows[start:end], next, nil
 }
 
-// SaveDeadLetter parks an unprocessable message; duplicate ids are ignored.
-func (s *MemoryStore) SaveDeadLetter(_ context.Context, letter model.DeadLetter) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if letter.ID == "" {
-		letter.ID = uuid.NewString()
-	}
-	for _, existing := range s.deadLetters {
-		if existing.ID == letter.ID {
-			return nil
-		}
-	}
-	letter.CreatedAt = time.Now()
-	s.deadLetters = append(s.deadLetters, letter)
-	return nil
-}
-
-// GetDeadLetter returns one parked message.
-func (s *MemoryStore) GetDeadLetter(_ context.Context, id string) (model.DeadLetter, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	for _, letter := range s.deadLetters {
-		if letter.ID == id {
-			return letter, nil
-		}
-	}
-	return model.DeadLetter{}, ErrNotFound
-}
-
-// ListDeadLetters pages parked messages newest first; opts.Pending filters to
-// not-yet-replayed ones.
-func (s *MemoryStore) ListDeadLetters(_ context.Context, opts DeadLetterOptions) ([]model.DeadLetter, string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	rows := make([]model.DeadLetter, len(s.deadLetters))
-	copy(rows, s.deadLetters)
-	sort.Slice(rows, func(i, j int) bool {
-		if !rows[i].CreatedAt.Equal(rows[j].CreatedAt) {
-			return rows[i].CreatedAt.After(rows[j].CreatedAt)
-		}
-		return rows[i].ID > rows[j].ID
-	})
-	filtered := rows[:0]
-	for _, letter := range rows {
-		if opts.Pending && letter.ReplayedAt != nil {
-			continue
-		}
-		filtered = append(filtered, letter)
-	}
-	limit := 25
-	if opts.Limit > 0 && opts.Limit <= 100 {
-		limit = opts.Limit
-	}
-	start := max(opts.Offset, 0)
-	if start >= len(filtered) {
-		return []model.DeadLetter{}, "", nil
-	}
-	end := min(start+limit, len(filtered))
-	next := ""
-	if end < len(filtered) {
-		next = filtered[end-1].ID
-	}
-	return filtered[start:end], next, nil
-}
-
-// MarkDeadLetterReplayed stamps the replay time; ErrNotFound when absent or
-// already replayed.
-func (s *MemoryStore) MarkDeadLetterReplayed(_ context.Context, id string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for i, letter := range s.deadLetters {
-		if letter.ID == id {
-			if letter.ReplayedAt != nil {
-				return ErrNotFound
-			}
-			stamp := time.Now()
-			s.deadLetters[i].ReplayedAt = &stamp
-			return nil
-		}
-	}
-	return ErrNotFound
-}
-
-// CountDeadLettersPending reports parked messages awaiting replay.
-func (s *MemoryStore) CountDeadLettersPending(ctx context.Context) (int, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	n := 0
-	for _, letter := range s.deadLetters {
-		if letter.ReplayedAt == nil {
-			n++
-		}
-	}
-	return n, nil
-}
-
 // ReserveIdempotency inserts the reservation atomically; already=true when
 // the (user, key) pair exists.
-func (s *MemoryStore) ReserveIdempotency(ctx context.Context, record model.IdempotencyRecord) (model.IdempotencyRecord, bool, error) {
+func (s *MemoryStore) ReserveIdempotency(ctx context.Context, record kernel.IdempotencyRecord) (kernel.IdempotencyRecord, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := idempotencyKey(record.UserID, record.Key)

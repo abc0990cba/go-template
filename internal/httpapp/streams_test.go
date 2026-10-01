@@ -9,12 +9,11 @@ import (
 	"testing"
 
 	"github.com/your-org/go-template/internal/config"
-	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/platform/ratelimit"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // newStreamTestServer builds the api over the memory store with the
@@ -87,8 +86,8 @@ func TestStreamsAdminEndpoints(t *testing.T) {
 
 	// Park a letter through the service path, then find it over the API.
 	ctx := t.Context()
-	svc := service.NewStreamsService(store, nil, discardLogger())
-	if err := svc.ParkDeadLetter(ctx, model.SourceKafka, "user-profile.v1", []byte(`{"broken`), model.DeadLetterMalformed); err != nil {
+	svc := streams.NewService(store, nil, discardLogger())
+	if err := svc.ParkDeadLetter(ctx, streams.SourceKafka, "user-profile.v1", []byte(`{"broken`), streams.ReasonMalformed); err != nil {
 		t.Fatalf("park: %v", err)
 	}
 	status, body = callJSON(t, server, http.MethodGet, "/api/streams/dead-letters?pending=true", "", token)

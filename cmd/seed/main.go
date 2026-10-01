@@ -126,7 +126,7 @@ func seedUserCredentials(ctx context.Context, pool *pgxpool.Pool, count int) (in
 	return total, nil
 }
 
-// hashPassword mirrors internal/service/auth.go so seeded credentials verify
+// hashPassword mirrors internal/auth (passwords.go) so seeded credentials verify
 // against the real login path.
 func hashPassword(password string) string {
 	salt := make([]byte, 16)

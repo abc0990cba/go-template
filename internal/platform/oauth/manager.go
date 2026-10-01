@@ -17,8 +17,18 @@ import (
 	"golang.org/x/oauth2/google"
 
 	"github.com/your-org/go-template/internal/config"
-	"github.com/your-org/go-template/internal/model"
 )
+
+// Profile is the normalized profile returned by a provider after the code
+// exchange. It lives here because it is the provider wire type; the auth
+// feature converts it into its own Identity on link.
+type Profile struct {
+	Provider        string `json:"provider"`
+	ProviderSubject string `json:"provider_subject"`
+	Email           string `json:"email"`
+	Name            string `json:"name"`
+	AvatarURL       string `json:"avatar_url"`
+}
 
 // Manager holds the per-provider OAuth2 configuration and an HTTP client
 // bounded by the configured external timeout.
@@ -104,14 +114,14 @@ func (m *Manager) AuthCodeURL(provider, state string) (string, error) {
 
 // ExchangeProfile swaps an authorization code for a token and fetches the
 // provider profile of the authenticated user.
-func (m *Manager) ExchangeProfile(ctx context.Context, provider, code string) (model.OAuthProfile, error) {
+func (m *Manager) ExchangeProfile(ctx context.Context, provider, code string) (Profile, error) {
 	providerConfig, ok := m.providers[provider]
 	if !ok {
-		return model.OAuthProfile{}, fmt.Errorf("unknown oauth provider %q", provider)
+		return Profile{}, fmt.Errorf("unknown oauth provider %q", provider)
 	}
 	token, err := providerConfig.Config.Exchange(ctx, code)
 	if err != nil {
-		return model.OAuthProfile{}, err
+		return Profile{}, err
 	}
 	client := providerConfig.Config.Client(ctx, token)
 	switch provider {
@@ -120,11 +130,11 @@ func (m *Manager) ExchangeProfile(ctx context.Context, provider, code string) (m
 	case "github":
 		return fetchGitHubProfile(ctx, client, providerConfig.UserInfoURL, providerConfig.EmailURL)
 	default:
-		return model.OAuthProfile{}, fmt.Errorf("unknown oauth provider %q", provider)
+		return Profile{}, fmt.Errorf("unknown oauth provider %q", provider)
 	}
 }
 
-func fetchGoogleProfile(ctx context.Context, client *http.Client, url string) (model.OAuthProfile, error) {
+func fetchGoogleProfile(ctx context.Context, client *http.Client, url string) (Profile, error) {
 	var body struct {
 		Sub     string `json:"sub"`
 		Email   string `json:"email"`
@@ -132,15 +142,15 @@ func fetchGoogleProfile(ctx context.Context, client *http.Client, url string) (m
 		Picture string `json:"picture"`
 	}
 	if err := getJSON(ctx, client, url, &body); err != nil {
-		return model.OAuthProfile{}, err
+		return Profile{}, err
 	}
 	if body.Sub == "" {
-		return model.OAuthProfile{}, errors.New("google profile is missing subject")
+		return Profile{}, errors.New("google profile is missing subject")
 	}
-	return model.OAuthProfile{Provider: "google", ProviderSubject: body.Sub, Email: body.Email, Name: body.Name, AvatarURL: body.Picture}, nil
+	return Profile{Provider: "google", ProviderSubject: body.Sub, Email: body.Email, Name: body.Name, AvatarURL: body.Picture}, nil
 }
 
-func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, emailURL string) (model.OAuthProfile, error) {
+func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, emailURL string) (Profile, error) {
 	var user struct {
 		ID        int64  `json:"id"`
 		Login     string `json:"login"`
@@ -149,7 +159,7 @@ func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, email
 		AvatarURL string `json:"avatar_url"`
 	}
 	if err := getJSON(ctx, client, userURL, &user); err != nil {
-		return model.OAuthProfile{}, err
+		return Profile{}, err
 	}
 	email := user.Email
 	if email == "" {
@@ -168,13 +178,13 @@ func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, email
 		}
 	}
 	if user.ID == 0 {
-		return model.OAuthProfile{}, errors.New("github profile is missing id")
+		return Profile{}, errors.New("github profile is missing id")
 	}
 	name := user.Name
 	if name == "" {
 		name = user.Login
 	}
-	return model.OAuthProfile{Provider: "github", ProviderSubject: fmt.Sprintf("%d", user.ID), Email: email, Name: name, AvatarURL: user.AvatarURL}, nil
+	return Profile{Provider: "github", ProviderSubject: fmt.Sprintf("%d", user.ID), Email: email, Name: name, AvatarURL: user.AvatarURL}, nil
 }
 
 func getJSON(ctx context.Context, client *http.Client, url string, target any) error {

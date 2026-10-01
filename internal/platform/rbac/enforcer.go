@@ -6,13 +6,13 @@ import (
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
 
-	"github.com/your-org/go-template/internal/repository"
+	"github.com/your-org/go-template/internal/rbac"
 )
 
 // NewEnforcer builds the Casbin enforcer over the policy store and loads
 // the persisted rules. Autosave is on: every permission change through the
 // enforcer is persisted through the adapter in the same call.
-func NewEnforcer(store repository.RuleStore) (*casbin.SyncedEnforcer, error) {
+func NewEnforcer(store rbac.RuleStore) (*casbin.SyncedEnforcer, error) {
 	m, err := casbinmodel.NewModelFromString(ModelText)
 	if err != nil {
 		return nil, fmt.Errorf("rbac model: %w", err)

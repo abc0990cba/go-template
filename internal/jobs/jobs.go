@@ -1,6 +1,7 @@
-// Package jobs defines the distributed task types and their versioned
-// payloads. Both the API enqueue path and the worker handlers depend on
-// these definitions, so the contract lives in one place.
+// Package jobs owns the background-jobs feature: the distributed task
+// contract (task types and versioned payloads), the enqueue/process service,
+// and the jobs HTTP surface. Both the API enqueue path and the worker
+// handlers depend on the contract, so it lives in one place.
 package jobs
 
 import (

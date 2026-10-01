@@ -7,14 +7,14 @@ import (
 
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
-	"github.com/your-org/go-template/internal/platform/cache"
+	platformcache "github.com/your-org/go-template/internal/platform/cache"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
 )
 
 // newCachedServer builds the standard memory-store router with an in-process
 // cache attached to the user and auth services.
-func newCachedServer(t *testing.T) (*httptest.Server, *cache.Memory) {
+func newCachedServer(t *testing.T) (*httptest.Server, *platformcache.Memory) {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
@@ -23,7 +23,7 @@ func newCachedServer(t *testing.T) (*httptest.Server, *cache.Memory) {
 	logger := discardLogger()
 	store := repository.NewMemoryStore()
 	services := newTestContainer(t, store, nil, logger)
-	mem := cache.NewMemory()
+	mem := platformcache.NewMemory()
 	services.Users.WithCache(mem).WithLogger(logger)
 	services.Auth.WithCache(mem)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))

@@ -6,11 +6,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/invitations"
 	"github.com/your-org/go-template/internal/platform/postgres/db"
 )
 
-func (s *Store) CreateOrgInvitation(ctx context.Context, invitation model.OrgInvitation) error {
+func (s *Store) CreateOrgInvitation(ctx context.Context, invitation invitations.Invitation) error {
 	return mapErr(s.q.CreateOrgInvitation(ctx, db.CreateOrgInvitationParams{
 		ID:        invitation.ID,
 		OrgID:     invitation.OrgID,
@@ -22,23 +22,23 @@ func (s *Store) CreateOrgInvitation(ctx context.Context, invitation model.OrgInv
 	}))
 }
 
-func (s *Store) GetOrgInvitationByHash(ctx context.Context, tokenHash string) (model.OrgInvitation, error) {
+func (s *Store) GetOrgInvitationByHash(ctx context.Context, tokenHash string) (invitations.Invitation, error) {
 	row, err := s.q.GetOrgInvitationByHash(ctx, tokenHash)
 	if err != nil {
-		return model.OrgInvitation{}, mapErr(err)
+		return invitations.Invitation{}, mapErr(err)
 	}
 	return invitationFromRow(row), nil
 }
 
-func (s *Store) GetOrgInvitation(ctx context.Context, id string) (model.OrgInvitation, error) {
+func (s *Store) GetOrgInvitation(ctx context.Context, id string) (invitations.Invitation, error) {
 	row, err := s.q.GetOrgInvitation(ctx, id)
 	if err != nil {
-		return model.OrgInvitation{}, mapErr(err)
+		return invitations.Invitation{}, mapErr(err)
 	}
 	return invitationFromRow(row), nil
 }
 
-func (s *Store) ListOrgInvitations(ctx context.Context, orgID string, limit, offset int) ([]model.OrgInvitation, int64, error) {
+func (s *Store) ListOrgInvitations(ctx context.Context, orgID string, limit, offset int) ([]invitations.Invitation, int64, error) {
 	rows, err := s.q.ListOrgInvitations(ctx, db.ListOrgInvitationsParams{
 		OrgID:  orgID,
 		Offset: int32(offset),
@@ -51,19 +51,19 @@ func (s *Store) ListOrgInvitations(ctx context.Context, orgID string, limit, off
 	if err != nil {
 		return nil, 0, mapErr(err)
 	}
-	out := make([]model.OrgInvitation, 0, len(rows))
+	out := make([]invitations.Invitation, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, invitationFromRow(row))
 	}
 	return out, total, nil
 }
 
-func (s *Store) ListPendingOrgInvitationsByEmail(ctx context.Context, email string) ([]model.OrgInvitation, error) {
+func (s *Store) ListPendingOrgInvitationsByEmail(ctx context.Context, email string) ([]invitations.Invitation, error) {
 	rows, err := s.q.ListPendingOrgInvitationsByEmail(ctx, email)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	out := make([]model.OrgInvitation, 0, len(rows))
+	out := make([]invitations.Invitation, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, invitationFromRow(row))
 	}
@@ -85,8 +85,8 @@ func (s *Store) ExpireOldOrgInvitations(ctx context.Context) error {
 	return mapErr(s.q.ExpireOldOrgInvitations(ctx))
 }
 
-func invitationFromRow(row db.OrgInvitation) model.OrgInvitation {
-	out := model.OrgInvitation{
+func invitationFromRow(row db.OrgInvitation) invitations.Invitation {
+	out := invitations.Invitation{
 		ID:         row.ID,
 		OrgID:      row.OrgID,
 		Email:      row.Email,
@@ -104,3 +104,5 @@ func invitationFromRow(row db.OrgInvitation) model.OrgInvitation {
 	}
 	return out
 }
+
+var _ invitations.Store = (*Store)(nil)

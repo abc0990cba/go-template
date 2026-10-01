@@ -13,10 +13,9 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/your-org/go-template/internal/model"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/reliability"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/streams"
 )
 
 // Config carries the client wiring from config.Config.
@@ -37,7 +36,7 @@ type Client struct {
 	breakers *reliability.Breakers
 }
 
-var _ service.EventPublisher = (*Client)(nil)
+var _ streams.Publisher = (*Client)(nil)
 
 // Open connects (reconnecting forever with jitter afterwards), ensures the
 // stream and the durable consumer exist, and verifies JetStream answers.
@@ -196,7 +195,7 @@ func (c *Client) handle(ctx context.Context, msg *nats.Msg, handle MessageHandle
 	switch {
 	case err == nil:
 		return outcomeDone
-	case service.IsTerminalStreamError(err):
+	case streams.IsTerminal(err):
 		// Already parked in the dead-letter queue; acking stops the loop.
 		c.log.Warn("nats message parked", "subject", msg.Subject, "err", err)
 		return outcomeParked
@@ -208,7 +207,7 @@ func (c *Client) handle(ctx context.Context, msg *nats.Msg, handle MessageHandle
 // PublishUserEvent relays one outbox event. Nats-Msg-Id gives the stream
 // server-side deduplication, so a relay crash between publish and mark
 // cannot double-publish.
-func (c *Client) PublishUserEvent(ctx context.Context, event model.OutboxEvent) error {
+func (c *Client) PublishUserEvent(ctx context.Context, event streams.OutboxEvent) error {
 	msg := nats.NewMsg(c.cfg.SubjectEvents)
 	msg.Data = []byte(event.Payload)
 	for k, v := range event.Headers {

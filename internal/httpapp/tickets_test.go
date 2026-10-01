@@ -8,16 +8,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
+	"github.com/your-org/go-template/internal/rbac"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
 )
 
 // newTicketTestServer builds the test server and hands back the container
 // so tests can grant the requester/approver roles directly.
-func newTicketTestServer(t *testing.T) (*httptest.Server, *service.Container) {
+func newTicketTestServer(t *testing.T) (*httptest.Server, *bootstrap.Container) {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
@@ -33,7 +34,7 @@ func newTicketTestServer(t *testing.T) (*httptest.Server, *service.Container) {
 
 // registerUser registers an account and grants the role in the platform
 // domain (the first account is already superadmin).
-func registerUser(t *testing.T, server *httptest.Server, services *service.Container, email, role string) string {
+func registerUser(t *testing.T, server *httptest.Server, services *bootstrap.Container, email, role string) string {
 	t.Helper()
 	token := registerAndLogin(t, server, email)
 	user, err := services.Auth.UserByEmail(t.Context(), email)
@@ -41,7 +42,7 @@ func registerUser(t *testing.T, server *httptest.Server, services *service.Conta
 		t.Fatalf("lookup %s: %v", email, err)
 	}
 	if role != "" {
-		if err := services.RBAC.AssignRole(user.ID, role, service.PlatformDomain); err != nil {
+		if err := services.RBAC.AssignRole(user.ID, role, rbac.PlatformDomain); err != nil {
 			t.Fatalf("assign %s to %s: %v", role, email, err)
 		}
 	}

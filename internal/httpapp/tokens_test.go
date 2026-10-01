@@ -6,11 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/your-org/go-template/internal/auth"
 	"github.com/your-org/go-template/internal/config"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/repository"
-	"github.com/your-org/go-template/internal/service"
+	"github.com/your-org/go-template/internal/tokens"
 )
 
 // newTokenTestServer builds a router with the JWT grant enabled. The shared
@@ -21,7 +22,7 @@ func newTokenTestServer(t *testing.T, cfg config.Config) (*httptest.Server, *rep
 	logger := discardLogger()
 	store := repository.NewMemoryStore()
 	services := newTestContainer(t, store, nil, logger)
-	services.Tokens = service.NewTokenService(store, store, services.MFA, store, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL)
+	services.Tokens = tokens.NewService(store, store, services.MFA, store, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, auth.VerifyPassword)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))
 	t.Cleanup(server.Close)
 	return server, store

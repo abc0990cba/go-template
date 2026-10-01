@@ -3,11 +3,14 @@ package postgres
 import (
 	"context"
 
-	"github.com/your-org/go-template/internal/model"
+	"github.com/your-org/go-template/internal/mfa"
 	"github.com/your-org/go-template/internal/platform/postgres/db"
 )
 
-func (s *Store) UpsertMFAFactor(ctx context.Context, factor model.MFAFactor) error {
+// The PostgreSQL adapter implements the mfa feature's store port.
+var _ mfa.Store = (*Store)(nil)
+
+func (s *Store) UpsertMFAFactor(ctx context.Context, factor mfa.Factor) error {
 	return mapErr(s.q.UpsertMFAFactor(ctx, db.UpsertMFAFactorParams{
 		UserID: factor.UserID,
 		Secret: factor.Secret,
@@ -18,12 +21,12 @@ func (s *Store) ConfirmMFAFactor(ctx context.Context, userID string) error {
 	return mapErr(s.q.ConfirmMFAFactor(ctx, userID))
 }
 
-func (s *Store) GetMFAFactor(ctx context.Context, userID string) (model.MFAFactor, error) {
+func (s *Store) GetMFAFactor(ctx context.Context, userID string) (mfa.Factor, error) {
 	row, err := s.q.GetMFAFactor(ctx, userID)
 	if err != nil {
-		return model.MFAFactor{}, mapErr(err)
+		return mfa.Factor{}, mapErr(err)
 	}
-	out := model.MFAFactor{
+	out := mfa.Factor{
 		UserID:    row.UserID,
 		Secret:    row.Secret,
 		Confirmed: row.Confirmed,
@@ -41,7 +44,7 @@ func (s *Store) DeleteMFAFactor(ctx context.Context, userID string) error {
 	return mapErr(s.q.DeleteMFAFactor(ctx, userID))
 }
 
-func (s *Store) CreateMFARecoveryCode(ctx context.Context, code model.MFARecoveryCode) error {
+func (s *Store) CreateMFARecoveryCode(ctx context.Context, code mfa.RecoveryCode) error {
 	return mapErr(s.q.CreateMFARecoveryCode(ctx, db.CreateMFARecoveryCodeParams{
 		ID:       code.ID,
 		UserID:   code.UserID,
@@ -49,12 +52,12 @@ func (s *Store) CreateMFARecoveryCode(ctx context.Context, code model.MFARecover
 	}))
 }
 
-func (s *Store) ListMFARecoveryCodes(ctx context.Context, userID string) ([]model.MFARecoveryCode, error) {
+func (s *Store) ListMFARecoveryCodes(ctx context.Context, userID string) ([]mfa.RecoveryCode, error) {
 	rows, err := s.q.ListMFARecoveryCodes(ctx, userID)
 	if err != nil {
 		return nil, mapErr(err)
 	}
-	out := make([]model.MFARecoveryCode, 0, len(rows))
+	out := make([]mfa.RecoveryCode, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, mfaRecoveryCode(row))
 	}
@@ -75,7 +78,7 @@ func (s *Store) DeleteMFARecoveryCodes(ctx context.Context, userID string) error
 	return mapErr(s.q.DeleteMFARecoveryCodes(ctx, userID))
 }
 
-func (s *Store) CreateMFAChallenge(ctx context.Context, challenge model.MFAChallenge) error {
+func (s *Store) CreateMFAChallenge(ctx context.Context, challenge mfa.Challenge) error {
 	return mapErr(s.q.CreateMFAChallenge(ctx, db.CreateMFAChallengeParams{
 		ID:        challenge.ID,
 		UserID:    challenge.UserID,
@@ -84,12 +87,12 @@ func (s *Store) CreateMFAChallenge(ctx context.Context, challenge model.MFAChall
 	}))
 }
 
-func (s *Store) GetMFAChallengeByHash(ctx context.Context, tokenHash string) (model.MFAChallenge, error) {
+func (s *Store) GetMFAChallengeByHash(ctx context.Context, tokenHash string) (mfa.Challenge, error) {
 	row, err := s.q.GetMFAChallengeByHash(ctx, tokenHash)
 	if err != nil {
-		return model.MFAChallenge{}, mapErr(err)
+		return mfa.Challenge{}, mapErr(err)
 	}
-	return model.MFAChallenge{
+	return mfa.Challenge{
 		ID:        row.ID,
 		UserID:    row.UserID,
 		TokenHash: row.TokenHash,
@@ -111,8 +114,8 @@ func (s *Store) DeleteExpiredMFAChallenges(ctx context.Context) error {
 	return mapErr(s.q.DeleteExpiredMFAChallenges(ctx))
 }
 
-func mfaRecoveryCode(row db.MfaRecoveryCode) model.MFARecoveryCode {
-	out := model.MFARecoveryCode{
+func mfaRecoveryCode(row db.MfaRecoveryCode) mfa.RecoveryCode {
+	out := mfa.RecoveryCode{
 		ID:        row.ID,
 		UserID:    row.UserID,
 		CodeHash:  row.CodeHash,
