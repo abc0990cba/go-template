@@ -111,6 +111,7 @@ func (s *Service) Create(ctx context.Context, endpoint Endpoint) (Endpoint, erro
 	if _, err := validateWebhookURL(endpoint.URL); err != nil {
 		return Endpoint{}, err
 	}
+	endpoint.ID = kernel.NewID()
 	if endpoint.Secret == "" {
 		endpoint.Secret = kernel.NewID()
 	}

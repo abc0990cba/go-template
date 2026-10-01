@@ -17,10 +17,15 @@ import (
 // PostgreSQL adapter for policy persistence.
 var _ rbac.RuleStore = (*MemoryStore)(nil)
 
-// CreateOrg stores an organization; ids are unique, slugs conflict.
+// CreateOrg stores an organization. Mirroring the Postgres constraints:
+// slugs conflict (UNIQUE), while a duplicate id is a silent no-op that
+// keeps the original (ON CONFLICT (id) DO NOTHING).
 func (s *MemoryStore) CreateOrg(ctx context.Context, org rbac.Organization) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if _, ok := s.orgs[org.ID]; ok {
+		return nil
+	}
 	for _, existing := range s.orgs {
 		if existing.Slug == org.Slug {
 			return kernel.ErrConflict

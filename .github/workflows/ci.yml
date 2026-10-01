@@ -37,8 +37,8 @@ jobs:
         run: go build ./...
       - name: Size budget (max 400 lines per hand-written production file)
         run: make check-size
-      - name: Test
-        run: go test -race -covermode=atomic ./...
+      - name: Test (coverage floor)
+        run: make coverage-check
 
   lint:
     runs-on: ubuntu-latest

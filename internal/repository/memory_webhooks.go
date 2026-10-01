@@ -33,13 +33,21 @@ func (s *MemoryStore) UpdateWebhookEndpoint(ctx context.Context, endpoint webhoo
 	return kernel.ErrNotFound
 }
 
-// DeleteWebhookEndpoint removes the endpoint.
+// DeleteWebhookEndpoint removes the endpoint; deliveries cascade, matching
+// the webhook_deliveries ON DELETE CASCADE foreign key in Postgres.
 func (s *MemoryStore) DeleteWebhookEndpoint(ctx context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, existing := range s.webhooks {
 		if existing.ID == id {
 			s.webhooks = append(s.webhooks[:i], s.webhooks[i+1:]...)
+			kept := s.deliveries[:0]
+			for _, delivery := range s.deliveries {
+				if delivery.EndpointID != id {
+					kept = append(kept, delivery)
+				}
+			}
+			s.deliveries = kept
 			return nil
 		}
 	}

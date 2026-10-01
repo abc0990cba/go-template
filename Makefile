@@ -1,4 +1,4 @@
-.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet coverage generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
+.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
 run:
 	go run ./cmd/api
 
@@ -76,6 +76,14 @@ vet:
 coverage:
 	go test -race -covermode=atomic -coverprofile=coverage.out ./internal/...
 	go tool cover -func=coverage.out | tail -1
+
+# The floor guards the whole internal tree (never-tested packages count as
+# 0), so it reads a -coverpkg profile rather than only the tested packages.
+COVERAGE_FLOOR ?= 42
+
+coverage-check:
+	go test -race -covermode=atomic -coverpkg=./internal/... -coverprofile=coverage.out ./internal/... ./cmd/...
+	go tool cover -func=coverage.out | awk -v floor="$(COVERAGE_FLOOR)" '/^total:/ { gsub(/%/, "", $$3); if ($$3 + 0 < floor) { printf "coverage %.1f%% is below the %.0f%% floor\n", $$3, floor; exit 1 } else { printf "coverage %.1f%% meets the %.0f%% floor\n", $$3, floor } }'
 
 generate:
 	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate

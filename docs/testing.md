@@ -11,7 +11,12 @@ Test layers, all wired into CI:
 Coverage:
 
 - `make coverage` measures `./internal/...` with the race detector.
-- CI enforces a floor of 55% on internal packages (target 70%); current baseline is ~60% — the httpapp handlers and the OAuth manager are the largest uncovered areas.
+- `make coverage-check` enforces a floor on the whole internal tree with
+  `-coverpkg=./internal/...`, so never-tested packages count as zero. CI runs
+  it in the build-test job. The floor (`COVERAGE_FLOOR`, default 42) tracks
+  the measured baseline — currently ~43%; raise it as coverage grows
+  (target 70%). The httpapp handlers and the OAuth manager are the largest
+  uncovered areas.
 
 Rules:
 

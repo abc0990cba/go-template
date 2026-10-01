@@ -14,13 +14,25 @@ import (
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 
 	"github.com/your-org/go-template/internal/analytics"
+	"github.com/your-org/go-template/internal/apikeys"
+	"github.com/your-org/go-template/internal/audit"
 	"github.com/your-org/go-template/internal/auth"
+	"github.com/your-org/go-template/internal/email"
+	"github.com/your-org/go-template/internal/files"
+	"github.com/your-org/go-template/internal/invitations"
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/kernel"
+	"github.com/your-org/go-template/internal/mfa"
+	"github.com/your-org/go-template/internal/notifications"
 	"github.com/your-org/go-template/internal/platform/postgres"
+	"github.com/your-org/go-template/internal/rbac"
 	"github.com/your-org/go-template/internal/repository"
+	"github.com/your-org/go-template/internal/search"
+	"github.com/your-org/go-template/internal/settings"
 	"github.com/your-org/go-template/internal/tickets"
+	"github.com/your-org/go-template/internal/tokens"
 	"github.com/your-org/go-template/internal/users"
+	"github.com/your-org/go-template/internal/webhooks"
 )
 
 // storeContract is the union of the service ports under test.
@@ -30,6 +42,20 @@ type storeContract interface {
 	jobs.Store
 	analytics.ReportStore
 	tickets.Store
+	email.Store
+	mfa.Store
+	tokens.Store
+	invitations.Store
+	files.Store
+	apikeys.Store
+	webhooks.Store
+	notifications.Store
+	audit.Store
+	settings.Store
+	search.Store
+	rbac.OrgsStore
+	rbac.RolesStore
+	kernel.IdempotencyRepo
 }
 
 func TestStoreContract(t *testing.T) {
@@ -408,6 +434,8 @@ func runStoreContract(t *testing.T, store storeContract) {
 			t.Errorf("delete missing: want ErrNotFound, got %v", err)
 		}
 	})
+
+	RunStoreContractExtra(t, store)
 }
 
 func ids(rows []users.User) []string {

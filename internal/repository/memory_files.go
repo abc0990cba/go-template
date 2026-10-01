@@ -17,9 +17,12 @@ import (
 // adapter, including the PostgreSQL one.
 var _ files.Store = (*MemoryStore)(nil)
 
+// InsertFile stores the metadata; created_at is stamped here, mirroring the
+// Postgres column default (the adapter never passes the caller's value).
 func (s *MemoryStore) InsertFile(_ context.Context, file files.File) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	file.CreatedAt = time.Now()
 	s.files = append(s.files, file)
 	return nil
 }
