@@ -164,6 +164,7 @@ type OauthState struct {
 	UserID        string
 	RedirectAfter string
 	ExpiresAt     time.Time
+	CodeVerifier  string
 }
 
 type OrgInvitation struct {

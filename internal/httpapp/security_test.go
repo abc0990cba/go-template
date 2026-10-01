@@ -2,6 +2,8 @@ package httpapp
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -253,6 +255,141 @@ func TestOAuthFlowWithMockProvider(t *testing.T) {
 	_ = replay.Body.Close()
 	if replay.StatusCode != http.StatusSeeOther {
 		t.Errorf("state replay: want 303 to profile error, got %d", replay.StatusCode)
+	}
+}
+
+// newMockTwitterProvider simulates Twitter's OAuth2 endpoints and enforces
+// the PKCE contract: the authorize request must carry an S256 challenge, and
+// the token request must present the verifier that hashes back to it.
+func newMockTwitterProvider(t *testing.T) *httptest.Server {
+	t.Helper()
+	var challenge string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/auth", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("code_challenge") == "" || q.Get("code_challenge_method") != "S256" {
+			http.Error(w, "missing PKCE challenge", http.StatusBadRequest)
+			return
+		}
+		challenge = q.Get("code_challenge")
+		target := q.Get("redirect_uri") + "?code=mock-code&state=" + url.QueryEscape(q.Get("state"))
+		http.Redirect(w, r, target, http.StatusFound)
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "bad token form", http.StatusBadRequest)
+			return
+		}
+		verifier := r.PostFormValue("code_verifier")
+		sum := sha256.Sum256([]byte(verifier))
+		if verifier == "" || base64.RawURLEncoding.EncodeToString(sum[:]) != challenge {
+			http.Error(w, "PKCE verification failed", http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"mock-access-token","token_type":"Bearer"}`))
+	})
+	mux.HandleFunc("/users/me", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"987654","name":"Ada","username":"ada","profile_image_url":"https://pbs.twimg.com/profile_images/ada_normal.jpg"}}`))
+	})
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server
+}
+
+// TestOAuthFlowWithPKCEProvider drives the twitter flow end to end; Twitter
+// mandates PKCE, so a broken challenge/verifier round trip fails the mock
+// token endpoint and the link never happens.
+func TestOAuthFlowWithPKCEProvider(t *testing.T) {
+	mock := newMockTwitterProvider(t)
+	server, cfg, rebuild := newSecurityServer(t, func(cfg *config.Config) {
+		cfg.TwitterClientID = "test-client"
+		cfg.TwitterSecret = "test-secret"
+		cfg.TwitterAuthURL = mock.URL + "/auth"
+		cfg.TwitterTokenURL = mock.URL + "/token"
+		cfg.TwitterUserInfo = mock.URL + "/users/me"
+	})
+	cfg.BaseURL = server.URL
+	rebuild()
+
+	noFollow := *server.Client()
+	noFollow.CheckRedirect = func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+
+	status, body := callJSONServer(t, server, "/api/auth/register", `{"email":"ada@example.com","name":"Ada","password":"password123"}`)
+	if status != http.StatusCreated {
+		t.Fatalf("register: want 201, got %d", status)
+	}
+	token, _ := body["token"].(string)
+
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/auth/twitter/login", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	start, err := noFollow.Do(req)
+	if err != nil {
+		t.Fatalf("oauth login: %v", err)
+	}
+	redirectURL, err := url.Parse(start.Header.Get("Location"))
+	_ = start.Body.Close()
+	if err != nil || start.StatusCode != http.StatusSeeOther {
+		t.Fatalf("oauth login redirect: %d %v", start.StatusCode, err)
+	}
+	if redirectURL.Query().Get("code_challenge_method") != "S256" {
+		t.Fatalf("authorize url is missing the PKCE challenge: %s", redirectURL)
+	}
+	// Visit the provider authorize endpoint so the mock validates and
+	// captures the challenge, as a real browser would.
+	authorize, err := noFollow.Get(redirectURL.String())
+	if err != nil {
+		t.Fatalf("authorize: %v", err)
+	}
+	_ = authorize.Body.Close()
+	if authorize.StatusCode != http.StatusFound {
+		t.Fatalf("authorize: want 302 back with a code, got %d", authorize.StatusCode)
+	}
+	state := redirectURL.Query().Get("state")
+
+	callback := server.URL + "/auth/twitter/callback?code=mock-code&state=" + url.QueryEscape(state)
+	req, _ = http.NewRequest(http.MethodGet, callback, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	cb, err := noFollow.Do(req)
+	if err != nil {
+		t.Fatalf("callback: %v", err)
+	}
+	cbBody, _ := io.ReadAll(cb.Body)
+	_ = cb.Body.Close()
+	if cb.StatusCode != http.StatusSeeOther {
+		t.Fatalf("callback: want 303, got %d (%s)", cb.StatusCode, cbBody)
+	}
+	if strings.Contains(cb.Header.Get("Location"), "oauth_error") {
+		t.Fatalf("callback bounced with an oauth error: %s", cb.Header.Get("Location"))
+	}
+
+	// The linked identity carries the twitter profile (no email — Twitter
+	// does not expose one; the subject stands in).
+	req, _ = http.NewRequest(http.MethodGet, server.URL+"/api/me/identities", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	identities, err := server.Client().Do(req)
+	if err != nil {
+		t.Fatalf("identities: %v", err)
+	}
+	identityBody, _ := io.ReadAll(identities.Body)
+	_ = identities.Body.Close()
+	var parsed struct {
+		Data []map[string]any `json:"data"`
+	}
+	if err := json.Unmarshal(identityBody, &parsed); err != nil {
+		t.Fatalf("identities decode: %v (%s)", err, identityBody)
+	}
+	found := false
+	for _, identity := range parsed.Data {
+		if identity["provider"] == "twitter" && identity["provider_subject"] == "987654" && identity["name"] == "Ada" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("twitter identity missing after link: %s", identityBody)
 	}
 }
 

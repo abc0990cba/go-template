@@ -17,8 +17,8 @@ import (
 	"github.com/your-org/go-template/internal/users"
 )
 
-// Identity links one external identity (password, google, github) to a
-// user; (provider, provider_subject) is globally unique.
+// Identity links one external identity (password, google, github, facebook,
+// twitter) to a user; (provider, provider_subject) is globally unique.
 type Identity struct {
 	UserID          string    `json:"user_id"`
 	Provider        string    `json:"provider"`
@@ -31,11 +31,14 @@ type Identity struct {
 }
 
 // OAuthState is a single-use CSRF value for the OAuth redirect round trip.
+// CodeVerifier carries the RFC 7636 verifier for providers that mandate
+// PKCE (Twitter); it stays empty for the others.
 type OAuthState struct {
 	State         string    `json:"state"`
 	Provider      string    `json:"provider"`
 	UserID        string    `json:"user_id"`
 	RedirectAfter string    `json:"redirect_after"`
+	CodeVerifier  string    `json:"code_verifier"`
 	ExpiresAt     time.Time `json:"expires_at"`
 }
 
@@ -230,8 +233,10 @@ func (s *Service) ConsumeState(ctx context.Context, state string) (OAuthState, e
 // LinkIdentity attaches a verified provider profile to the user. The
 // (provider, subject) pair comes from the provider, never from user input.
 func (s *Service) LinkIdentity(ctx context.Context, userID string, profile oauth.Profile) error {
-	if profile.Provider != "google" && profile.Provider != "github" {
-		return kernel.Invalid("provider must be google or github")
+	switch profile.Provider {
+	case "google", "github", "facebook", "twitter":
+	default:
+		return kernel.Invalid("provider must be one of google, github, facebook, twitter")
 	}
 	err := s.store.LinkIdentity(ctx, Identity{
 		UserID:          userID,

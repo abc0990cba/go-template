@@ -68,8 +68,9 @@ func (s *ReportService) Get(ctx context.Context, id string) (Report, error) {
 // FormatSummary renders the canonical one-line report body shared by the
 // synchronous API and the background job.
 func FormatSummary(summary AnalyticsSummary) string {
-	return fmt.Sprintf("users=%d password=%d google=%d github=%d jobs_done=%d",
-		summary.TotalUsers, summary.PasswordIdentities, summary.GoogleIdentities, summary.GitHubIdentities, summary.JobsDone)
+	return fmt.Sprintf("users=%d password=%d google=%d github=%d facebook=%d twitter=%d jobs_done=%d",
+		summary.TotalUsers, summary.PasswordIdentities, summary.GoogleIdentities,
+		summary.GitHubIdentities, summary.FacebookIdentities, summary.TwitterIdentities, summary.JobsDone)
 }
 
 // AnalyticsService reads the dashboard summary from the store and, when an

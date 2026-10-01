@@ -36,7 +36,7 @@ export interface DeadLetter {
 
 export interface AuthIdentity {
   user_id: string;
-  provider: "password" | "google" | "github";
+  provider: "password" | "google" | "github" | "facebook" | "twitter";
   provider_subject: string;
   email: string;
   name: string;
@@ -86,6 +86,8 @@ export interface AnalyticsSummary {
   password_identities: number;
   google_identities: number;
   github_identities: number;
+  facebook_identities: number;
+  twitter_identities: number;
   enrichment_succeeded: number;
   enrichment_failed: number;
   jobs_queued: number;

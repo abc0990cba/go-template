@@ -3,12 +3,14 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import {
   Activity,
+  AtSign,
   Database,
   FileText,
   GitBranch,
   KeyRound,
   ListTodo,
   MailCheck,
+  ThumbsUp,
   Users,
 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
@@ -64,7 +66,7 @@ function DashboardPage() {
     <div className="space-y-4">
       <PageIntro />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Total users"
           value={summary.total_users}
@@ -84,6 +86,16 @@ function DashboardPage() {
           title="GitHub identities"
           value={summary.github_identities}
           icon={<GitBranch className="size-4 text-muted-foreground" />}
+        />
+        <KpiCard
+          title="Facebook identities"
+          value={summary.facebook_identities}
+          icon={<ThumbsUp className="size-4 text-muted-foreground" />}
+        />
+        <KpiCard
+          title="Twitter identities"
+          value={summary.twitter_identities}
+          icon={<AtSign className="size-4 text-muted-foreground" />}
         />
         <KpiCard
           title="Jobs done"

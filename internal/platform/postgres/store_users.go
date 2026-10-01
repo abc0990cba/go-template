@@ -223,7 +223,8 @@ func (s *Store) DeleteSessionsForUser(ctx context.Context, userID string) error 
 func (s *Store) SaveOAuthState(ctx context.Context, state auth.OAuthState) error {
 	return mapErr(s.q.SaveOAuthState(ctx, db.SaveOAuthStateParams{
 		State: state.State, Provider: state.Provider, UserID: state.UserID,
-		RedirectAfter: state.RedirectAfter, ExpiresAt: state.ExpiresAt,
+		RedirectAfter: state.RedirectAfter, CodeVerifier: state.CodeVerifier,
+		ExpiresAt: state.ExpiresAt,
 	}))
 }
 
@@ -238,7 +239,8 @@ func (s *Store) ConsumeOAuthState(ctx context.Context, state string, now time.Ti
 	}
 	return auth.OAuthState{
 		State: row.State, Provider: row.Provider, UserID: row.UserID,
-		RedirectAfter: row.RedirectAfter, ExpiresAt: row.ExpiresAt,
+		RedirectAfter: row.RedirectAfter, CodeVerifier: row.CodeVerifier,
+		ExpiresAt: row.ExpiresAt,
 	}, nil
 }
 

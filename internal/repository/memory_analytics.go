@@ -227,6 +227,10 @@ func (s *MemoryStore) Analytics(ctx context.Context) analytics.AnalyticsSummary 
 			summary.GoogleIdentities++
 		case "github":
 			summary.GitHubIdentities++
+		case "facebook":
+			summary.FacebookIdentities++
+		case "twitter":
+			summary.TwitterIdentities++
 		}
 	}
 	for _, job := range s.jobs {

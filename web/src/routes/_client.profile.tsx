@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import {
+  AtSign,
   Fingerprint,
   GitBranch,
   KeyRound,
@@ -15,6 +16,7 @@ import {
   MonitorSmartphone,
   ShieldCheck,
   ShieldOff,
+  ThumbsUp,
   Trash2,
   Unlink,
 } from "lucide-react";
@@ -119,14 +121,14 @@ function ProfilePage() {
         title="Identities and sessions"
         howTo={[
           "Link a provider with the buttons below — the redirect goes to the backend, which performs the code exchange and returns to this page.",
-          "Link buttons render disabled when the provider has no client credentials configured (GOOGLE_CLIENT_ID / GITHUB_CLIENT_ID).",
+          "Link buttons render disabled when the provider has no client credentials configured (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID, FACEBOOK_CLIENT_ID, TWITTER_CLIENT_ID).",
           "“Log out everywhere” revokes every session row for your user; the list below is served by GET /api/sessions.",
         ]}
       >
         The account model is identity-based: a password is just the “password” provider, and
-        Google/GitHub attach as additional identities on the same user. Sessions are opaque
-        server-side tokens in PostgreSQL with a sliding 7-day expiry — reading <code>/api/me</code>{" "}
-        with a valid cookie extends it.
+        Google/GitHub/Facebook/Twitter attach as additional identities on the same user. Sessions
+        are opaque server-side tokens in PostgreSQL with a sliding 7-day expiry — reading{" "}
+        <code>/api/me</code> with a valid cookie extends it.
       </ExplainerBanner>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -147,7 +149,7 @@ function ProfilePage() {
               />
             ))}
             <div className="grid grid-cols-2 gap-2 pt-2">
-              {(["google", "github"] as const).map((provider) => {
+              {(["google", "github", "facebook", "twitter"] as const).map((provider) => {
                 const isConfigured = configured.get(provider) ?? false;
                 const isLinked = linked.has(provider);
                 return (
@@ -168,7 +170,15 @@ function ProfilePage() {
                           : `Link ${provider}`
                     }
                   >
-                    {provider === "google" ? <MailCheck /> : <GitBranch />}
+                    {provider === "google" ? (
+                      <MailCheck />
+                    ) : provider === "github" ? (
+                      <GitBranch />
+                    ) : provider === "facebook" ? (
+                      <ThumbsUp />
+                    ) : (
+                      <AtSign />
+                    )}
                     {isLinked ? `${provider} linked` : `Link ${provider}`}
                   </Button>
                 );
@@ -414,7 +424,11 @@ function IdentityRow({
       ? KeyRound
       : identity.provider === "google"
         ? MailCheck
-        : GitBranch;
+        : identity.provider === "github"
+          ? GitBranch
+          : identity.provider === "facebook"
+            ? ThumbsUp
+            : AtSign;
   return (
     <div className="flex items-center gap-3 rounded-md border p-2">
       <Fingerprint className="ml-1 size-4 text-muted-foreground" />

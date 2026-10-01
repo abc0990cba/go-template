@@ -4,6 +4,8 @@ SELECT
   (SELECT count(*) FROM auth_identities WHERE provider = 'password') AS password_identities,
   (SELECT count(*) FROM auth_identities WHERE provider = 'google') AS google_identities,
   (SELECT count(*) FROM auth_identities WHERE provider = 'github') AS github_identities,
+  (SELECT count(*) FROM auth_identities WHERE provider = 'facebook') AS facebook_identities,
+  (SELECT count(*) FROM auth_identities WHERE provider = 'twitter') AS twitter_identities,
   (SELECT count(*) FROM user_enrichment_profiles) AS enrichment_succeeded,
   (SELECT count(*) FROM jobs WHERE status = 'queued') AS jobs_queued,
   (SELECT count(*) FROM jobs WHERE status = 'done') AS jobs_done,

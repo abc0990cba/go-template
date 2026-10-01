@@ -15,6 +15,8 @@ SELECT
   (SELECT count(*) FROM auth_identities WHERE provider = 'password') AS password_identities,
   (SELECT count(*) FROM auth_identities WHERE provider = 'google') AS google_identities,
   (SELECT count(*) FROM auth_identities WHERE provider = 'github') AS github_identities,
+  (SELECT count(*) FROM auth_identities WHERE provider = 'facebook') AS facebook_identities,
+  (SELECT count(*) FROM auth_identities WHERE provider = 'twitter') AS twitter_identities,
   (SELECT count(*) FROM user_enrichment_profiles) AS enrichment_succeeded,
   (SELECT count(*) FROM jobs WHERE status = 'queued') AS jobs_queued,
   (SELECT count(*) FROM jobs WHERE status = 'done') AS jobs_done,
@@ -26,6 +28,8 @@ type AnalyticsRow struct {
 	PasswordIdentities  int64
 	GoogleIdentities    int64
 	GithubIdentities    int64
+	FacebookIdentities  int64
+	TwitterIdentities   int64
 	EnrichmentSucceeded int64
 	JobsQueued          int64
 	JobsDone            int64
@@ -40,6 +44,8 @@ func (q *Queries) Analytics(ctx context.Context) (AnalyticsRow, error) {
 		&i.PasswordIdentities,
 		&i.GoogleIdentities,
 		&i.GithubIdentities,
+		&i.FacebookIdentities,
+		&i.TwitterIdentities,
 		&i.EnrichmentSucceeded,
 		&i.JobsQueued,
 		&i.JobsDone,

@@ -51,7 +51,7 @@ curl -s localhost:8080/version                                              # bu
 ### 2. Auth & identity — `internal/service/auth.go`, `mfa.go`, `tokens.go`, `email.go`, `apikeys.go`
 
 Opaque server-side sessions (Argon2id passwords, sliding TTL), OAuth
-Google/GitHub linking, password reset / email verification (hashed
+Google/GitHub/Facebook/Twitter linking, password reset / email verification (hashed
 single-use tokens, SMTP or Mailpit or log), personal `gtpl_` API keys with
 scope narrowing, admin impersonation (audited + notified), **TOTP MFA**
 (enroll → QR → login challenge → recovery codes → `mfa.required` policy →

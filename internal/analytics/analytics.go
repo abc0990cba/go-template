@@ -52,6 +52,8 @@ type AnalyticsSummary struct {
 	PasswordIdentities  int `json:"password_identities"`
 	GoogleIdentities    int `json:"google_identities"`
 	GitHubIdentities    int `json:"github_identities"`
+	FacebookIdentities  int `json:"facebook_identities"`
+	TwitterIdentities   int `json:"twitter_identities"`
 	EnrichmentSucceeded int `json:"enrichment_succeeded"`
 	EnrichmentFailed    int `json:"enrichment_failed"`
 	JobsQueued          int `json:"jobs_queued"`

@@ -20,6 +20,7 @@ sql:
       - migrations/postgres/000016_search.up.sql
       - migrations/postgres/000017_org_invitations.up.sql
       - migrations/postgres/000018_files.up.sql
+      - migrations/postgres/000019_oauth_state_verifier.up.sql
     queries: queries
     gen:
       go:

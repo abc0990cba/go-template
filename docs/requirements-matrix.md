@@ -4,7 +4,7 @@
 |---|---|---|---|---|
 | AUTH-001 | Register with email/password | Implemented | UI + API | Uses Argon2id |
 | AUTH-002 | Login/logout | Implemented | UI + API | Cookie session |
-| AUTH-003 | Link Google/GitHub provider | Scaffolded | UI | Mock linking, OAuth callback pending |
+| AUTH-003 | Link Google/GitHub/Facebook/Twitter provider | Implemented | UI + API | OAuth2 authorization-code linking; Twitter via PKCE |
 | USER-001 | CRUD users | Implemented | UI + API create/list | Update/delete UI implemented |
 | USER-002 | Offset/cursor/keyset pagination | Implemented | UI + API | SQL (sqlc) + in-memory, verified by store contract suite |
 | JOB-001 | Enqueue enrichment job | Implemented | UI | In-memory queue |

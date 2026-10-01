@@ -9,7 +9,7 @@ Implemented:
 
 - email/password register, login, logout, logout-all
 - sessions with a server-side TTL (`APP_SESSION_TTL`) and sliding renewal on use
-- real Google/GitHub linking via OAuth2 authorization-code flow (state stored single-use with `OAUTH_STATE_TTL`; linking requires an active session)
+- real Google/GitHub/Facebook/Twitter linking via OAuth2 authorization-code flow (state stored single-use with `OAUTH_STATE_TTL`; linking requires an active session; Twitter runs PKCE S256 with the verifier stored alongside the state)
 - CSRF protection on every HTML form (double-submit cookie, `csrf_token` field) — the JSON API is exempt
 - security headers on every response (CSP, nosniff, frame denial, referrer policy)
 - per-IP token-bucket rate limiting on login and register, UI and API alike (`APP_AUTH_RATE_RPS`, `APP_AUTH_RATE_BURST`)
@@ -26,4 +26,4 @@ Production rules:
 - Rate limit auth endpoints; exceeding the bucket returns 429.
 - Audit events (`user_registered`, `user_logged_in`, `oauth_linked`) are recorded through the analytics event trail.
 
-Testing: the OAuth flow is covered end to end against a mock provider (`internal/httpapp/security_test.go`) using the `GOOGLE_AUTH_URL`/`GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` endpoint overrides.
+Testing: the OAuth flow is covered end to end against a mock provider (`internal/httpapp/security_test.go`) using the `GOOGLE_AUTH_URL`/`GOOGLE_TOKEN_URL`/`GOOGLE_USERINFO_URL` endpoint overrides; a second mock drives the Twitter flow and verifies the PKCE challenge/verifier round trip. Facebook and Twitter do not guarantee an email address — the identity falls back to the provider subject.

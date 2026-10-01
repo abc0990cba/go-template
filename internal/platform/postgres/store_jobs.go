@@ -310,6 +310,8 @@ func (s *Store) Analytics(ctx context.Context) analytics.AnalyticsSummary {
 		PasswordIdentities:  int(row.PasswordIdentities),
 		GoogleIdentities:    int(row.GoogleIdentities),
 		GitHubIdentities:    int(row.GithubIdentities),
+		FacebookIdentities:  int(row.FacebookIdentities),
+		TwitterIdentities:   int(row.TwitterIdentities),
 		EnrichmentSucceeded: int(row.EnrichmentSucceeded),
 		JobsQueued:          int(row.JobsQueued),
 		JobsDone:            int(row.JobsDone),

@@ -33,6 +33,8 @@ func TestRegisterLoginAndLinkProviders(t *testing.T) {
 	profiles := []oauth.Profile{
 		{Provider: "google", ProviderSubject: "sub-google-1", Email: "ada@example.com", Name: "Ada"},
 		{Provider: "github", ProviderSubject: "42", Email: "ada@example.com", Name: "Ada"},
+		{Provider: "facebook", ProviderSubject: "fb-1", Email: "ada@example.com", Name: "Ada"},
+		{Provider: "twitter", ProviderSubject: "tw-1", Name: "Ada"},
 	}
 	for _, profile := range profiles {
 		if err := svc.LinkIdentity(ctx, user.ID, profile); err != nil {
@@ -43,8 +45,11 @@ func TestRegisterLoginAndLinkProviders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("identities: %v", err)
 	}
-	if len(identities) != 3 {
-		t.Fatalf("expected 3 identities, got %d", len(identities))
+	if len(identities) != 5 {
+		t.Fatalf("expected 5 identities, got %d", len(identities))
+	}
+	if err := svc.LinkIdentity(ctx, user.ID, oauth.Profile{Provider: "orcid", ProviderSubject: "x"}); err == nil {
+		t.Fatal("unknown provider: want validation error, got nil")
 	}
 
 	// Sessions: the returned token still resolves; logout-all revokes both.

@@ -39,10 +39,14 @@ func (h *HTTP) oauthLogin(c *gin.Context) {
 	// Linking requires an active session by policy; login via OAuth alone
 	// is out of scope for this change. authRequired resolved the user.
 	user := users.CurrentUser(c)
+	// Providers that mandate PKCE (Twitter) get a verifier minted here and
+	// stored with the state; the challenge rides in the authorize URL.
+	verifier, challenge := h.OAuth.NewCodeVerifier(provider)
 	state := OAuthState{
-		State:    kernel.NewID(),
-		Provider: provider,
-		UserID:   user.ID,
+		State:        kernel.NewID(),
+		Provider:     provider,
+		UserID:       user.ID,
+		CodeVerifier: verifier,
 		// Redirect target is fixed; the field exists for future flows.
 		ExpiresAt: time.Now().Add(h.OAuthStateTTL),
 	}
@@ -51,7 +55,7 @@ func (h *HTTP) oauthLogin(c *gin.Context) {
 		httpx.Problem(c, http.StatusInternalServerError, "oauth login failed", nil)
 		return
 	}
-	url, err := h.OAuth.AuthCodeURL(provider, state.State)
+	url, err := h.OAuth.AuthCodeURL(provider, state.State, challenge)
 	if err != nil {
 		h.Logger.Error("build authorize url failed", "provider", provider, "err", err)
 		httpx.Problem(c, http.StatusInternalServerError, "oauth login failed", nil)
@@ -87,7 +91,7 @@ func (h *HTTP) oauthCallback(c *gin.Context) {
 		back("session+expired+during+oauth")
 		return
 	}
-	profile, err := h.OAuth.ExchangeProfile(c.Request.Context(), provider, q.Get("code"))
+	profile, err := h.OAuth.ExchangeProfile(c.Request.Context(), provider, q.Get("code"), state.CodeVerifier)
 	if err != nil {
 		h.Logger.Error("oauth exchange failed", "provider", provider, "err", err)
 		back("oauth+exchange+failed")

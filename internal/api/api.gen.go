@@ -13,19 +13,25 @@ import (
 
 // Defines values for AuthIdentityProvider.
 const (
+	AuthIdentityProviderFacebook AuthIdentityProvider = "facebook"
 	AuthIdentityProviderGithub   AuthIdentityProvider = "github"
 	AuthIdentityProviderGoogle   AuthIdentityProvider = "google"
 	AuthIdentityProviderPassword AuthIdentityProvider = "password"
+	AuthIdentityProviderTwitter  AuthIdentityProvider = "twitter"
 )
 
 // Valid indicates whether the value is a known member of the AuthIdentityProvider enum.
 func (e AuthIdentityProvider) Valid() bool {
 	switch e {
+	case AuthIdentityProviderFacebook:
+		return true
 	case AuthIdentityProviderGithub:
 		return true
 	case AuthIdentityProviderGoogle:
 		return true
 	case AuthIdentityProviderPassword:
+		return true
+	case AuthIdentityProviderTwitter:
 		return true
 	default:
 		return false
@@ -499,16 +505,22 @@ func (e ListPoliciesParamsPtype) Valid() bool {
 
 // Defines values for UnlinkProviderParamsProvider.
 const (
-	UnlinkProviderParamsProviderGithub UnlinkProviderParamsProvider = "github"
-	UnlinkProviderParamsProviderGoogle UnlinkProviderParamsProvider = "google"
+	UnlinkProviderParamsProviderFacebook UnlinkProviderParamsProvider = "facebook"
+	UnlinkProviderParamsProviderGithub   UnlinkProviderParamsProvider = "github"
+	UnlinkProviderParamsProviderGoogle   UnlinkProviderParamsProvider = "google"
+	UnlinkProviderParamsProviderTwitter  UnlinkProviderParamsProvider = "twitter"
 )
 
 // Valid indicates whether the value is a known member of the UnlinkProviderParamsProvider enum.
 func (e UnlinkProviderParamsProvider) Valid() bool {
 	switch e {
+	case UnlinkProviderParamsProviderFacebook:
+		return true
 	case UnlinkProviderParamsProviderGithub:
 		return true
 	case UnlinkProviderParamsProviderGoogle:
+		return true
+	case UnlinkProviderParamsProviderTwitter:
 		return true
 	default:
 		return false
@@ -771,6 +783,7 @@ type AnalyticsSummary struct {
 
 	// EventsRegistered Present when the event warehouse is configured
 	EventsRegistered   *int `json:"events_registered,omitempty"`
+	FacebookIdentities int  `json:"facebook_identities"`
 	GithubIdentities   int  `json:"github_identities"`
 	GoogleIdentities   int  `json:"google_identities"`
 	JobsDone           int  `json:"jobs_done"`
@@ -778,6 +791,7 @@ type AnalyticsSummary struct {
 	JobsQueued         int  `json:"jobs_queued"`
 	PasswordIdentities int  `json:"password_identities"`
 	TotalUsers         int  `json:"total_users"`
+	TwitterIdentities  int  `json:"twitter_identities"`
 }
 
 // AuditEntry defines model for AuditEntry.

@@ -13,25 +13,35 @@ import (
 const consumeOAuthState = `-- name: ConsumeOAuthState :one
 DELETE FROM oauth_states
 WHERE state = $1
-RETURNING state, provider, user_id, redirect_after, expires_at
+RETURNING state, provider, user_id, redirect_after, code_verifier, expires_at
 `
 
-func (q *Queries) ConsumeOAuthState(ctx context.Context, state string) (OauthState, error) {
+type ConsumeOAuthStateRow struct {
+	State         string
+	Provider      string
+	UserID        string
+	RedirectAfter string
+	CodeVerifier  string
+	ExpiresAt     time.Time
+}
+
+func (q *Queries) ConsumeOAuthState(ctx context.Context, state string) (ConsumeOAuthStateRow, error) {
 	row := q.db.QueryRow(ctx, consumeOAuthState, state)
-	var i OauthState
+	var i ConsumeOAuthStateRow
 	err := row.Scan(
 		&i.State,
 		&i.Provider,
 		&i.UserID,
 		&i.RedirectAfter,
+		&i.CodeVerifier,
 		&i.ExpiresAt,
 	)
 	return i, err
 }
 
 const saveOAuthState = `-- name: SaveOAuthState :exec
-INSERT INTO oauth_states (state, provider, user_id, redirect_after, expires_at)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO oauth_states (state, provider, user_id, redirect_after, code_verifier, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type SaveOAuthStateParams struct {
@@ -39,6 +49,7 @@ type SaveOAuthStateParams struct {
 	Provider      string
 	UserID        string
 	RedirectAfter string
+	CodeVerifier  string
 	ExpiresAt     time.Time
 }
 
@@ -48,6 +59,7 @@ func (q *Queries) SaveOAuthState(ctx context.Context, arg SaveOAuthStateParams) 
 		arg.Provider,
 		arg.UserID,
 		arg.RedirectAfter,
+		arg.CodeVerifier,
 		arg.ExpiresAt,
 	)
 	return err

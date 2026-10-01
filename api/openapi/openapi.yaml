@@ -861,7 +861,7 @@ paths:
         - name: provider
           in: path
           required: true
-          schema: { type: string, enum: [google, github] }
+          schema: { type: string, enum: [google, github, facebook, twitter] }
       responses:
         "204": { description: Identity unlinked }
         default: { $ref: "#/components/responses/Problem" }
@@ -2578,12 +2578,15 @@ components:
       type: object
       required:
         [total_users, password_identities, google_identities, github_identities,
-         enrichment_succeeded, enrichment_failed, jobs_queued, jobs_done, jobs_failed]
+         facebook_identities, twitter_identities, enrichment_succeeded,
+         enrichment_failed, jobs_queued, jobs_done, jobs_failed]
       properties:
         total_users: { type: integer }
         password_identities: { type: integer }
         google_identities: { type: integer }
         github_identities: { type: integer }
+        facebook_identities: { type: integer }
+        twitter_identities: { type: integer }
         enrichment_succeeded: { type: integer }
         enrichment_failed: { type: integer }
         jobs_queued: { type: integer }
@@ -2616,7 +2619,7 @@ components:
       required: [user_id, provider, provider_subject, email, name, linked_at, last_login_at]
       properties:
         user_id: { type: string }
-        provider: { type: string, enum: [password, google, github] }
+        provider: { type: string, enum: [password, google, github, facebook, twitter] }
         provider_subject: { type: string }
         email: { type: string }
         name: { type: string }

@@ -29,39 +29,49 @@ type Config struct {
 	OTLPSampleRatio float64
 	// PyroscopeURL enables continuous profiling when set (APP_PYROSCOPE_URL);
 	// empty keeps the profiler off.
-	PyroscopeURL    string
-	PprofEnabled    bool
-	SessionTTL      time.Duration
-	CookieSecure    bool
-	AuthRateRPS     float64
-	AuthRateBurst   int
-	GoogleAuthURL   string
-	GoogleTokenURL  string
-	GoogleUserInfo  string
-	GitHubAuthURL   string
-	GitHubTokenURL  string
-	GitHubUserURL   string
-	GitHubEmailURL  string
-	ClickHouseAddr  string
-	ClickHouseDB    string
-	ClickHouseUser  string
-	ClickHousePass  string
-	DemoEmail       string
-	DemoPassword    string
-	DemoSeed        bool
-	ShutdownTimeout time.Duration
-	ExternalTimeout time.Duration
-	MaxConcurrency  int
-	OAuthStateTTL   time.Duration
-	GoogleClientID  string
-	GoogleSecret    string
-	GitHubClientID  string
-	GitHubSecret    string
-	SMTPHost        string
-	SMTPPort        int
-	SMTPUsername    string
-	SMTPPassword    string
-	SMTPFrom        string
+	PyroscopeURL     string
+	PprofEnabled     bool
+	SessionTTL       time.Duration
+	CookieSecure     bool
+	AuthRateRPS      float64
+	AuthRateBurst    int
+	GoogleAuthURL    string
+	GoogleTokenURL   string
+	GoogleUserInfo   string
+	GitHubAuthURL    string
+	GitHubTokenURL   string
+	GitHubUserURL    string
+	GitHubEmailURL   string
+	FacebookAuthURL  string
+	FacebookTokenURL string
+	FacebookUserInfo string
+	TwitterAuthURL   string
+	TwitterTokenURL  string
+	TwitterUserInfo  string
+	ClickHouseAddr   string
+	ClickHouseDB     string
+	ClickHouseUser   string
+	ClickHousePass   string
+	DemoEmail        string
+	DemoPassword     string
+	DemoSeed         bool
+	ShutdownTimeout  time.Duration
+	ExternalTimeout  time.Duration
+	MaxConcurrency   int
+	OAuthStateTTL    time.Duration
+	GoogleClientID   string
+	GoogleSecret     string
+	GitHubClientID   string
+	GitHubSecret     string
+	FacebookClientID string
+	FacebookSecret   string
+	TwitterClientID  string
+	TwitterSecret    string
+	SMTPHost         string
+	SMTPPort         int
+	SMTPUsername     string
+	SMTPPassword     string
+	SMTPFrom         string
 
 	// Streams — user enrichment from two external systems. Empty
 	// KafkaBrokers or NatsURL disables that consumer, matching the
@@ -146,37 +156,47 @@ type PoolTuning struct {
 // must never become the default under the hood.
 func Load() (Config, error) {
 	cfg := Config{
-		HTTPAddr:       env("APP_HTTP_ADDR", ":8080"),
-		MetricsAddr:    os.Getenv("APP_METRICS_ADDR"),
-		BaseURL:        env("APP_BASE_URL", "http://localhost:8080"),
-		RedisAddr:      os.Getenv("APP_REDIS_ADDR"),
-		ReportCron:     os.Getenv("APP_REPORT_CRON"),
-		LogFormat:      env("APP_LOG_FORMAT", "text"),
-		OTLPEndpoint:   os.Getenv("APP_OTLP_ENDPOINT"),
-		PyroscopeURL:   os.Getenv("APP_PYROSCOPE_URL"),
-		PprofEnabled:   os.Getenv("APP_PPROF") == "1",
-		GoogleAuthURL:  os.Getenv("GOOGLE_AUTH_URL"),
-		GoogleTokenURL: os.Getenv("GOOGLE_TOKEN_URL"),
-		GoogleUserInfo: os.Getenv("GOOGLE_USERINFO_URL"),
-		GitHubAuthURL:  os.Getenv("GITHUB_AUTH_URL"),
-		GitHubTokenURL: os.Getenv("GITHUB_TOKEN_URL"),
-		GitHubUserURL:  os.Getenv("GITHUB_USER_URL"),
-		GitHubEmailURL: os.Getenv("GITHUB_EMAIL_URL"),
-		ClickHouseAddr: os.Getenv("APP_CLICKHOUSE_ADDR"),
-		ClickHouseDB:   env("APP_CLICKHOUSE_DB", "app"),
-		ClickHouseUser: env("APP_CLICKHOUSE_USER", "default"),
-		ClickHousePass: os.Getenv("APP_CLICKHOUSE_PASSWORD"),
-		DemoEmail:      os.Getenv("APP_DEMO_EMAIL"),
-		DemoPassword:   os.Getenv("APP_DEMO_PASSWORD"),
-		DemoSeed:       os.Getenv("APP_DEMO_SEED") == "1",
-		GoogleClientID: os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleSecret:   os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GitHubClientID: os.Getenv("GITHUB_CLIENT_ID"),
-		GitHubSecret:   os.Getenv("GITHUB_CLIENT_SECRET"),
-		SMTPHost:       os.Getenv("APP_SMTP_HOST"),
-		SMTPUsername:   os.Getenv("APP_SMTP_USERNAME"),
-		SMTPPassword:   os.Getenv("APP_SMTP_PASSWORD"),
-		SMTPFrom:       env("APP_SMTP_FROM", "no-reply@go-template.local"),
+		HTTPAddr:         env("APP_HTTP_ADDR", ":8080"),
+		MetricsAddr:      os.Getenv("APP_METRICS_ADDR"),
+		BaseURL:          env("APP_BASE_URL", "http://localhost:8080"),
+		RedisAddr:        os.Getenv("APP_REDIS_ADDR"),
+		ReportCron:       os.Getenv("APP_REPORT_CRON"),
+		LogFormat:        env("APP_LOG_FORMAT", "text"),
+		OTLPEndpoint:     os.Getenv("APP_OTLP_ENDPOINT"),
+		PyroscopeURL:     os.Getenv("APP_PYROSCOPE_URL"),
+		PprofEnabled:     os.Getenv("APP_PPROF") == "1",
+		GoogleAuthURL:    os.Getenv("GOOGLE_AUTH_URL"),
+		GoogleTokenURL:   os.Getenv("GOOGLE_TOKEN_URL"),
+		GoogleUserInfo:   os.Getenv("GOOGLE_USERINFO_URL"),
+		GitHubAuthURL:    os.Getenv("GITHUB_AUTH_URL"),
+		GitHubTokenURL:   os.Getenv("GITHUB_TOKEN_URL"),
+		GitHubUserURL:    os.Getenv("GITHUB_USER_URL"),
+		GitHubEmailURL:   os.Getenv("GITHUB_EMAIL_URL"),
+		FacebookAuthURL:  os.Getenv("FACEBOOK_AUTH_URL"),
+		FacebookTokenURL: os.Getenv("FACEBOOK_TOKEN_URL"),
+		FacebookUserInfo: os.Getenv("FACEBOOK_USERINFO_URL"),
+		TwitterAuthURL:   os.Getenv("TWITTER_AUTH_URL"),
+		TwitterTokenURL:  os.Getenv("TWITTER_TOKEN_URL"),
+		TwitterUserInfo:  os.Getenv("TWITTER_USERINFO_URL"),
+		ClickHouseAddr:   os.Getenv("APP_CLICKHOUSE_ADDR"),
+		ClickHouseDB:     env("APP_CLICKHOUSE_DB", "app"),
+		ClickHouseUser:   env("APP_CLICKHOUSE_USER", "default"),
+		ClickHousePass:   os.Getenv("APP_CLICKHOUSE_PASSWORD"),
+		DemoEmail:        os.Getenv("APP_DEMO_EMAIL"),
+		DemoPassword:     os.Getenv("APP_DEMO_PASSWORD"),
+		DemoSeed:         os.Getenv("APP_DEMO_SEED") == "1",
+		GoogleClientID:   os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleSecret:     os.Getenv("GOOGLE_CLIENT_SECRET"),
+		GitHubClientID:   os.Getenv("GITHUB_CLIENT_ID"),
+		GitHubSecret:     os.Getenv("GITHUB_CLIENT_SECRET"),
+		FacebookClientID: os.Getenv("FACEBOOK_CLIENT_ID"),
+		FacebookSecret:   os.Getenv("FACEBOOK_CLIENT_SECRET"),
+		TwitterClientID:  os.Getenv("TWITTER_CLIENT_ID"),
+		TwitterSecret:    os.Getenv("TWITTER_CLIENT_SECRET"),
+		SMTPHost:         os.Getenv("APP_SMTP_HOST"),
+		SMTPUsername:     os.Getenv("APP_SMTP_USERNAME"),
+		SMTPPassword:     os.Getenv("APP_SMTP_PASSWORD"),
+		SMTPFrom:         env("APP_SMTP_FROM", "no-reply@go-template.local"),
 
 		KafkaBrokers:       splitEnv("APP_KAFKA_BROKERS"),
 		KafkaTopicProfile:  env("APP_KAFKA_TOPIC_PROFILE", "user-profile.v1"),

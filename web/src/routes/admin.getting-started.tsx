@@ -37,7 +37,7 @@ function GettingStartedPage() {
           "Enrichment — queue external profile fetching and watch the job lifecycle on Jobs with live SSE updates.",
           "Reports — generate a snapshot, then open it in the side sheet.",
           "Analytics — charts from the event warehouse plus the raw trail and the live feed.",
-          "Profile — link Google/GitHub (if configured), inspect sessions, log out everywhere.",
+          "Profile — link Google/GitHub/Facebook/Twitter (if configured), inspect sessions, log out everywhere.",
         ]}
       >
         The app is a React SPA (Vite + TanStack Router/Query/Table, shadcn/ui) talking to a Go JSON
@@ -71,7 +71,7 @@ function GettingStartedPage() {
         <FeatureCard
           icon={<GitBranch className="size-4" />}
           title="OAuth linking"
-          body="Google and GitHub attach as extra identities on an existing account (link-only by design; the flows need client credentials configured to enable the buttons on Profile)."
+          body="Google, GitHub, Facebook and Twitter attach as extra identities on an existing account (link-only by design; the flows need client credentials configured to enable the buttons on Profile)."
         />
         <FeatureCard
           icon={<BookOpen className="size-4" />}

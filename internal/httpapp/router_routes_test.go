@@ -159,7 +159,7 @@ func TestAnalyticsAndSessionEndpoints(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("oauth providers: want 200, got %d", status)
 	}
-	if data, _ := body["data"].([]any); len(data) != 2 {
-		t.Errorf("oauth providers: want 2 entries, got %v", body)
+	if data, _ := body["data"].([]any); len(data) != 4 {
+		t.Errorf("oauth providers: want 4 entries, got %v", body)
 	}
 }

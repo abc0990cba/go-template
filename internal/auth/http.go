@@ -208,6 +208,8 @@ func (h *HTTP) providers(c *gin.Context) {
 	providers := []ProviderInfo{
 		{Name: "google", Configured: h.OAuth.IsConfigured("google")},
 		{Name: "github", Configured: h.OAuth.IsConfigured("github")},
+		{Name: "facebook", Configured: h.OAuth.IsConfigured("facebook")},
+		{Name: "twitter", Configured: h.OAuth.IsConfigured("twitter")},
 	}
 	c.JSON(http.StatusOK, gin.H{"data": httpx.ListOrEmpty(providers)})
 }
