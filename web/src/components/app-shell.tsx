@@ -206,7 +206,7 @@ const NAV_SECONDARY: NavItem[] = [
     description: "How this app works",
   },
   {
-    to: "/",
+    to: "/dashboard",
     key: "nav.clientApp",
     title: "Client App",
     icon: Globe,

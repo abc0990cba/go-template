@@ -44,3 +44,7 @@ conservative until hashing lands.
 - *HTMX/server templates* — a different product philosophy; the SPA was
   chosen to exercise the modern TS toolchain (TanStack Router/Query,
   shadcn) that adopters expect.
+
+**Update (0026):** assets are content-hashed now; serving gained immutable
+caching for `assets/*`, ETag revalidation, brotli/gzip precompression, and
+a prerendered landing at `/` — see [ADR 0026](0026-landing-prerender.md).

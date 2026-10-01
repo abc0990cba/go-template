@@ -54,7 +54,7 @@ function RegisterPage() {
         permissions: [],
         impersonated: false,
       });
-      void navigate({ to: "/" });
+      void navigate({ to: "/dashboard" });
     },
     onError: (error) => {
       toast.error(error.message);

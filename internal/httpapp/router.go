@@ -96,6 +96,10 @@ func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Lo
 	r := gin.New()
 	r.Use(gin.Recovery(), app.securityHeaders(), app.requestID(), app.tracing(), app.metrics(), app.accessLog(), app.maintenanceGate(), app.bodyLimit())
 	r.NoRoute(app.notFound)
+	// The prerendered marketing landing owns "/"; the SPA keeps every other
+	// extension-less path through the NoRoute fallback (see notFound).
+	r.GET("/", app.landing)
+	r.HEAD("/", app.landing)
 	r.GET("/health/live", app.ok)
 	r.GET("/health/ready", app.ready)
 	r.GET("/health/startup", app.ok)

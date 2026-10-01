@@ -1,0 +1,70 @@
+/* Landing stylesheet: deliberately separate from the admin app.css so the
+   marketing page ships its own small bundle instead of the six-theme token
+   set. `source(none)` turns off Tailwind's repo-wide class scanning; the
+   @source below limits detection to the landing directory, keeping this
+   output a fraction of the app CSS. */
+@import "tailwindcss" source(none);
+@source "./";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+}
+
+:root {
+  --background: oklch(0.988 0.003 250);
+  --foreground: oklch(0.21 0.02 262);
+  --card: oklch(1 0 0);
+  --muted: oklch(0.962 0.006 250);
+  --muted-foreground: oklch(0.5 0.025 262);
+  --border: oklch(0.912 0.01 255);
+  --primary: oklch(0.541 0.238 293.009);
+  --primary-foreground: oklch(0.985 0 0);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: oklch(0.165 0.02 265);
+    --foreground: oklch(0.96 0.005 250);
+    --card: oklch(0.215 0.025 265);
+    --muted: oklch(0.255 0.02 265);
+    --muted-foreground: oklch(0.72 0.02 260);
+    --border: oklch(0.3 0.025 265);
+    --primary: oklch(0.68 0.19 293);
+    --primary-foreground: oklch(0.165 0.02 265);
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    /* System font stack: zero font downloads, no layout shift. */
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}

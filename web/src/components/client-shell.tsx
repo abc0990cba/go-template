@@ -36,7 +36,7 @@ import { I18nProvider, useI18n } from "@/lib/i18n";
 import { ImpersonationBanner } from "@/components/app-shell";
 
 const NAV_LINKS = [
-  { to: "/", key: "nav.home", icon: Home, permission: undefined },
+  { to: "/dashboard", key: "nav.dashboard", icon: Home, permission: undefined },
   { to: "/tickets", key: "nav.tickets", icon: Ticket, permission: ["tickets", "read"] },
   { to: "/approvals", key: "nav.approvals", icon: FileCheck2, permission: ["tickets", "approve"] },
   { to: "/notifications", key: "nav.notifications", icon: Bell, permission: undefined },
@@ -77,7 +77,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-svh flex-col bg-muted/30">
         <header className="sticky top-0 z-40 border-b bg-background">
           <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 md:h-14 md:px-4">
-            <Link to="/" className="flex shrink-0 items-center gap-2">
+            <Link to="/dashboard" className="flex shrink-0 items-center gap-2">
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary font-bold text-primary-foreground">
                 G
               </span>

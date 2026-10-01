@@ -9,15 +9,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
 
-export const Route = createFileRoute("/_client/")({
-  staticData: { title: "Home" },
+export const Route = createFileRoute("/_client/dashboard")({
+  staticData: { title: "Dashboard" },
   component: ClientHomePage,
 });
 
 /**
- * The client home is personal: my tickets, what waits on my approval, my
- * notifications. System-wide counters live in the /admin console — a
- * requester has no business seeing them.
+ * The client dashboard is personal: my tickets, what waits on my approval,
+ * my notifications. System-wide counters live in the /admin console — a
+ * requester has no business seeing them. The public marketing landing owns
+ * the `/` URL, so the authenticated home lives at /dashboard.
  */
 function ClientHomePage() {
   const me = useMe();

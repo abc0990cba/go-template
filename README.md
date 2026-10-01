@@ -17,7 +17,8 @@ The project is intentionally small enough to understand, but it includes the pat
 - **Resilience toolkit** — circuit breakers around every outbound call (`app_cb_state` metrics), Redis-backed distributed rate limiting with in-memory fallback, and `Idempotency-Key` middleware that turns client retries into replays
 - **Local stream tooling** — `make demo-up` brings up Redpanda + NATS; `cmd/devtools` publishes events into both brokers, reads relayed output, and drives the breaker / rate-limit / idempotency demos (`make demo-enrichment`, `demo-dlq`, `demo-breaker`, …)
 - **Tickets & approvals** — a request workflow in the spirit of Jira: a state machine with distinct "withdrawn by requester" vs "rejected by approver" outcomes, configurable multi-step approval chains per ticket type, role-guarded decisions, and separate requester ("My Tickets") and approver ("Approvals") interfaces
-- **Client app vs admin console** — the SPA is split into a user-facing workspace at `/` (top navbar, personal dashboard, tickets) and a back-office console under `/admin/*` (sidebar shell, system pages), gated by the `admin_console:access` permission on the route and re-checked by every admin API
+- **SEO landing** — `/` serves a build-time-prerendered marketing page (complete HTML + canonical/OG/JSON-LD, sitemap/robots, brotli, immutable asset caching — ADR 0026); the signed-in workspace starts at `/dashboard`
+- **Client app vs admin console** — the SPA is split into a user-facing workspace at `/dashboard` (top navbar, personal dashboard, tickets) and a back-office console under `/admin/*` (sidebar shell, system pages), gated by the `admin_console:access` permission on the route and re-checked by every admin API
 - **i18n** — English/Russian UI toggle (EN shell + RU translations)
 - **Two-factor authentication (TOTP)** — QR enrollment, a challenge step in login, single-use hashed recovery codes, an `mfa.required` policy flag, and admin reset — see [docs/mfa.md](docs/mfa.md)
 - **JWT token grants** — OAuth-style password/mfa/refresh grants with rotation and reuse-detection families for mobile & API clients — see [docs/token-auth.md](docs/token-auth.md)
@@ -31,7 +32,7 @@ The project is intentionally small enough to understand, but it includes the pat
 - **Regression** — `scripts/regression-walkthrough.sh` drives every feature against a live stack; the full gauntlet is documented in [docs/regression-checklist.md](docs/regression-checklist.md)
 - **Rich demo data** — 500 users, 3 organizations, 120 tickets across the whole approval lifecycle, 90 days of events (12 types with property dimensions), audit entries, notifications, keys, and webhook history on first launch
 - Gin HTTP API
-- React admin SPA (Vite + TanStack Router/Query/Table, shadcn/ui, Tailwind v4) embedded in the binary, with Server-Sent Events for live updates
+- React admin SPA (Vite + TanStack Router/Query/Table, shadcn/ui, Tailwind v4) embedded in the binary, with Server-Sent Events for live updates, plus a prerendered SEO landing at `/`
 - OpenAPI contract
 - OpenSpec workflow
 - CI (GitHub Actions) with vet, golangci-lint, and race-enabled tests

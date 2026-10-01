@@ -22,7 +22,7 @@ function NotFound() {
       <p className="text-muted-foreground">
         This page does not exist. Use the sidebar to find your way back.
       </p>
-      <a href="/" className="text-sm font-medium underline underline-offset-4">
+      <a href="/dashboard" className="text-sm font-medium underline underline-offset-4">
         Back to the dashboard
       </a>
     </div>

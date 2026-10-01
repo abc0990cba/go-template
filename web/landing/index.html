@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Go Template — The Go + React Platform That Ships as One Binary</title>
+    <meta
+      name="description"
+      content="A production-shape starter platform: Go API and React console with auth, RBAC, ticketing, jobs, live streams, and analytics — one binary, one port."
+    />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#7c3aed" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+
+    <!-- Open Graph / Twitter: the preview cards shown when the URL is shared. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Go Template" />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta
+      property="og:title"
+      content="Go Template — The Go + React Platform That Ships as One Binary"
+    />
+    <meta
+      property="og:description"
+      content="Auth, RBAC, ticketing, jobs, live streams, and analytics — a production-shape Go + React foundation you can deploy in minutes."
+    />
+    <meta property="og:image" content="%VITE_SITE_URL%/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Go Template — the Go + React platform that ships as one binary"
+    />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Go Template — The Go + React Platform That Ships as One Binary"
+    />
+    <meta
+      name="twitter:description"
+      content="Auth, RBAC, ticketing, jobs, live streams, and analytics — a production-shape Go + React foundation you can deploy in minutes."
+    />
+    <meta name="twitter:image" content="%VITE_SITE_URL%/og-image.png" />
+
+    <!-- Structured data. The FAQPage entities must mirror the visible FAQ
+         copy in landing/LandingPage.tsx — keep them in sync. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "%VITE_SITE_URL%/#website",
+            "url": "%VITE_SITE_URL%/",
+            "name": "Go Template",
+            "description": "The Go + React platform that ships as one binary.",
+            "inLanguage": "en-US"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Go Template",
+            "url": "%VITE_SITE_URL%/",
+            "applicationCategory": "DeveloperApplication",
+            "operatingSystem": "Linux, Web",
+            "description": "A production-shape starter platform: Go API and React console with auth, RBAC, ticketing, jobs, live streams, and analytics.",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "%VITE_SITE_URL%/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is Go Template?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "A production-shape starter platform: a Go API and a React admin console with authentication, RBAC, ticketing, background jobs, live streams, and analytics — everything a real internal product needs on day one."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do I need Kubernetes to run it?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "No. One static Go binary plus Postgres is enough; the frontend is embedded in the binary itself. Docker compose files, a Helm chart, and a Nomad job are included when you outgrow a single host."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How is the web frontend served?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "The React app builds to static assets that are embedded into the Go binary and served same-origin — no CORS, no separate hosting, and the landing page ships as prerendered HTML for crawlers."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Can I use it as a base for a real product?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "That is the point. The stack is deliberately boring — Go, Postgres, React, Tailwind — with the plumbing (sessions, RBAC, audit, jobs, observability) already done, so you start on the features that make your product different."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is it free?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes — clone it, extend it, and ship it. No paid tiers, no license keys, no phone-home."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <!-- Filled at build time by scripts/prerender.mjs (react-dom/server);
+         entry-client.tsx hydrates the result in the browser. -->
+    <div id="root"></div>
+    <script type="module" src="./entry-client.tsx"></script>
+  </body>
+</html>

@@ -16,6 +16,30 @@ const proxyOptions = {
   headers: { Origin: apiTarget },
 };
 
+/**
+ * In production the Go binary serves the prerendered landing at "/" and the
+ * SPA everywhere else (internal/httpapp/landing.go). The dev middleware
+ * mirrors that split: "/" serves the landing entry, extension-less paths
+ * keep falling back to the SPA's index.html.
+ */
+function landingAtRoot() {
+  return {
+    name: "landing-at-root",
+    configureServer(server: {
+      middlewares: {
+        use: (cb: (req: { url?: string }, _res: unknown, next: () => void) => void) => void;
+      };
+    }) {
+      server.middlewares.use((req, _res, next) => {
+        if (req.url === "/") {
+          req.url = "/landing/index.html";
+        }
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
     // The router plugin must run before the React plugin so the generated
@@ -23,6 +47,7 @@ export default defineConfig({
     TanStackRouterVite({ target: "react", autoCodeSplitting: true }),
     react(),
     tailwindcss(),
+    landingAtRoot(),
   ],
   resolve: {
     alias: {
@@ -42,10 +67,20 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
-    // Keep the committed .gitkeep so the Go binary always has an embeddable
-    // directory even before the first frontend build.
-    emptyOutDir: false,
+    // Empty per build: with hashed filenames, keeping old output would
+    // accumulate stale chunks in the go:embed payload forever. The committed
+    // dist/.gitkeep placeholder is re-created by scripts/prerender.mjs.
+    emptyOutDir: true,
     sourcemap: false,
+    // Two entries: the admin SPA (index.html) and the landing
+    // (landing/index.html). Each gets its own JS/CSS chunks, so landing
+    // visitors never download the admin bundle.
+    rollupOptions: {
+      input: {
+        main: path.resolve(import.meta.dirname, "index.html"),
+        landing: path.resolve(import.meta.dirname, "landing/index.html"),
+      },
+    },
   },
   test: {
     environment: "jsdom",

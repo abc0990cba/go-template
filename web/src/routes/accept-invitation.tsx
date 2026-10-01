@@ -42,7 +42,7 @@ function AcceptInvitationPage() {
       toast.success("Invitation accepted — welcome to the organization");
       queryClient.clear();
       await queryClient.fetchQuery(meQuery());
-      void navigate({ to: "/", search: { org: org_id } });
+      void navigate({ to: "/dashboard", search: { org: org_id } });
     },
     onError: (error) => toast.error(error.message),
   });

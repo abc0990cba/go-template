@@ -50,6 +50,7 @@ export async function ensurePermission(object: string, action: string, location:
   await ensureAuth(location);
   const me = queryClient.getQueryData<Me>(meQuery().queryKey);
   if (!me?.permissions.includes(`${object}:${action}`)) {
-    throw redirect({ to: "/" });
+    // The landing page owns "/", so the fallback home is the dashboard.
+    throw redirect({ to: "/dashboard" });
   }
 }

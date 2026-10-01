@@ -1,6 +1,6 @@
 # Frontend
 
-The UI is a React single-page admin console in `web/`, embedded into the Go binary at build time. One artifact serves both the JSON API and the SPA.
+The UI is a React single-page admin console in `web/`, embedded into the Go binary at build time. One artifact serves the JSON API, the prerendered marketing landing (`/`), and the SPA.
 
 ## Stack
 
@@ -16,7 +16,9 @@ The UI is a React single-page admin console in `web/`, embedded into the Go bina
 
 ```
 web/
-  src/routes/          file-based routes; _client.tsx (workspace at /) and admin.tsx (/admin console) are the two authenticated layouts
+  src/routes/          file-based routes; _client.tsx (workspace at /dashboard) and admin.tsx (/admin console) are the two authenticated layouts
+  landing/             the marketing landing: index.html (SEO head), LandingPage.tsx, entry-client/server.tsx, its own landing.css
+  scripts/             prerender.mjs (SSR injection, robots/sitemap, brotli+gzip), og-image source
   src/components/ui/   shadcn components (generated; do not hand-edit)
   src/components/      app shell, explainer banner, KPI card, data-table kit
   src/hooks/           use-event-stream (SSE), use-paged-list, use-mobile
@@ -24,10 +26,23 @@ web/
   dist/                build output, embedded by the Go binary (web/embed.go)
 ```
 
+## Landing page (SSR at build time)
+
+`/` is the public marketing page, **prerendered to complete HTML** at build
+time (`npm run build` runs `scripts/prerender.mjs`: `react-dom/server` →
+inject into `landing/index.html` → robots.txt + sitemap.xml → brotli/gzip
+siblings). The Go server answers `/` with that file (ADR 0026) — crawlers
+never execute JavaScript. SEO head (title, description, canonical, OG /
+Twitter cards, JSON-LD `@graph`) lives statically in `landing/index.html`;
+its URLs derive from `VITE_SITE_URL` (set it in CI to the production
+domain; the FAQ answers are mirrored in the FAQPage JSON-LD — keep them in
+sync). In `make web-dev` the landing renders at `/` client-side via a dev
+middleware; the prerendered file is what production serves.
+
 ## Server contract
 
-- Dev: `make web-dev` starts Vite on :5173 and proxies `/api`, `/health`, `/docs`, `/openapi.yaml` to :8080 — same origin, so the session cookie just works and no CORS is needed.
-- Prod: `make web-build` fills `web/dist`; `go:embed` (`web/embed.go`) bakes it into `cmd/api`, which serves assets with an `index.html` fallback for client-side routes.
+- Dev: `make web-dev` starts Vite on :5173 and proxies `/api`, `/health`, `/docs`, `/openapi.yaml` to :8080 — same origin, so the session cookie just works and no CORS is needed. `/` serves the landing, all other extension-less paths serve the SPA, mirroring production.
+- Prod: `make web-build` fills `web/dist` (tsc → vite build → prerender + precompression); `go:embed` (`web/embed.go`) bakes it into `cmd/api`, which serves `/` with the prerendered landing, hashed `assets/*` with `Cache-Control: immutable` + brotli/gzip, and everything else with an `index.html` fallback for client-side routes.
 - Auth: `POST /api/auth/login` sets the `app_session` cookie; `GET /api/me` is the session probe. The old HTML form + double-submit CSRF flow is gone; unsafe `/api` methods are guarded by an Origin/Sec-Fetch-Site check plus `SameSite=Lax`.
 - Live updates: one `EventSource('/api/events/stream')` per session (mounted in `LiveProvider`) carries `analytics.event`, `job.updated`, and periodic `snapshot` messages; the hook throttles query invalidation.
 
@@ -41,7 +56,7 @@ web/
 
 ```
 make web-lint   # oxlint + oxfmt --check
-make web-build  # tsc --noEmit + vite build
+make web-build  # tsc --noEmit + vite build + prerender (landing, robots, compression)
 make web-test   # vitest
 ```
 
@@ -51,13 +66,15 @@ The SPA is one codebase with two explicit areas, following the common
 `/admin`-prefix + layout-guard pattern:
 
 - `_client.tsx` — the pathless authenticated layout for the user-facing
-  workspace at the root paths (`/`, `/tickets`, `/approvals`,
-  `/notifications`, `/profile`). It renders `ClientShell` (top navbar,
-  personal home). Any authenticated account lands here.
+  workspace (`/dashboard`, `/tickets`, `/approvals`, `/notifications`,
+  `/profile`). It renders `ClientShell` (top navbar, personal dashboard).
+  Any authenticated account lands here after sign-in; the public landing
+  owns the `/` URL.
 - `admin.tsx` — the `/admin` layout for the back office (`/admin/users`,
   `/admin/roles`, …). It renders the sidebar `AppShell` and its `beforeLoad`
   runs `ensurePermission("admin_console", "access")`; accounts without the
-  permission are redirected to `/`. The server re-checks every admin API.
+  permission are redirected to `/dashboard`. The server re-checks every
+  admin API.
 - Granting `admin_console:access` to a role (Roles page matrix) makes the
   console visible to it; the default grants cover admin, manager, and viewer.
 

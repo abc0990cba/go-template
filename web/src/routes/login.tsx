@@ -64,7 +64,7 @@ function LoginPage() {
     // judge the new account by its actual permissions.
     queryClient.clear();
     await queryClient.fetchQuery(meQuery());
-    const fallback: FileRouteTypes["to"] = "/";
+    const fallback: FileRouteTypes["to"] = "/dashboard";
     const target = (search.redirect ?? fallback) as FileRouteTypes["to"];
     void navigate({ to: target.startsWith("/_") || target.includes("?") ? fallback : target });
   };

@@ -17,8 +17,8 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
-import { Route as ClientIndexRouteImport } from './routes/_client.index'
 import { Route as ClientApprovalsRouteImport } from './routes/_client.approvals'
+import { Route as ClientDashboardRouteImport } from './routes/_client.dashboard'
 import { Route as ClientNotificationsRouteImport } from './routes/_client.notifications'
 import { Route as ClientProfileRouteImport } from './routes/_client.profile'
 import { Route as ClientTicketsRouteImport } from './routes/_client.tickets'
@@ -79,14 +79,14 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
   path: '/verify-email',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ClientIndexRoute = ClientIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ClientRoute,
-} as any)
 const ClientApprovalsRoute = ClientApprovalsRouteImport.update({
   id: '/approvals',
   path: '/approvals',
+  getParentRoute: () => ClientRoute,
+} as any)
+const ClientDashboardRoute = ClientDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => ClientRoute,
 } as any)
 const ClientNotificationsRoute = ClientNotificationsRouteImport.update({
@@ -191,7 +191,7 @@ const AdminUsersUserIdRoute = AdminUsersUserIdRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof ClientIndexRoute
+  '/': typeof ClientRouteWithChildren
   '/accept-invitation': typeof AcceptInvitationRoute
   '/admin': typeof AdminRouteWithChildren
   '/forgot-password': typeof ForgotPasswordRoute
@@ -200,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/approvals': typeof ClientApprovalsRoute
+  '/dashboard': typeof ClientDashboardRoute
   '/notifications': typeof ClientNotificationsRoute
   '/profile': typeof ClientProfileRoute
   '/tickets': typeof ClientTicketsRoute
@@ -222,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
 }
 export interface FileRoutesByTo {
+  '/': typeof ClientRouteWithChildren
   '/accept-invitation': typeof AcceptInvitationRoute
   '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
@@ -229,6 +231,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/approvals': typeof ClientApprovalsRoute
+  '/dashboard': typeof ClientDashboardRoute
   '/notifications': typeof ClientNotificationsRoute
   '/profile': typeof ClientProfileRoute
   '/tickets': typeof ClientTicketsRoute
@@ -246,7 +249,6 @@ export interface FileRoutesByTo {
   '/admin/ticket-types': typeof AdminTicketTypesRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
-  '/': typeof ClientIndexRoute
   '/admin': typeof AdminIndexRoute
   '/tickets/$ticketId': typeof ClientTicketsTicketIdRoute
   '/admin/users/$userId': typeof AdminUsersUserIdRoute
@@ -262,6 +264,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_client/approvals': typeof ClientApprovalsRoute
+  '/_client/dashboard': typeof ClientDashboardRoute
   '/_client/notifications': typeof ClientNotificationsRoute
   '/_client/profile': typeof ClientProfileRoute
   '/_client/tickets': typeof ClientTicketsRoute
@@ -279,7 +282,6 @@ export interface FileRoutesById {
   '/admin/ticket-types': typeof AdminTicketTypesRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/webhooks': typeof AdminWebhooksRoute
-  '/_client/': typeof ClientIndexRoute
   '/admin/': typeof AdminIndexRoute
   '/_client/tickets_/$ticketId': typeof ClientTicketsTicketIdRoute
   '/admin/users_/$userId': typeof AdminUsersUserIdRoute
@@ -296,6 +298,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/approvals'
+    | '/dashboard'
     | '/notifications'
     | '/profile'
     | '/tickets'
@@ -318,6 +321,7 @@ export interface FileRouteTypes {
     | '/admin/users/$userId'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/'
     | '/accept-invitation'
     | '/forgot-password'
     | '/login'
@@ -325,6 +329,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/approvals'
+    | '/dashboard'
     | '/notifications'
     | '/profile'
     | '/tickets'
@@ -342,7 +347,6 @@ export interface FileRouteTypes {
     | '/admin/ticket-types'
     | '/admin/users'
     | '/admin/webhooks'
-    | '/'
     | '/admin'
     | '/tickets/$ticketId'
     | '/admin/users/$userId'
@@ -357,6 +361,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/verify-email'
     | '/_client/approvals'
+    | '/_client/dashboard'
     | '/_client/notifications'
     | '/_client/profile'
     | '/_client/tickets'
@@ -374,7 +379,6 @@ export interface FileRouteTypes {
     | '/admin/ticket-types'
     | '/admin/users'
     | '/admin/webhooks'
-    | '/_client/'
     | '/admin/'
     | '/_client/tickets_/$ticketId'
     | '/admin/users_/$userId'
@@ -449,18 +453,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VerifyEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_client/': {
-      id: '/_client/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof ClientIndexRouteImport
-      parentRoute: typeof ClientRoute
-    }
     '/_client/approvals': {
       id: '/_client/approvals'
       path: '/approvals'
       fullPath: '/approvals'
       preLoaderRoute: typeof ClientApprovalsRouteImport
+      parentRoute: typeof ClientRoute
+    }
+    '/_client/dashboard': {
+      id: '/_client/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof ClientDashboardRouteImport
       parentRoute: typeof ClientRoute
     }
     '/_client/notifications': {
@@ -608,19 +612,19 @@ declare module '@tanstack/react-router' {
 
 interface ClientRouteChildren {
   ClientApprovalsRoute: typeof ClientApprovalsRoute
+  ClientDashboardRoute: typeof ClientDashboardRoute
   ClientNotificationsRoute: typeof ClientNotificationsRoute
   ClientProfileRoute: typeof ClientProfileRoute
   ClientTicketsRoute: typeof ClientTicketsRoute
-  ClientIndexRoute: typeof ClientIndexRoute
   ClientTicketsTicketIdRoute: typeof ClientTicketsTicketIdRoute
 }
 
 const ClientRouteChildren: ClientRouteChildren = {
   ClientApprovalsRoute: ClientApprovalsRoute,
+  ClientDashboardRoute: ClientDashboardRoute,
   ClientNotificationsRoute: ClientNotificationsRoute,
   ClientProfileRoute: ClientProfileRoute,
   ClientTicketsRoute: ClientTicketsRoute,
-  ClientIndexRoute: ClientIndexRoute,
   ClientTicketsTicketIdRoute: ClientTicketsTicketIdRoute,
 }
 

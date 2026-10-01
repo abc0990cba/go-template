@@ -78,7 +78,7 @@ business logic:
 | Already run Kafka only | Drop NATS side | `bootstrap.Brokers`, streams config — each broker side degrades independently |
 | Use Firebase Auth/Auth0 | `AuthService` internals | Sessions become provider callbacks; RBAC stays |
 | Deploy on VMs, not k8s | Helm chart | systemd units + the same image work unchanged |
-| Want Next.js/SSR | the SPA | API is pure JSON; embed step is optional |
+| Want Next.js/SSR | the SPA | API is pure JSON; embed step is optional. The landing already ships prerendered HTML (ADR 0026); Astro for a multi-page marketing site would replace only `web/landing` — the Go serving side is unchanged |
 
 The rule of thumb: **anything behind `internal/service/ports.go` is a
 decision, not a commitment.**

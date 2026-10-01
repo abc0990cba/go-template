@@ -1,0 +1,49 @@
+<!--
+  Source for web/public/og-image.png (1200×630 social preview card).
+  Regenerate after edits with:
+    rsvg-convert -w 1200 -h 630 web/scripts/og-image.svg -o web/public/og-image.png
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1120"/>
+      <stop offset="1" stop-color="#171233"/>
+    </linearGradient>
+    <radialGradient id="washViolet" cx="0.9" cy="0.05" r="0.8">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="washSky" cx="0.05" cy="1" r="0.8">
+      <stop offset="0" stop-color="#0ea5e9" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#0ea5e9" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0ea5e9"/>
+      <stop offset="1" stop-color="#7c3aed"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#washViolet)"/>
+  <rect width="1200" height="630" fill="url(#washSky)"/>
+
+  <g transform="translate(90,120)">
+    <rect width="88" height="88" rx="20" fill="url(#mark)"/>
+    <text x="44" y="61" font-family="Helvetica Neue, Arial, sans-serif" font-size="52" font-weight="700" fill="#ffffff" text-anchor="middle">G</text>
+    <text x="112" y="58" font-family="Helvetica Neue, Arial, sans-serif" font-size="54" font-weight="700" fill="#f8fafc">Go Template</text>
+  </g>
+
+  <text x="90" y="330" font-family="Helvetica Neue, Arial, sans-serif" font-size="72" font-weight="700" fill="#f8fafc">The Go + React platform</text>
+  <text x="90" y="418" font-family="Helvetica Neue, Arial, sans-serif" font-size="72" font-weight="700" fill="#f8fafc">that ships as <tspan fill="#a78bfa">one binary</tspan></text>
+
+  <text x="90" y="486" font-family="Helvetica Neue, Arial, sans-serif" font-size="30" fill="#94a3b8">Auth · RBAC · Tickets &amp; approvals · Jobs · Live streams · Analytics</text>
+
+  <g font-family="Helvetica Neue, Arial, sans-serif" font-size="24" fill="#cbd5e1">
+    <rect x="90" y="526" width="250" height="52" rx="12" fill="#1e293b" fill-opacity="0.85"/>
+    <text x="215" y="560" text-anchor="middle">One container</text>
+    <rect x="360" y="526" width="250" height="52" rx="12" fill="#1e293b" fill-opacity="0.85"/>
+    <text x="485" y="560" text-anchor="middle">One port</text>
+    <rect x="630" y="526" width="250" height="52" rx="12" fill="#1e293b" fill-opacity="0.85"/>
+    <text x="755" y="560" text-anchor="middle">Zero CORS setup</text>
+  </g>
+</svg>
