@@ -19,6 +19,27 @@ Coverage:
   currently ~50%: raise it as coverage grows (target 70%). The httpapp
   handlers and the Postgres adapters are the largest uncovered areas.
 
+Frontend pyramid (`web/`, mirrors the backend's shape):
+
+- Static base: `tsc --noEmit`, oxlint, oxfmt gate the `web` CI job before any test runs.
+- Unit tests for the request pipeline and guards: problem+json parsing, the
+  X-Org-Id header, the login outcome protocol, route-guard redirects
+  (`make web-test`, colocated `*.test.ts(x)`).
+- Component tests for forms and table controls through Testing Library
+  (react-hook-form + zod messages, pagination bar switching).
+- Integration tests render full route files through the real TanStack route
+  tree with the API mocked by MSW (`web/src/test/mocks/handlers.ts` doubles
+  as living API contract documentation): tickets paging, problem+json error
+  toasts, SSE-pushed notifications, the /admin permission guard.
+- Browser e2e drives the real Go binary — the SPA is built, embedded, and
+  served from the in-memory store with the demo seed — over critical
+  journeys: register/login/logout, redirect-back, tickets, landing
+  (`make web-test-e2e`; Playwright, Chromium).
+- `make web-coverage` enforces the vitest floor (`vite.config.ts`
+  `coverage.thresholds`, currently 50/45/40/50, baseline ~54/51/42/55).
+  Same ratchet policy as the Go floor: raise it as coverage grows, never
+  lower it. The admin pages are the largest uncovered area.
+
 Rules:
 
 - Feature completion requires tests listed in `docs/test-matrix.md`.

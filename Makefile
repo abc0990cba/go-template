@@ -53,6 +53,12 @@ check-size: ## fail if any hand-written production Go file exceeds 400 lines
 web-test:
 	cd web && npm test
 
+web-coverage:
+	cd web && npm run test:coverage
+
+web-test-e2e:
+	cd web && npx playwright install chromium && npm run test:e2e
+
 K6 = k6 run
 perf-login:
 	$(K6) test/performance/login.js

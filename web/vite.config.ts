@@ -43,8 +43,14 @@ function landingAtRoot() {
 export default defineConfig({
   plugins: [
     // The router plugin must run before the React plugin so the generated
-    // route tree exists by the time it is imported.
-    TanStackRouterVite({ target: "react", autoCodeSplitting: true }),
+    // route tree exists by the time it is imported. Test files colocated in
+    // routes/ are not routes; without the ignore pattern the plugin warns
+    // about them on every vitest run.
+    TanStackRouterVite({
+      target: "react",
+      autoCodeSplitting: true,
+      routeFileIgnorePattern: "\\.(test|spec)\\.(ts|tsx)$",
+    }),
     react(),
     tailwindcss(),
     landingAtRoot(),
@@ -86,5 +92,28 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Route-level tests mount the whole tree and several MSW round-trips
+    // per interaction; the 5s default starves them on loaded machines.
+    testTimeout: 15_000,
+    // Every route test file transforms the entire route tree; parallel
+    // workers thrash slower disks and starve the jsdom interactions.
+    fileParallelism: false,
+    fsModuleCache: true,
+    // The default include would sweep Playwright's e2e/*.spec.ts into vitest.
+    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html"],
+      include: ["src/lib/**", "src/hooks/**", "src/routes/**", "src/components/**"],
+      exclude: ["src/test/**", "src/routeTree.gen.ts", "**/*.test.*", "**/*.d.ts"],
+      // Ratchet: pinned just under the exemplar-suite baseline (~54/51/42/55).
+      // Raise as coverage grows; never let a change lower the floor.
+      thresholds: {
+        statements: 50,
+        branches: 45,
+        functions: 40,
+        lines: 50,
+      },
+    },
   },
 });

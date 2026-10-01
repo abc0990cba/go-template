@@ -13,3 +13,7 @@
 | REL-002 | `internal/reliability/bulkhead_test.go` | Planned | Planned | Limit, reject, ctx-cancel, observers covered |
 | OBS-001 | `internal/observ/slogtrace_test.go` | Planned | Planned | Handler stamps IDs; sampler mapping |
 | REL-003 | `internal/repository/memory_test.go` | `test/integration/streams_contract_test.go` (prune subtest) | Planned | Dedupe-vs-sequence-guard after sweep, both twins |
+| WEB-AUTH | `web/src/lib/auth.test.ts`, `web/src/lib/api.test.ts` | `web/src/routes/login.test.tsx` | `web/e2e/auth.spec.ts` | Guards, login protocol, MFA step, redirect-back |
+| WEB-TICKETS | `web/src/hooks/use-paged-list.test.tsx` | `web/src/routes/_client.tickets.test.tsx` | `web/e2e/tickets.spec.ts` | Paging, error toasts, SSE push, create flow |
+| WEB-GUARDS | `web/src/lib/auth.test.ts` | `web/src/routes/admin.test.tsx` | Planned | admin_console:access gate |
+| WEB-SHELL | — | `web/src/components/data-table/pagination-bar.test.tsx` | `web/e2e/landing.spec.ts` | Table controls + landing/SPA serving split |

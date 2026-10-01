@@ -2,3 +2,8 @@ node_modules
 dist/*
 !dist/.gitkeep
 *.local
+
+e2e/.tmp/
+test-results/
+playwright-report/
+coverage/
