@@ -106,13 +106,14 @@ export default defineConfig({
       reporter: ["text", "html"],
       include: ["src/lib/**", "src/hooks/**", "src/routes/**", "src/components/**"],
       exclude: ["src/test/**", "src/routeTree.gen.ts", "**/*.test.*", "**/*.d.ts"],
-      // Ratchet: pinned just under the exemplar-suite baseline (~54/51/42/55).
-      // Raise as coverage grows; never let a change lower the floor.
+      // Ratchet: pinned just under the measured baseline (64.6/56.7/56.2/65.7
+      // after the round-2 suites). Raise as coverage grows; never let a
+      // change lower the floor.
       thresholds: {
-        statements: 50,
-        branches: 45,
-        functions: 40,
-        lines: 50,
+        statements: 62,
+        branches: 54,
+        functions: 54,
+        lines: 63,
       },
     },
   },

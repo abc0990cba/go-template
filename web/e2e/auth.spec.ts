@@ -59,9 +59,9 @@ test.describe("auth journey", () => {
     await page.goto("/forgot-password");
     await page.getByLabel("Email").fill("someone@example.com");
     await page.getByRole("button", { name: "Send reset link" }).click();
-    await expect(
-      page.getByText("If that account exists, a reset link is on its way."),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("If that account exists, a reset link is on its way.")).toBeVisible(
+      { timeout: 10_000 },
+    );
   });
 
   test("reset-password without a token explains itself", async ({ page }) => {

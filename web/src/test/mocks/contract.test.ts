@@ -44,12 +44,10 @@ describe("MSW handlers vs OpenAPI spec", () => {
     const drifted: string[] = [];
 
     for (const handler of handlers) {
-      const { method, path: rawPath } = handler.info;
-      if (typeof rawPath !== "string") {
-        drifted.push(`${method} ${String(rawPath)} (non-template path)`);
-        continue;
-      }
-      const operation = `${method.toUpperCase()} ${normalizeTemplate(rawPath)}`;
+      // MSW types method/path loosely (RegExp allowed); normalize both.
+      const method = String(handler.info.method).toUpperCase();
+      const rawPath = String(handler.info.path);
+      const operation = `${method} ${normalizeTemplate(rawPath)}`;
       if (!operations.has(operation)) drifted.push(operation);
     }
 
