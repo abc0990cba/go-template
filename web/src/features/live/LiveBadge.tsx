@@ -1,5 +1,5 @@
 import { cn } from "@/shared/lib/utils";
-import { useLive, type ConnectionStatus } from "@/hooks/use-event-stream";
+import { useLive, type ConnectionStatus } from "./LiveProvider";
 
 const LABEL: Record<ConnectionStatus, string> = {
   connecting: "Connecting…",

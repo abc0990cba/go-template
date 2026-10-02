@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { KpiCard } from "@/components/kpi-card";
-import { useLive } from "@/hooks/use-event-stream";
+import { useLive } from "@/features/live";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,

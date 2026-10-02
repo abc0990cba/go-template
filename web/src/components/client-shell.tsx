@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AccountAvatar, HeaderWidgets } from "@/components/header-widgets";
-import { DemoAccountPicker } from "@/components/demo-account-picker";
+import { DemoAccountPicker } from "@/features/auth";
 import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import { api } from "@/lib/api";
 import { I18nProvider, useI18n } from "@/shared/lib/i18n";

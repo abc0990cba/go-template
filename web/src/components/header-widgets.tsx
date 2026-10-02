@@ -11,8 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { IdentityChip } from "@/components/identity-chip";
-import { LiveBadge } from "@/components/live-badge";
-import { NotificationBell } from "@/components/notification-bell";
+import { LiveBadge } from "@/features/live";
+import { NotificationBell } from "@/features/notifications";
 import { ThemeMenu } from "@/components/theme-menu";
 import { UserAvatar } from "@/components/user-avatar";
 import { setActiveOrg } from "@/lib/api";

@@ -13,10 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { api } from "@/lib/api";
+import { login } from "./api";
 import { meQuery } from "@/shared/lib/auth";
 import { useI18n } from "@/shared/lib/i18n";
-import { demoAccounts, type DemoAccount } from "@/lib/demo-accounts";
+import { demoAccounts, type DemoAccount } from "./demo-accounts";
 import { UserAvatar } from "@/components/user-avatar";
 
 /**
@@ -33,7 +33,7 @@ export function DemoAccountPicker() {
 
   const signIn = useMutation({
     mutationFn: async (account: DemoAccount) => {
-      await api.login(account.email, account.password);
+      await login(account.email, account.password);
       // Drop every cached query (the old identity's data), then resolve the
       // fresh session before navigating so guards see the new roles.
       queryClient.clear();

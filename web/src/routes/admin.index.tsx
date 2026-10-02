@@ -17,7 +17,7 @@ import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { KpiCard } from "@/components/kpi-card";
 import { StatusBadge } from "@/components/status-badge";
-import { useLive } from "@/hooks/use-event-stream";
+import { useLive } from "@/features/live";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,

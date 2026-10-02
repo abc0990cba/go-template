@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { api } from "@/lib/api";
+import { markAllNotificationsRead, markNotificationRead, notifications, unreadCount } from "./api";
 import { formatDistanceToNow } from "date-fns";
 
 /**
@@ -22,12 +22,12 @@ export function NotificationBell() {
   const navigate = useNavigate();
   const unread = useQuery({
     queryKey: ["notifications", "unread"],
-    queryFn: api.unreadCount,
+    queryFn: unreadCount,
     refetchInterval: 60_000,
   });
   const recent = useQuery({
     queryKey: ["notifications", "recent"],
-    queryFn: () => api.notifications(8),
+    queryFn: () => notifications(8),
     refetchInterval: 60_000,
   });
 
@@ -36,11 +36,11 @@ export function NotificationBell() {
   };
 
   const markAll = useMutation({
-    mutationFn: api.markAllNotificationsRead,
+    mutationFn: markAllNotificationsRead,
     onSuccess: invalidate,
   });
   const markOne = useMutation({
-    mutationFn: (id: string) => api.markNotificationRead(id),
+    mutationFn: (id: string) => markNotificationRead(id),
     onSuccess: invalidate,
   });
 

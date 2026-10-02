@@ -6,7 +6,7 @@ import { CloudDownload, Loader2 } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { useTableView } from "@/shared/hooks/use-paged-list";
-import { useLive } from "@/hooks/use-event-stream";
+import { useLive } from "@/features/live";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Play, RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
-import { useLive } from "@/hooks/use-event-stream";
+import { useLive } from "@/features/live";
 import { useTableView } from "@/shared/hooks/use-paged-list";
 import { Button } from "@/components/ui/button";
 import {
