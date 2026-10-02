@@ -126,6 +126,7 @@ export const handlers = [
     HttpResponse.json(ticketFixture({ status: "in_review" })),
   ),
   http.get("/api/ticket-types", () => HttpResponse.json(page([]))),
+  http.get("/api/roles", () => HttpResponse.json(page([]))),
 
   http.get("/api/auth/mfa/status", () =>
     HttpResponse.json({ enabled: false, pending: false, required: false }),
