@@ -12,7 +12,7 @@ export function VerifyEmailPage({ token }: { token?: string }) {
   const [done, setDone] = useState(false);
 
   const verify = useMutation({
-    mutationFn: (token: string) => verifyEmail(token),
+    mutationFn: (t: string) => verifyEmail(t),
     onSuccess: () => setDone(true),
     onError: (error) => toast.error(error.message),
   });
