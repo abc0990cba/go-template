@@ -129,7 +129,8 @@ const ru: Partial<Record<keyof typeof en, string>> = {
   "banner.returnToAdmin": "Вернуться к админу",
 };
 
-const dictionaries: Record<Locale, Partial<Record<keyof typeof en, string>>> = { en, ru };
+/** Exported for the i18n test suite (parity and fallback assertions). */
+export const dictionaries: Record<Locale, Partial<Record<keyof typeof en, string>>> = { en, ru };
 
 export type TKey = keyof typeof en;
 
