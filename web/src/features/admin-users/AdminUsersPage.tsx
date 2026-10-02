@@ -1,8 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+
 import { useTableView } from "@/shared/hooks/use-paged-list";
 import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
@@ -11,7 +9,6 @@ import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowUpRight,
-  Loader2,
   Pencil,
   Plus,
   Search,
@@ -24,38 +21,15 @@ import { IconActionButton } from "@/shared/components/icon-action-button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { UserAvatar } from "@/shared/components/user-avatar";
+import { CreateDialog, EditDialog, DeleteDialog } from "./users-dialogs";
 import { UserRolesDialog } from "@/features/admin-users";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/shared/components/ui/alert-dialog";
+
 import { Button } from "@/shared/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/shared/components/ui/dialog";
+
 import { Input } from "@/shared/components/ui/input";
-import { createUser, deleteUser, impersonate, listUsers, updateUser } from "./api";
+import { impersonate, listUsers } from "./api";
 import type { ListSearch } from "@/shared/lib/search";
 import type { User } from "@/shared/types/core";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/shared/components/ui/form";
 
 export function AdminUsersPage({ search }: { search: ListSearch }) {
   const navigate = useNavigate();
@@ -303,195 +277,3 @@ function SearchBox({ value, onCommit }: { value: string; onCommit: (q: string) =
     </form>
   );
 }
-
-const userFormSchema = z.object({
-  name: z.string(),
-  email: z.string().email("Enter a valid email"),
-});
-
-type UserForm = z.infer<typeof userFormSchema>;
-
-function UserFormFields({ form }: { form: ReturnType<typeof useForm<UserForm>> }) {
-  return (
-    <>
-      <FormField
-        control={form.control}
-        name="name"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Name</FormLabel>
-            <FormControl>
-              <Input placeholder="Ada Lovelace" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-      <FormField
-        control={form.control}
-        name="email"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Email</FormLabel>
-            <FormControl>
-              <Input type="email" placeholder="ada@example.com" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-    </>
-  );
-}
-
-function CreateDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
-}) {
-  const form = useForm<UserForm>({
-    resolver: zodResolver(userFormSchema),
-    defaultValues: { name: "", email: "" },
-  });
-  const create = useMutation({
-    mutationFn: (values: UserForm) => createUser(values.email, values.name),
-    onSuccess: (user) => {
-      toast.success(`Created ${user.email}`);
-      form.reset();
-      onOpenChange(false);
-      onCreated();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New user</DialogTitle>
-          <DialogDescription>
-            Creates a passwordless account, as if provisioned by an external system.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            id="create-user"
-            onSubmit={form.handleSubmit((values) => create.mutate(values))}
-            className="space-y-3"
-          >
-            <UserFormFields form={form} />
-          </form>
-        </Form>
-        <DialogFooter>
-          <Button type="submit" form="create-user" disabled={create.isPending}>
-            {create.isPending ? <Loader2 className="size-4 animate-spin" /> : null} Create
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function EditDialog({
-  user,
-  onOpenChange,
-  onSaved,
-}: {
-  user: User | null;
-  onOpenChange: (open: boolean) => void;
-  onSaved: () => void;
-}) {
-  const form = useForm<UserForm>({
-    resolver: zodResolver(userFormSchema),
-    values: { name: user?.name ?? "", email: user?.email ?? "" },
-  });
-  const update = useMutation({
-    mutationFn: (values: UserForm) => updateUser(user?.id ?? "", values.email, values.name),
-    onSuccess: () => {
-      toast.success("User updated");
-      onOpenChange(false);
-      onSaved();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-  return (
-    <Dialog open={user !== null} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit user</DialogTitle>
-          <DialogDescription>
-            Updates email and name via PUT /api/users/{user?.id}.
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            id="edit-user"
-            onSubmit={form.handleSubmit((values) => update.mutate(values))}
-            className="space-y-3"
-          >
-            <UserFormFields form={form} />
-          </form>
-        </Form>
-        <DialogFooter>
-          <Button type="submit" form="edit-user" disabled={update.isPending}>
-            {update.isPending ? <Loader2 className="size-4 animate-spin" /> : null} Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function DeleteDialog({
-  user,
-  onOpenChange,
-  onDeleted,
-}: {
-  user: User | null;
-  onOpenChange: (open: boolean) => void;
-  onDeleted: () => void;
-}) {
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteUser(id),
-    onSuccess: () => {
-      toast.success("User deleted");
-      onOpenChange(false);
-      onDeleted();
-    },
-    onError: (error) => toast.error(error.message),
-  });
-  return (
-    <AlertDialog open={user !== null} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete {user?.email}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This removes the account together with its credentials, identities, and sessions. There
-            is no undo.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-white hover:bg-destructive/90"
-            onClick={(event) => {
-              event.preventDefault();
-              if (user) remove.mutate(user.id);
-            }}
-          >
-            {remove.isPending ? <Loader2 className="size-4 animate-spin" /> : null} Delete
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-/**
- * UserRolesDialog (shared with the user card) manages the account's role
- * assignments in the caller's active scope (or the platform). Grants map
- * to Casbin g rules.
- */

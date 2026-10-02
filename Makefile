@@ -53,6 +53,19 @@ check-size: ## fail if any hand-written production Go file exceeds 400 lines
 web-test:
 	cd web && npm test
 
+web-check-boundaries: ## fail if any web file breaks the slice architecture rules
+	cd web && npx depcruise "src/**/*.ts?(x)" --config .dependency-cruiser.cjs
+
+check-size-web: ## fail if any hand-written web file exceeds its budget (400; routes 80)
+	@oversized=$$(find web/src \( -name '*.ts' -o -name '*.tsx' \) \
+		! -name '*test*' ! -name 'routeTree.gen.ts' \
+		! -path 'web/src/shared/components/ui/*' \
+		-exec wc -l {} + | awk '$$1 > 400 && $$2 != "total" {print $$1 "\t" $$2}'); \
+	routes=$$(find web/src/routes -name '*.tsx' -exec wc -l {} + | awk '$$1 > 80 && $$2 != "total" {print $$1 "\t" $$2}'); \
+	if [ -n "$$oversized$$routes" ]; then \
+		echo "WEB FILES OVER BUDGET:"; echo "$$oversized$$routes"; exit 1; \
+	else echo "web size budget OK (<=400 per file, <=80 per route)"; fi
+
 web-coverage:
 	cd web && npm run test:coverage
 

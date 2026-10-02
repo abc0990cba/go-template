@@ -21,6 +21,10 @@ jobs:
         run: cd web && npm run lint && npm run format:check
       - name: Type-check and build
         run: cd web && npm run build
+      - name: Architecture boundaries (dependency-cruiser)
+        run: make web-check-boundaries
+      - name: Size budget (<=400 per file, <=80 per route)
+        run: make check-size-web
       - name: Test (vitest with coverage floor)
         run: cd web && npm run test:coverage
 

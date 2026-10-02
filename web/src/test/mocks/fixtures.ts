@@ -80,4 +80,3 @@ export function ticketTypeFixture(overrides: Partial<TicketType> = {}): TicketTy
     ...overrides,
   };
 }
-

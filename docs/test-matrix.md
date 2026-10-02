@@ -25,3 +25,4 @@
 | WEB-A11Y | — | — | `web/e2e/a11y.spec.ts` | axe serious/critical gate; contrast debt allowlisted |
 | WEB-VISUAL | — | — | `web/e2e/visual.spec.ts` | Landing + login snapshots, Linux baselines |
 | WEB-I18N | `web/src/lib/i18n.test.tsx` | — | — | en/ru parity, en fallback, locale switch |
+| WEB-ARCH | `make web-check-boundaries` (dependency-cruiser) | — | — | Slice isolation + shared-is-leaf rules, CI-gated |
