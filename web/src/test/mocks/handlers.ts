@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import type { Me, Paged, Ticket, TicketType } from "@/lib/types";
+import type { Me, Paged, Ticket, TicketDecision, TicketType } from "@/lib/types";
 
 /**
  * Default MSW handlers: the API surface the SPA renders against, as plain
@@ -55,6 +55,23 @@ export function ticketFixture(overrides: Partial<Ticket> = {}): Ticket {
   };
 }
 
+export function decisionFixture(overrides: Partial<TicketDecision> = {}): TicketDecision {
+  return {
+    approval: {
+      id: "ap-1",
+      ticket_id: "t-1",
+      step_index: 0,
+      name: "Manager review",
+      approver_role: "approver",
+      status: "approved",
+      decided_at: "2026-02-02T09:00:00Z",
+      created_at: "2026-02-01T10:00:00Z",
+    },
+    ticket: ticketFixture({ status: "in_review" }),
+    ...overrides,
+  };
+}
+
 export function ticketTypeFixture(overrides: Partial<TicketType> = {}): TicketType {
   return {
     id: "tt-generic",
@@ -97,7 +114,15 @@ export const handlers = [
       withdrawn: 0,
     }),
   ),
-  http.get("/api/approvals", () => HttpResponse.json(page([]))),
+  // The approvals path serves both the inbox and the decided history;
+  // the state query parameter picks which side answers.
+  http.get("/api/approvals", ({ request }) => {
+    const state = new URL(request.url).searchParams.get("state");
+    return HttpResponse.json(state === "decided" ? page([]) : page([]));
+  }),
+  http.post("/api/tickets/:id/actions", () =>
+    HttpResponse.json(ticketFixture({ status: "in_review" })),
+  ),
   http.get("/api/ticket-types", () => HttpResponse.json(page([]))),
 
   http.get("/api/oauth/providers", () => HttpResponse.json(page([]))),
