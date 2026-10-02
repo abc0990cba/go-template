@@ -10,7 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+import { assignUserRole, unassignUserRole, userRoles } from "./api";
+import { listRoles } from "@/features/admin-rbac";
 import type { PolicyRule, User } from "@/lib/types";
 import { UserAvatar } from "@/components/user-avatar";
 
@@ -29,10 +30,10 @@ export function UserRolesDialog({
 }) {
   const queryClient = useQueryClient();
   const [role, setRole] = useState("");
-  const roles = useQuery({ queryKey: ["roles"], queryFn: api.listRoles, enabled: user !== null });
+  const roles = useQuery({ queryKey: ["roles"], queryFn: listRoles, enabled: user !== null });
   const assignments = useQuery({
     queryKey: ["users", user?.id ?? "", "roles"],
-    queryFn: () => api.userRoles(user?.id ?? ""),
+    queryFn: () => userRoles(user?.id ?? ""),
     enabled: user !== null,
   });
 
@@ -42,7 +43,7 @@ export function UserRolesDialog({
   };
 
   const assign = useMutation({
-    mutationFn: () => api.assignUserRole(user?.id ?? "", role, ""),
+    mutationFn: () => assignUserRole(user?.id ?? "", role, ""),
     onSuccess: () => {
       toast.success("Role assigned");
       setRole("");
@@ -53,7 +54,7 @@ export function UserRolesDialog({
 
   const unassign = useMutation({
     mutationFn: (rule: PolicyRule) =>
-      api.unassignUserRole(rule.subject, rule.object ?? "", rule.domain),
+      unassignUserRole(rule.subject, rule.object ?? "", rule.domain),
     onSuccess: () => {
       toast.success("Role revoked");
       invalidate();

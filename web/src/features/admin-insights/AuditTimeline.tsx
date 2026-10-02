@@ -26,7 +26,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import type { AuditEntry } from "@/lib/types";
+import type { AuditEntry } from "./types";
 import { cn } from "@/shared/lib/utils";
 import { UserAvatar } from "@/components/user-avatar";
 
