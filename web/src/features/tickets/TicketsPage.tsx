@@ -3,8 +3,8 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { Plus, RefreshCw } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import { ExplainerBanner } from "@/components/explainer-banner";
+import { DataTable } from "@/shared/components/data-table/data-table";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { useLive } from "@/features/live";
 import { useTableView } from "@/shared/hooks/use-paged-list";
 import { useCan } from "@/shared/hooks/use-permissions";
@@ -14,15 +14,15 @@ import { listTickets, ticketCounts } from "./api";
 import type { TicketsSearch } from "./schemas";
 import { TicketStatusBadge, ticketLabel } from "./TicketStatusBadge";
 import type { Ticket } from "./types";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "@/shared/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 
 export function TicketsPage({ search }: { search: TicketsSearch }) {
   const navigate = useNavigate();

@@ -6,4 +6,5 @@ export { ResetPasswordPage } from "./ResetPasswordPage";
 export { VerifyEmailPage } from "./VerifyEmailPage";
 export { AcceptInvitationPage } from "./AcceptInvitationPage";
 export { DemoAccountPicker } from "./DemoAccountPicker";
+export { logout, login } from "./api";
 export { demoAccounts, type DemoAccount } from "./demo-accounts";

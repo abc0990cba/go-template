@@ -4,8 +4,8 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Check, RefreshCw, X } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import { ExplainerBanner } from "@/components/explainer-banner";
+import { DataTable } from "@/shared/components/data-table/data-table";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import {
   TicketStatusBadge,
   ticketLabel,
@@ -13,9 +13,9 @@ import {
   type Ticket,
   type TicketDecision,
 } from "@/features/tickets";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/shared/components/ui/tabs";
 import { DecisionDialog } from "./DecisionDialog";
 import { useTableView } from "@/shared/hooks/use-paged-list";
 import { approvals, decidedApprovals } from "./api";

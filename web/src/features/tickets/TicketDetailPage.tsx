@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, Check, CheckCheck, Undo2, X } from "lucide-react";
-import { ExplainerBanner } from "@/components/explainer-banner";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import {
   AlertDialog,
@@ -15,10 +15,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+} from "@/shared/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
 import {
   addTicketComment,
   deleteTicket,

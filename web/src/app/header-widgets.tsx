@@ -2,20 +2,20 @@ import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import * as React from "react";
 import { useState } from "react";
 import { Building2, Globe, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IdentityChip } from "@/components/identity-chip";
+} from "@/shared/components/ui/dropdown-menu";
+import { IdentityChip } from "@/shared/components/identity-chip";
 import { LiveBadge } from "@/features/live";
 import { NotificationBell } from "@/features/notifications";
-import { ThemeMenu } from "@/components/theme-menu";
-import { UserAvatar } from "@/components/user-avatar";
-import { setActiveOrg } from "@/lib/api";
+import { ThemeMenu } from "@/shared/components/theme-menu";
+import { UserAvatar } from "@/shared/components/user-avatar";
+import { setActiveOrg } from "@/shared/api/core";
 import { meQuery } from "@/shared/lib/auth";
 import { useI18n, type Locale } from "@/shared/lib/i18n";
 

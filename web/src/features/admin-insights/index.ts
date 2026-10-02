@@ -5,4 +5,4 @@ export { AdminReportsPage } from "./AdminReportsPage";
 export { AdminAuditPage } from "./AdminAuditPage";
 export { AuditTimeline } from "./AuditTimeline";
 export { listAudit } from "./api";
-export type { AuditEntry } from "./types";
+export type { AnalyticsSummary, AuditEntry } from "./types";

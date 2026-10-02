@@ -23,12 +23,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { api } from "@/lib/api";
+import { Button } from "@/shared/components/ui/button";
+import { Skeleton } from "@/shared/components/ui/skeleton";
+import { userActivity } from "@/features/admin-users";
 import type { AuditEntry } from "./types";
 import { cn } from "@/shared/lib/utils";
-import { UserAvatar } from "@/components/user-avatar";
+import { UserAvatar } from "@/shared/components/user-avatar";
 
 /** How the timeline presents one audit action. */
 interface ActionStyle {
@@ -191,7 +191,7 @@ export function AuditTimeline({ userId, className }: { userId: string; className
 
   const feed = useInfiniteQuery({
     queryKey: ["users", userId, "activity"],
-    queryFn: ({ pageParam }) => api.userActivity(userId, PAGE_SIZE, Number(pageParam)),
+    queryFn: ({ pageParam }) => userActivity(userId, PAGE_SIZE, Number(pageParam)),
     initialPageParam: 0,
     getNextPageParam: (lastPage): number | undefined => {
       if (!lastPage.next_cursor) return undefined;

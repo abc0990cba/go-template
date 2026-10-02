@@ -20,13 +20,19 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 import { AuditTimeline } from "@/features/admin-insights";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { UserAvatar } from "@/components/user-avatar";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import { UserAvatar } from "@/shared/components/user-avatar";
 import { UserRolesDialog } from "@/features/admin-users";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -34,10 +40,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@/shared/components/ui/dialog";
+import { Input } from "@/shared/components/ui/input";
+import { Label } from "@/shared/components/ui/label";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
   getUser,
   impersonate as impersonateUser,

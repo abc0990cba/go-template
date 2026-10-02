@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
-import { ListPagination } from "@/components/data-table/list-pagination";
-import { ModeSwitcher } from "@/components/data-table/mode-switcher";
-import { ViewSwitcher } from "@/components/data-table/view-switcher";
-import type { PaginationMode, ViewMode } from "@/lib/types";
+import { ListPagination } from "@/shared/components/data-table/list-pagination";
+import { ModeSwitcher } from "@/shared/components/data-table/mode-switcher";
+import { ViewSwitcher } from "@/shared/components/data-table/view-switcher";
+import type { PaginationMode, ViewMode } from "@/shared/api/pagination";
 
 /**
  * ModeTarget is the URL-backed pagination state a page hands to the table:

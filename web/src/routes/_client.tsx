@@ -1,5 +1,5 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
-import { ClientShell } from "@/components/client-shell";
+import { ClientShell } from "@/app/client-shell";
 import { LiveProvider } from "@/features/live";
 import { ensureAuth } from "@/shared/lib/auth";
 

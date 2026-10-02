@@ -3,8 +3,8 @@ import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@/shared/components/ui/badge";
+import { Button } from "@/shared/components/ui/button";
 import {
   Table,
   TableBody,
@@ -12,12 +12,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/shared/components/ui/table";
 import { login } from "./api";
 import { meQuery } from "@/shared/lib/auth";
 import { useI18n } from "@/shared/lib/i18n";
 import { demoAccounts, type DemoAccount } from "./demo-accounts";
-import { UserAvatar } from "@/components/user-avatar";
+import { UserAvatar } from "@/shared/components/user-avatar";
 
 /**
  * DemoAccountPicker is the interactive accounts table: every seeded account

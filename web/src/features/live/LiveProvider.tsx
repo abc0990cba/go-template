@@ -1,7 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { AnalyticsSummary, EventRecord, Job, Me, Notification } from "@/lib/types";
+import type { EventRecord } from "./types";
+import type { AnalyticsSummary } from "@/features/admin-insights/types";
+
+import type { Job } from "@/features/admin-ops";
+import type { Me } from "@/shared/types/core";
+import type { Notification } from "@/features/notifications";
 
 type StreamMessage =
   | { type: "connected"; payload: { at: string } }

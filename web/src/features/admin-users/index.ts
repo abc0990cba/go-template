@@ -2,4 +2,4 @@
 export { AdminUsersPage } from "./AdminUsersPage";
 export { AdminUserDetailPage } from "./AdminUserDetailPage";
 export { UserRolesDialog } from "./UserRolesDialog";
-export { stopImpersonation } from "./api";
+export { stopImpersonation, userActivity } from "./api";

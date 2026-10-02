@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { PAGINATION_MODES } from "@/components/data-table/mode-switcher";
-import type { PaginationMode, ViewMode } from "@/lib/types";
+import { Button } from "@/shared/components/ui/button";
+import { PAGINATION_MODES } from "@/shared/components/data-table/mode-switcher";
+import type { PaginationMode, ViewMode } from "@/shared/api/pagination";
 
 interface ListPaginationProps {
   mode: PaginationMode;

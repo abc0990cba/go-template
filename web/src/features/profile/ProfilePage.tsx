@@ -15,10 +15,16 @@ import {
   ThumbsUp,
   Unlink,
 } from "lucide-react";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import { Avatar, AvatarFallback } from "@/shared/components/ui/avatar";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
 import { meQuery } from "@/shared/lib/auth";
 import {
   logoutAll as logoutAllApi,

@@ -3,8 +3,8 @@ import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/rea
 import { render } from "@testing-library/react";
 import { routeTree } from "@/routeTree.gen";
 import { queryClient } from "@/shared/lib/query-client";
-import type { Me } from "@/lib/types";
-import { Toaster } from "@/components/ui/sonner";
+import type { Me } from "@/shared/types/core";
+import { Toaster } from "@/shared/components/ui/sonner";
 import { meFixture } from "./mocks/handlers";
 
 /**

@@ -1,4 +1,4 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@/shared/components/ui/badge";
 import { useI18n, type TKey } from "@/shared/lib/i18n";
 import type { TicketStatus } from "./types";
 import { cn } from "@/shared/lib/utils";

@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { meQuery } from "@/shared/lib/auth";
-import type { Me } from "@/lib/types";
+import type { Me } from "@/shared/types/core";
 
 /**
  * useCan returns a predicate over the caller's expanded permissions

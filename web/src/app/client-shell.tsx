@@ -17,7 +17,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,15 +25,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { AccountAvatar, HeaderWidgets } from "@/components/header-widgets";
+} from "@/shared/components/ui/dropdown-menu";
+import { AccountAvatar, HeaderWidgets } from "@/app/header-widgets";
 import { DemoAccountPicker } from "@/features/auth";
 import { useCan, useMe } from "@/shared/hooks/use-permissions";
-import { api } from "@/lib/api";
+import { logout as logoutApi } from "@/features/auth";
 import { I18nProvider, useI18n } from "@/shared/lib/i18n";
 
-// Header chrome shared with the admin shell.
-import { ImpersonationBanner } from "@/components/app-shell";
+import { ImpersonationBanner } from "./impersonation-banner";
 
 const NAV_LINKS = [
   { to: "/dashboard", key: "nav.dashboard", icon: Home, permission: undefined },
@@ -60,7 +59,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
   const [switchOpen, setSwitchOpen] = useState(false);
 
   const logout = useMutation({
-    mutationFn: api.logout,
+    mutationFn: logoutApi,
     onSuccess: () => {
       queryClient.removeQueries();
       void navigate({ to: "/login" });

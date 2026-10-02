@@ -74,6 +74,10 @@ export function verifyEmail(token: string): Promise<void> {
   return http.post("/api/auth/verify-email", { token });
 }
 
+export function logout(): Promise<void> {
+  return http.post<void>("/api/auth/logout");
+}
+
 export function acceptInvitation(token: string): Promise<{ org_id: string; role: string }> {
   return http.post("/api/invitations/accept", { token });
 }

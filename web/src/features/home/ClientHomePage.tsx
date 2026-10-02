@@ -2,13 +2,19 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { ArrowRight, CheckCheck, FileText, ShieldCheck } from "lucide-react";
-import { ExplainerBanner } from "@/components/explainer-banner";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import { TicketStatusBadge, ticketLabel, listTickets, ticketCounts } from "@/features/tickets";
 import { approvals } from "@/features/approvals";
 import { notifications as notificationsApi } from "@/features/notifications";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
 
 /**
  * The client dashboard is personal: my tickets, what waits on my approval,

@@ -1,6 +1,6 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
-import { UserAvatar } from "@/components/user-avatar";
+import { Badge } from "@/shared/components/ui/badge";
+import { UserAvatar } from "@/shared/components/user-avatar";
 import { meQuery } from "@/shared/lib/auth";
 import { useI18n } from "@/shared/lib/i18n";
 

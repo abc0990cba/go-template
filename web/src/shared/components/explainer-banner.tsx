@@ -1,6 +1,6 @@
 import { BookOpen } from "lucide-react";
 import { useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 

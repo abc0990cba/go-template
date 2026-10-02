@@ -1,7 +1,7 @@
 import { ArrowDownToLine, Info, List } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
 import { cn } from "@/shared/lib/utils";
-import type { ViewMode } from "@/lib/types";
+import type { ViewMode } from "@/shared/api/pagination";
 
 const VIEWS: { value: ViewMode; label: string; hint: string }[] = [
   {

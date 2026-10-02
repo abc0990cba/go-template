@@ -3,9 +3,15 @@ import QRCode from "qrcode";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2, ShieldCheck, ShieldOff } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
 import { mfaDisable, mfaEnroll, mfaStatus, mfaVerify } from "./api";
 
 export function MFACard() {

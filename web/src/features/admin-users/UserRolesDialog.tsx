@@ -2,18 +2,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@/shared/components/ui/dialog";
 import { assignUserRole, unassignUserRole, userRoles } from "./api";
 import { listRoles } from "@/features/admin-rbac";
-import type { PolicyRule, User } from "@/lib/types";
-import { UserAvatar } from "@/components/user-avatar";
+import type { PolicyRule } from "@/features/admin-rbac";
+import type { User } from "@/shared/types/core";
+import { UserAvatar } from "@/shared/components/user-avatar";
 
 /**
  * UserRolesDialog manages the account's role assignments in the caller's

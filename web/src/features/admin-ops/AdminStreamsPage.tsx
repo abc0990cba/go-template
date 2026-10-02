@@ -2,11 +2,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useState } from "react";
 import { RotateCcw, RefreshCw } from "lucide-react";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import { Button } from "@/shared/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
+import { Skeleton } from "@/shared/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 import { listDeadLetters, listOutbox, replayDeadLetter } from "./api";
 import type { DeadLetter, OutboxEvent } from "./types";
 

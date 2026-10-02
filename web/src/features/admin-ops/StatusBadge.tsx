@@ -1,5 +1,5 @@
-import { Badge } from "@/components/ui/badge";
-import type { JobStatus } from "@/lib/types";
+import { Badge } from "@/shared/components/ui/badge";
+import type { JobStatus } from "./types";
 
 const STATUS_VARIANT: Record<
   JobStatus | "done" | "failed",

@@ -1,7 +1,6 @@
 import { queryClient } from "@/shared/lib/query-client";
 import { queryOptions } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
-import { api } from "@/lib/api";
 import { http } from "@/shared/api/core";
 import type { Me } from "@/shared/types/core";
 
@@ -15,14 +14,6 @@ export function meQuery() {
     queryFn: () => http.get<Me>("/api/me"),
     staleTime: 60_000,
     retry: false,
-  });
-}
-
-export function oauthProvidersQuery() {
-  return queryOptions({
-    queryKey: ["oauth", "providers"],
-    queryFn: api.oauthProviders,
-    staleTime: 5 * 60_000,
   });
 }
 

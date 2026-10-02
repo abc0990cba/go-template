@@ -3,19 +3,19 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Plus, Send, Trash2 } from "lucide-react";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { Badge } from "@/components/ui/badge";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import { Badge } from "@/shared/components/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
+} from "@/shared/components/ui/dialog";
+import { Button } from "@/shared/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
+import { Input } from "@/shared/components/ui/input";
+import { Switch } from "@/shared/components/ui/switch";
 import {
   createWebhook,
   deleteWebhook,

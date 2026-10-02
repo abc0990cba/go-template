@@ -19,11 +19,11 @@ import {
   Trash2,
   VenetianMask,
 } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import { IconActionButton } from "@/components/icon-action-button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { UserAvatar } from "@/components/user-avatar";
+import { DataTable } from "@/shared/components/data-table/data-table";
+import { IconActionButton } from "@/shared/components/icon-action-button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/components/ui/tooltip";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import { UserAvatar } from "@/shared/components/user-avatar";
 import { UserRolesDialog } from "@/features/admin-users";
 import {
   AlertDialog,
@@ -34,8 +34,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+} from "@/shared/components/ui/alert-dialog";
+import { Button } from "@/shared/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -43,8 +43,8 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@/shared/components/ui/dialog";
+import { Input } from "@/shared/components/ui/input";
 import { createUser, deleteUser, impersonate, listUsers, updateUser } from "./api";
 import type { ListSearch } from "@/shared/lib/search";
 import type { User } from "@/shared/types/core";
@@ -55,7 +55,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
+} from "@/shared/components/ui/form";
 
 export function AdminUsersPage({ search }: { search: ListSearch }) {
   const navigate = useNavigate();

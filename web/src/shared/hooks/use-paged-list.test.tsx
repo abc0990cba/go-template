@@ -3,9 +3,10 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { api } from "@/lib/api";
+import { listTickets } from "@/features/tickets";
 import { infiniteRows, useDebounced, usePagedList, useTableView } from "./use-paged-list";
-import type { Paged, Ticket } from "@/lib/types";
+import type { Paged } from "@/shared/api/pagination";
+import type { Ticket } from "@/features/tickets";
 import { page, ticketFixture } from "@/test/mocks/handlers";
 import { server } from "@/test/mocks/server";
 
@@ -29,7 +30,7 @@ describe("usePagedList", () => {
 
     const { result } = renderHook(
       () =>
-        usePagedList<Ticket>("tickets", api.listTickets, {
+        usePagedList<Ticket>("tickets", listTickets, {
           mode: "offset",
           limit: 10,
           scope: "my",
@@ -57,7 +58,7 @@ describe("usePagedList", () => {
       () =>
         usePagedList<Ticket>(
           "tickets",
-          api.listTickets,
+          listTickets,
           { mode: "offset", limit: 10 },
           { enabled: false },
         ),
@@ -80,8 +81,7 @@ describe("useTableView (paged)", () => {
     );
 
     const { result } = renderHook(
-      () =>
-        useTableView<Ticket>("tickets", api.listTickets, { mode: "offset", limit: 10 }, "paged"),
+      () => useTableView<Ticket>("tickets", listTickets, { mode: "offset", limit: 10 }, "paged"),
       { wrapper: makeWrapper() },
     );
 
@@ -94,8 +94,7 @@ describe("useTableView (paged)", () => {
     server.use(http.get("/api/tickets", () => HttpResponse.json(page([ticketFixture()]))));
 
     const { result } = renderHook(
-      () =>
-        useTableView<Ticket>("tickets", api.listTickets, { mode: "offset", limit: 10 }, "paged"),
+      () => useTableView<Ticket>("tickets", listTickets, { mode: "offset", limit: 10 }, "paged"),
       { wrapper: makeWrapper() },
     );
 
@@ -122,8 +121,7 @@ describe("useTableView (infinite)", () => {
     );
 
     const { result } = renderHook(
-      () =>
-        useTableView<Ticket>("tickets", api.listTickets, { mode: "offset", limit: 2 }, "infinite"),
+      () => useTableView<Ticket>("tickets", listTickets, { mode: "offset", limit: 2 }, "infinite"),
       { wrapper: makeWrapper() },
     );
 

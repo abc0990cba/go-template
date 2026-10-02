@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { page } from "@/test/mocks/handlers";
 import { server } from "@/test/mocks/server";
 import { renderRoute, seedMe } from "@/test/test-utils";
-import type { User } from "@/lib/types";
+import type { User } from "@/shared/types/core";
 
 /**
  * The admin users table, rendered through the real (guarded) route tree:

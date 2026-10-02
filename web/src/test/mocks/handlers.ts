@@ -1,5 +1,7 @@
 import { http, HttpResponse } from "msw";
-import type { Me, Paged, Ticket, TicketDecision, TicketType } from "@/lib/types";
+import type { Me } from "@/shared/types/core";
+import type { Paged } from "@/shared/api/pagination";
+import type { Ticket, TicketDecision, TicketType } from "@/features/tickets";
 
 /**
  * Default MSW handlers: the API surface the SPA renders against, as plain

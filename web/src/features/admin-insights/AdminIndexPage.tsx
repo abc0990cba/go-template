@@ -14,17 +14,23 @@ import {
   Users,
 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { KpiCard } from "@/components/kpi-card";
-import { StatusBadge } from "@/components/status-badge";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import { KpiCard } from "@/features/admin-insights/KpiCard";
+import { StatusBadge } from "@/features/admin-ops/StatusBadge";
 import { useLive } from "@/features/live";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@/components/ui/chart";
+} from "@/shared/components/ui/chart";
 import { analyticsSummary, analyticsTimeseries } from "./api";
 import { listJobs } from "@/features/admin-ops";
 

@@ -12,9 +12,9 @@ import {
   InfiniteSentinel,
   PaginationBar,
   type ModeTarget,
-} from "@/components/data-table/pagination-bar";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@/shared/components/data-table/pagination-bar";
+import { Button } from "@/shared/components/ui/button";
+import { Skeleton } from "@/shared/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -22,7 +22,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@/shared/components/ui/table";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -58,7 +58,7 @@ interface DataTableProps<TData> {
  * presentation view (paged/infinite), and the callbacks that move either
  * forward.
  */
-export type { ModeTarget } from "@/components/data-table/pagination-bar";
+export type { ModeTarget } from "@/shared/components/data-table/pagination-bar";
 
 /**
  * DataTable renders a server-paginated collection with TanStack Table.

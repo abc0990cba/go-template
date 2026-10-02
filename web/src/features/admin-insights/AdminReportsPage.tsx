@@ -3,18 +3,18 @@ import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { FileText, Loader2 } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import { ExplainerBanner } from "@/components/explainer-banner";
+import { DataTable } from "@/shared/components/data-table/data-table";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { useTableView } from "@/shared/hooks/use-paged-list";
-import { StatusBadge } from "@/components/status-badge";
-import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@/features/admin-ops/StatusBadge";
+import { Button } from "@/shared/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from "@/shared/components/ui/sheet";
 import { generateReport, listReports } from "./api";
 import type { ListSearch } from "@/shared/lib/search";
 import type { Report } from "./types";

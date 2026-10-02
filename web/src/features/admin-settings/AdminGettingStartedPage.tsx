@@ -1,7 +1,13 @@
 import { BookOpen, Database, GitBranch, ListTodo, Rocket, Server, Users } from "lucide-react";
-import { ExplainerBanner } from "@/components/explainer-banner";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/shared/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/shared/components/ui/alert";
 
 export function AdminGettingStartedPage() {
   return (

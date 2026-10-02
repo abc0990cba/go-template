@@ -3,23 +3,23 @@ import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { Play, RefreshCw } from "lucide-react";
-import { DataTable } from "@/components/data-table/data-table";
-import { ExplainerBanner } from "@/components/explainer-banner";
+import { DataTable } from "@/shared/components/data-table/data-table";
+import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { useLive } from "@/features/live";
 import { useTableView } from "@/shared/hooks/use-paged-list";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/shared/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/shared/components/ui/select";
 import { listJobs, processJob } from "./api";
 import type { ListSearch } from "@/shared/lib/search";
 import type { Job } from "./types";
 import type { ColumnDef } from "@tanstack/react-table";
-import { StatusBadge } from "@/components/status-badge";
+import { StatusBadge } from "@/features/admin-ops/StatusBadge";
 
 export function AdminJobsPage({ search }: { search: ListSearch }) {
   const navigate = useNavigate();
