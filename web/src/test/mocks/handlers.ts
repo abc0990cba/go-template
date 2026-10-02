@@ -125,6 +125,10 @@ export const handlers = [
   ),
   http.get("/api/ticket-types", () => HttpResponse.json(page([]))),
 
+  http.get("/api/auth/mfa/status", () =>
+    HttpResponse.json({ enabled: false, pending: false, required: false }),
+  ),
+  http.get("/api/api-keys", () => HttpResponse.json(page([]))),
   http.get("/api/oauth/providers", () => HttpResponse.json(page([]))),
   http.get("/api/me/identities", () => HttpResponse.json(page([]))),
   http.get("/api/sessions", () => HttpResponse.json(page([]))),
