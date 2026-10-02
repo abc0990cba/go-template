@@ -1,4 +1,9 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
-  "ignorePatterns": ["src/routeTree.gen.ts"]
+  "ignorePatterns": [
+    ".dependency-cruiser.cjs",
+    ".oxlintrc.json",
+    "AGENTS.md",
+    "src/routeTree.gen.ts"
+  ]
 }

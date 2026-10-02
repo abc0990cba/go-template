@@ -105,7 +105,13 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html"],
       include: ["src/features/**", "src/shared/**", "src/app/**", "src/routes/**"],
-      exclude: ["src/test/**", "src/routeTree.gen.ts", "src/shared/components/ui/**", "**/*.test.*", "**/*.d.ts"],
+      exclude: [
+        "src/test/**",
+        "src/routeTree.gen.ts",
+        "src/shared/components/ui/**",
+        "**/*.test.*",
+        "**/*.d.ts",
+      ],
       // Ratchet: pinned just under the measured baseline. Re-baselined after
       // the vertical-slice migration (the measured surface changed: feature
       // api modules and app shells entered the denominator) — currently
