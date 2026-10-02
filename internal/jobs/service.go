@@ -2,6 +2,7 @@
 // enrichment/report job bodies. The task contract itself (type constants and
 // versioned payloads) lives in jobs.go in this package; the GDPR export
 // link is in export_link.go and the HTTP surface in http.go.
+
 package jobs
 
 import (

@@ -47,12 +47,12 @@ type Delivery struct {
 
 // validateWebhookURL accepts only absolute http(s) URLs — the delivery
 // client must never be pointed at file:// or internal schemes.
-func validateWebhookURL(raw string) (string, error) {
+func validateWebhookURL(raw string) error {
 	parsed, err := url.Parse(raw)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
-		return "", kernel.Invalid("webhook url must be an absolute http(s) url")
+		return kernel.Invalid("webhook url must be an absolute http(s) url")
 	}
-	return raw, nil
+	return nil
 }
 
 // Fan is the event-facing surface the realtime sink adapts to.
@@ -108,7 +108,7 @@ func NewService(store Store, dispatcher Dispatcher, settings Settings, client *h
 
 // Create adds an endpoint; the secret is generated when omitted.
 func (s *Service) Create(ctx context.Context, endpoint Endpoint) (Endpoint, error) {
-	if _, err := validateWebhookURL(endpoint.URL); err != nil {
+	if err := validateWebhookURL(endpoint.URL); err != nil {
 		return Endpoint{}, err
 	}
 	endpoint.ID = kernel.NewID()
@@ -125,7 +125,7 @@ func (s *Service) Create(ctx context.Context, endpoint Endpoint) (Endpoint, erro
 
 // Update rewrites url/events/description/active.
 func (s *Service) Update(ctx context.Context, endpoint Endpoint) error {
-	if _, err := validateWebhookURL(endpoint.URL); err != nil {
+	if err := validateWebhookURL(endpoint.URL); err != nil {
 		return err
 	}
 	existing, err := s.store.GetWebhookEndpoint(ctx, endpoint.ID)

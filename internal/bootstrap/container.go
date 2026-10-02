@@ -123,7 +123,7 @@ type Container struct {
 	Users         *users.Service
 	Jobs          *jobs.Service
 	Reports       *analytics.ReportService
-	Analytics     *analytics.AnalyticsService
+	Analytics     *analytics.Service
 	RBAC          *rbac.Service
 	Audit         *audit.Service
 	Settings      *settings.Service
@@ -149,7 +149,7 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 		Jobs: jobs.NewService(deps.Jobs, deps.Reports, deps.Queue, deps.Observer, deps.Events,
 			tracedClient(cfg.ExternalTimeout), deps.Breakers, deps.Bulkheads, cfg.MaxConcurrency, logger),
 		Reports:   analytics.NewReportService(deps.Reports),
-		Analytics: analytics.NewAnalyticsService(deps.Reports, deps.EventStats, logger),
+		Analytics: analytics.NewService(deps.Reports, deps.EventStats, logger),
 		RBAC:      rbac.NewService(deps.RBACEnforcer, deps.Roles, deps.Orgs, logger).WithCache(deps.Cache),
 		Audit:     audit.NewService(deps.Audit),
 		Settings:  settings.NewService(deps.Settings),

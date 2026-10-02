@@ -9,7 +9,7 @@ import (
 )
 
 // CreateAPIKey stores a key with its hash.
-func (s *MemoryStore) CreateAPIKey(ctx context.Context, key apikeys.Key, keyHash string) error {
+func (s *MemoryStore) CreateAPIKey(_ context.Context, key apikeys.Key, keyHash string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if key.CreatedAt.IsZero() {
@@ -20,7 +20,7 @@ func (s *MemoryStore) CreateAPIKey(ctx context.Context, key apikeys.Key, keyHash
 }
 
 // ListAPIKeysForUser returns the user's keys newest first.
-func (s *MemoryStore) ListAPIKeysForUser(ctx context.Context, userID string) ([]apikeys.Key, error) {
+func (s *MemoryStore) ListAPIKeysForUser(_ context.Context, userID string) ([]apikeys.Key, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var out []apikeys.Key
@@ -36,7 +36,7 @@ func (s *MemoryStore) ListAPIKeysForUser(ctx context.Context, userID string) ([]
 }
 
 // GetAPIKeyByPrefix resolves a live key by prefix and returns its hash.
-func (s *MemoryStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (apikeys.Key, string, error) {
+func (s *MemoryStore) GetAPIKeyByPrefix(_ context.Context, prefix string) (apikeys.Key, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, row := range s.apiKeys {
@@ -48,7 +48,7 @@ func (s *MemoryStore) GetAPIKeyByPrefix(ctx context.Context, prefix string) (api
 }
 
 // TouchAPIKey stamps last use.
-func (s *MemoryStore) TouchAPIKey(ctx context.Context, id string) error {
+func (s *MemoryStore) TouchAPIKey(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, row := range s.apiKeys {
@@ -61,7 +61,7 @@ func (s *MemoryStore) TouchAPIKey(ctx context.Context, id string) error {
 }
 
 // RevokeAPIKey marks the key revoked.
-func (s *MemoryStore) RevokeAPIKey(ctx context.Context, id, userID string) error {
+func (s *MemoryStore) RevokeAPIKey(_ context.Context, id, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, row := range s.apiKeys {

@@ -10,8 +10,6 @@ import (
 func TestUserManagementAndJobEndpoints(t *testing.T) {
 	server := newTestServer(t)
 	token := registerAndLogin(t, server, "ada@example.com")
-	// The caller's own account, used for identity-sensitive checks below.
-	_, body := callJSON(t, server, http.MethodGet, "/api/me", "", token)
 
 	// GET/PUT/DELETE by id, against a managed user (deleting the caller's
 	// own account would cascade the session away with it).
@@ -21,7 +19,7 @@ func TestUserManagementAndJobEndpoints(t *testing.T) {
 		t.Fatalf("create managed user: %d %v", status, managed)
 	}
 	managedID, _ := managed["id"].(string)
-	status, body = callJSON(t, server, http.MethodGet, "/api/users/"+managedID, "", token)
+	status, body := callJSON(t, server, http.MethodGet, "/api/users/"+managedID, "", token)
 	if status != http.StatusOK || body["id"] != managedID {
 		t.Errorf("get user: %d %v", status, body)
 	}
@@ -73,17 +71,13 @@ func TestPaginationModesAcrossCollections(t *testing.T) {
 
 	// A deterministic population: the registering user plus 7 managed ones,
 	// created in ascending order.
-	ids := make([]string, 0, 8)
-	_, me := callJSON(t, server, http.MethodGet, "/api/me", "", token)
-	ids = append(ids, me["id"].(string))
 	for i := 1; i <= 7; i++ {
 		email := "page-" + strings.Repeat("x", 20) + strconv.Itoa(i) + "@example.com"
-		status, body := callJSON(t, server, http.MethodPost, "/api/users",
+		status, _ := callJSON(t, server, http.MethodPost, "/api/users",
 			`{"email":"`+email+`","name":"Page `+strconv.Itoa(i)+`"}`, token)
 		if status != http.StatusCreated {
 			t.Fatalf("seed user %d: %d", i, status)
 		}
-		ids = append(ids, body["id"].(string))
 	}
 
 	for _, mode := range []string{"offset", "cursor", "keyset"} {

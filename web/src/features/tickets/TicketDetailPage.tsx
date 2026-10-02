@@ -224,7 +224,7 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
       <TerminalOutcome
         status={ticket.status}
         decidedBy={ticket.decided_by}
-        decidedAt={ticket.decided_at}
+        decidedAt={ticket.decided_at ?? null}
         approvals={approvals}
       />
 

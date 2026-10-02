@@ -147,7 +147,10 @@ export function ProfilePage({ oauthError }: { oauthError?: string }) {
               <IdentityRow
                 key={identity.provider + identity.provider_subject}
                 identity={identity}
-                onUnlink={() => unlink.mutate(identity.provider)}
+                onUnlink={() => {
+                  // The server detaches OAuth providers only; password is a credential.
+                  if (identity.provider !== "password") unlink.mutate(identity.provider);
+                }}
                 unlinking={unlink.isPending}
               />
             ))}

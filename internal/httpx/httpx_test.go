@@ -135,7 +135,7 @@ func TestBindAnswers413OnOversizedBody(t *testing.T) {
 
 func TestSessionTokenSources(t *testing.T) {
 	c, _ := testContext(http.MethodGet, "/api/x", "", nil)
-	c.Request.AddCookie(&http.Cookie{Name: "app_session", Value: "from-cookie"})
+	c.Request.Header.Set("Cookie", "app_session=from-cookie")
 	if got := SessionToken(c); got != "from-cookie" {
 		t.Errorf("cookie: want from-cookie, got %q", got)
 	}

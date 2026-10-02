@@ -250,7 +250,7 @@ func (s *MemoryStore) ListOutbox(_ context.Context, opts kernel.ListOptions) ([]
 
 // ReserveIdempotency inserts the reservation atomically; already=true when
 // the (user, key) pair exists.
-func (s *MemoryStore) ReserveIdempotency(ctx context.Context, record kernel.IdempotencyRecord) (kernel.IdempotencyRecord, bool, error) {
+func (s *MemoryStore) ReserveIdempotency(_ context.Context, record kernel.IdempotencyRecord) (kernel.IdempotencyRecord, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := idempotencyKey(record.UserID, record.Key)
@@ -264,7 +264,7 @@ func (s *MemoryStore) ReserveIdempotency(ctx context.Context, record kernel.Idem
 
 // CompleteIdempotency stores the response of the request owning the
 // reservation.
-func (s *MemoryStore) CompleteIdempotency(ctx context.Context, key, userID string, status int, body []byte, contentType string) error {
+func (s *MemoryStore) CompleteIdempotency(_ context.Context, key, userID string, status int, body []byte, contentType string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	mapKey := idempotencyKey(userID, key)
@@ -280,7 +280,7 @@ func (s *MemoryStore) CompleteIdempotency(ctx context.Context, key, userID strin
 }
 
 // PruneIdempotency deletes expired reservations and responses.
-func (s *MemoryStore) PruneIdempotency(ctx context.Context) (int64, error) {
+func (s *MemoryStore) PruneIdempotency(_ context.Context) (int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()

@@ -15,6 +15,6 @@ module.exports = {
       mainFields: ["module", "main"],
       conditionNames: ["import", "require"],
     },
-    exclude: { path: ["\\.test\\.tsx?$", "\\.spec\\.tsx?$", "routeTree\\.gen\\.ts$"] },
+    exclude: { path: ["\\.test\\.tsx?$", "\\.spec\\.tsx?$", "\\.gen\\.ts$"] },
   },
 };

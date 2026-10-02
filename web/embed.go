@@ -6,5 +6,7 @@ package web
 
 import "embed"
 
+// Dist holds the embedded SPA assets served by the api binary.
+//
 //go:embed all:dist
 var Dist embed.FS

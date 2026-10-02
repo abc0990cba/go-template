@@ -2,6 +2,7 @@
 // dashboard summary and the event-trail slices on the other. Every route is
 // guarded by a catalog permission (reports/analytics); the summary is ETag'd
 // because browsers poll it.
+
 package analytics
 
 import (
@@ -16,7 +17,7 @@ import (
 // HTTP carries the reports/analytics handlers' dependencies.
 type HTTP struct {
 	Reports   *ReportService
-	Analytics *AnalyticsService
+	Analytics *Service
 	// Jobs enqueues the report-generation job and returns the queued job
 	// record for the 202 body. A func value rather than a typed port: the
 	// jobs feature imports analytics for report persistence, so a typed

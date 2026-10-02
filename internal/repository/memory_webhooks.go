@@ -1,5 +1,6 @@
 // In-memory webhook endpoints and deliveries (the Store contract lives in
 // the webhooks feature package).
+
 package repository
 
 import (
@@ -13,7 +14,7 @@ import (
 var _ webhooks.Store = (*MemoryStore)(nil)
 
 // InsertWebhookEndpoint stores an endpoint.
-func (s *MemoryStore) InsertWebhookEndpoint(ctx context.Context, endpoint webhooks.Endpoint) error {
+func (s *MemoryStore) InsertWebhookEndpoint(_ context.Context, endpoint webhooks.Endpoint) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.webhooks = append(s.webhooks, endpoint)
@@ -21,7 +22,7 @@ func (s *MemoryStore) InsertWebhookEndpoint(ctx context.Context, endpoint webhoo
 }
 
 // UpdateWebhookEndpoint overwrites the endpoint.
-func (s *MemoryStore) UpdateWebhookEndpoint(ctx context.Context, endpoint webhooks.Endpoint) error {
+func (s *MemoryStore) UpdateWebhookEndpoint(_ context.Context, endpoint webhooks.Endpoint) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, existing := range s.webhooks {
@@ -35,7 +36,7 @@ func (s *MemoryStore) UpdateWebhookEndpoint(ctx context.Context, endpoint webhoo
 
 // DeleteWebhookEndpoint removes the endpoint; deliveries cascade, matching
 // the webhook_deliveries ON DELETE CASCADE foreign key in Postgres.
-func (s *MemoryStore) DeleteWebhookEndpoint(ctx context.Context, id string) error {
+func (s *MemoryStore) DeleteWebhookEndpoint(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, existing := range s.webhooks {
@@ -55,7 +56,7 @@ func (s *MemoryStore) DeleteWebhookEndpoint(ctx context.Context, id string) erro
 }
 
 // GetWebhookEndpoint returns one endpoint.
-func (s *MemoryStore) GetWebhookEndpoint(ctx context.Context, id string) (webhooks.Endpoint, error) {
+func (s *MemoryStore) GetWebhookEndpoint(_ context.Context, id string) (webhooks.Endpoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, existing := range s.webhooks {
@@ -67,7 +68,7 @@ func (s *MemoryStore) GetWebhookEndpoint(ctx context.Context, id string) (webhoo
 }
 
 // ListWebhookEndpoints returns every endpoint.
-func (s *MemoryStore) ListWebhookEndpoints(ctx context.Context) ([]webhooks.Endpoint, error) {
+func (s *MemoryStore) ListWebhookEndpoints(_ context.Context) ([]webhooks.Endpoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]webhooks.Endpoint, len(s.webhooks))
@@ -76,7 +77,7 @@ func (s *MemoryStore) ListWebhookEndpoints(ctx context.Context) ([]webhooks.Endp
 }
 
 // InsertWebhookDelivery records a pending delivery.
-func (s *MemoryStore) InsertWebhookDelivery(ctx context.Context, delivery webhooks.Delivery) error {
+func (s *MemoryStore) InsertWebhookDelivery(_ context.Context, delivery webhooks.Delivery) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if delivery.CreatedAt.IsZero() {
@@ -87,7 +88,7 @@ func (s *MemoryStore) InsertWebhookDelivery(ctx context.Context, delivery webhoo
 }
 
 // UpdateWebhookDelivery rewrites the delivery attempt data.
-func (s *MemoryStore) UpdateWebhookDelivery(ctx context.Context, delivery webhooks.Delivery) error {
+func (s *MemoryStore) UpdateWebhookDelivery(_ context.Context, delivery webhooks.Delivery) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, existing := range s.deliveries {
@@ -101,7 +102,7 @@ func (s *MemoryStore) UpdateWebhookDelivery(ctx context.Context, delivery webhoo
 }
 
 // ListWebhookDeliveries pages the endpoint's delivery log newest first.
-func (s *MemoryStore) ListWebhookDeliveries(ctx context.Context, endpointID string, limit, offset int) ([]webhooks.Delivery, error) {
+func (s *MemoryStore) ListWebhookDeliveries(_ context.Context, endpointID string, limit, offset int) ([]webhooks.Delivery, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var rows []webhooks.Delivery

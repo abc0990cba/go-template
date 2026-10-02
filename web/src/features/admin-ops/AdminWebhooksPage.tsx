@@ -214,7 +214,7 @@ function CreateWebhookDialog({
       ),
     onSuccess: ({ secret }) => {
       onOpenChange(false);
-      onCreated(secret);
+      onCreated(secret ?? "");
       setUrl("");
       setEvents("user.logged_in, job.done");
     },

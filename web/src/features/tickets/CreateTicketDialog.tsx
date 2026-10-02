@@ -20,6 +20,7 @@ import {
 } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 import { createTicket, ticketTypes } from "./api";
+import type { TicketPriority } from "./types";
 import { ticketLabel } from "./TicketStatusBadge";
 
 export function CreateTicketDialog({
@@ -34,7 +35,7 @@ export function CreateTicketDialog({
   const [typeId, setTypeId] = useState("");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("medium");
+  const [priority, setPriority] = useState<TicketPriority>("medium");
 
   const create = useMutation({
     mutationFn: () => createTicket(typeId, title, description, priority),
@@ -94,7 +95,10 @@ export function CreateTicketDialog({
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="ticket-priority">Priority</Label>
-            <Select value={priority} onValueChange={setPriority}>
+            <Select
+              value={priority}
+              onValueChange={(value) => setPriority(value as TicketPriority)}
+            >
               <SelectTrigger id="ticket-priority" aria-label="Priority">
                 <SelectValue />
               </SelectTrigger>

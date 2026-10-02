@@ -7,6 +7,7 @@ import (
 	"github.com/your-org/go-template/internal/files"
 )
 
+// ListExportFilesOlderThan returns finished export files created before the cutoff (the reaper's input).
 func (s *Store) ListExportFilesOlderThan(ctx context.Context, olderThan time.Time) ([]files.File, error) {
 	rows, err := s.q.ListExportFilesOlderThan(ctx, olderThan)
 	if err != nil {

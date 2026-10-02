@@ -194,7 +194,7 @@ func (sinks compoundSink) AddEvent(ctx context.Context, event, userID string) {
 // failure degrades to the in-process store with a warning), in-process
 // otherwise. Both binaries share this so exports can be produced by the
 // worker whatever the deployment mode.
-func FileStore(cfg config.Config, ctx context.Context, logger *slog.Logger) files.FileStore {
+func FileStore(ctx context.Context, cfg config.Config, logger *slog.Logger) files.FileStore {
 	var blobs files.FileStore = platformfilestore.NewMemory()
 	if cfg.S3Bucket == "" {
 		return blobs

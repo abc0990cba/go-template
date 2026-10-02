@@ -1,64 +1,5 @@
-import { http } from "@/shared/api/core";
-import { buildListQuery, type Paged } from "@/shared/api/pagination";
-import type { ListParams } from "@/shared/api/pagination";
-
-/** Endpoints of the admin-insights slice: analytics, reports, audit. */
-export function analyticsSummary() {
-  return http.get<AnalyticsSummary>("/api/analytics/summary");
-}
-
-export function analyticsTimeseries(days: number) {
-  return http
-    .get<{ days: number; data: EventDayPoint[] }>(`/api/analytics/timeseries?days=${days}`)
-    .then((r) => r.data);
-}
-
-export function recentEvents(limit: number) {
-  return http.get<Paged<EventRecord>>(`/api/analytics/events?limit=${limit}`).then((p) => p.data);
-}
-
-export function analyticsBreakdown(by: string, days: number) {
-  return http
-    .get<{ days: number; data: NameCount[] }>(`/api/analytics/breakdown?by=${by}&days=${days}`)
-    .then((r) => r.data);
-}
-
-export function analyticsDAU(days: number) {
-  return http
-    .get<{ days: number; data: DayCount[] }>(`/api/analytics/dau?days=${days}`)
-    .then((r) => r.data);
-}
-
-export function listReports(params: Partial<ListParams>) {
-  return http.get<Paged<Report>>(`/api/reports?${buildListQuery(params)}`);
-}
-
-export function getReport(id: string) {
-  return http.get<Report>(`/api/reports/${encodeURIComponent(id)}`);
-}
-
-export function generateReport() {
-  return http.post<Job>("/api/reports");
-}
-
-export function listAudit(
-  params: Partial<ListParams> & {
-    actor?: string;
-    action?: string;
-    resource?: string;
-    resource_id?: string;
-  },
-) {
-  const base = buildListQuery(params);
-  const extra = new URLSearchParams();
-  if (params.actor) extra.set("actor", params.actor);
-  if (params.action) extra.set("action", params.action);
-  if (params.resource) extra.set("resource", params.resource);
-  if (params.resource_id) extra.set("resource_id", params.resource_id);
-  const suffix = extra.toString();
-  return http.get<Paged<AuditEntry>>(`/api/audit?${suffix ? base + "&" + suffix : base}`);
-}
-
+import { api, unwrap } from "@/shared/api/core";
+import type { Paged, ListParams } from "@/shared/api/pagination";
 import type { Job } from "@/features/admin-ops";
 import type {
   AnalyticsSummary,
@@ -69,3 +10,89 @@ import type {
   NameCount,
   Report,
 } from "./types";
+
+/** Endpoints of the admin-insights slice: analytics, reports, audit. Every
+ * call goes through the typed client, so paths, bodies, and responses are
+ * checked against the OpenAPI contract at compile time. */
+
+export function analyticsSummary(): Promise<AnalyticsSummary> {
+  return unwrap(api.GET("/api/analytics/summary"));
+}
+
+export function analyticsTimeseries(days: number): Promise<EventDayPoint[]> {
+  return unwrap(api.GET("/api/analytics/timeseries", { params: { query: { days } } })).then(
+    (p) => p.data,
+  );
+}
+
+export function recentEvents(limit: number): Promise<EventRecord[]> {
+  return unwrap(api.GET("/api/analytics/events", { params: { query: { limit } } })).then(
+    (p) => p.data,
+  );
+}
+
+export function analyticsBreakdown(
+  by: "feature" | "source" | "country",
+  days: number,
+): Promise<NameCount[]> {
+  return unwrap(api.GET("/api/analytics/breakdown", { params: { query: { by, days } } })).then(
+    (p) => p.data ?? [],
+  );
+}
+
+export function analyticsDAU(days: number): Promise<DayCount[]> {
+  return unwrap(api.GET("/api/analytics/dau", { params: { query: { days } } })).then(
+    (p) => p.data ?? [],
+  );
+}
+
+export function listReports(params: Partial<ListParams>): Promise<Paged<Report>> {
+  /** The spec vocabulary for reports: the shared list params minus the
+   * status/type/user_id filters reports do not take. */
+  return unwrap(
+    api.GET("/api/reports", {
+      params: {
+        query: {
+          mode: params.mode,
+          limit: params.limit,
+          offset: params.offset,
+          after: params.after,
+          q: params.q,
+        },
+      },
+    }),
+  );
+}
+
+export function getReport(id: string): Promise<Report> {
+  return unwrap(api.GET("/api/reports/{id}", { params: { path: { id } } }));
+}
+
+export function generateReport(): Promise<Job> {
+  return unwrap(api.POST("/api/reports"));
+}
+
+export function listAudit(
+  params: Partial<ListParams> & {
+    actor?: string;
+    action?: string;
+    resource?: string;
+    resource_id?: string;
+  },
+): Promise<Paged<AuditEntry>> {
+  /** The spec vocabulary for audit: paging plus the four trail filters. */
+  return unwrap(
+    api.GET("/api/audit", {
+      params: {
+        query: {
+          limit: params.limit,
+          offset: params.offset,
+          actor: params.actor,
+          action: params.action,
+          resource: params.resource,
+          resource_id: params.resource_id,
+        },
+      },
+    }),
+  );
+}

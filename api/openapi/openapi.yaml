@@ -415,14 +415,18 @@ paths:
     get:
       tags: [auth]
       summary: Current user
+      description: >-
+        The SPA's session probe: the account plus the RBAC context (active
+        organization, roles, expanded catalog permissions) the UI gates
+        navigation and actions on, plus the impersonation state.
       operationId: getMe
       security: [{ bearerAuth: [] }]
       responses:
         "200":
-          description: The authenticated user
+          description: The session context
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/User" }
+              schema: { $ref: "#/components/schemas/Me" }
         default: { $ref: "#/components/responses/Problem" }
   /api/users:
     get:
@@ -497,6 +501,17 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
         default: { $ref: "#/components/responses/Problem" }
+    delete:
+      tags: [users]
+      summary: Delete a user
+      operationId: deleteUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/{id}/enrich-demo:
+    parameters:
+      - $ref: "#/components/parameters/userId"
     post:
       tags: [users]
       summary: Publish a test enrichment event for this user
@@ -518,14 +533,6 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/EnrichDemoResult" }
-        default: { $ref: "#/components/responses/Problem" }
-    delete:
-      tags: [users]
-      summary: Delete a user
-      operationId: deleteUser
-      security: [{ bearerAuth: [] }]
-      responses:
-        "204": { description: Deleted }
         default: { $ref: "#/components/responses/Problem" }
   /api/jobs:
     get:
@@ -582,6 +589,98 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/Job" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/streams/outbox:
+    get:
+      tags: [jobs]
+      summary: Page the transactional outbox awaiting relay publication
+      description: >-
+        Streams admin console feed: every domain event written in the same
+        transaction as the change it describes, newest first, with the count
+        of not-yet-published events for the page chip. status=pending filters
+        to unpublished events.
+      operationId: listOutbox
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+        - name: after
+          in: query
+          description: Last event id of the previous page (cursor and keyset modes)
+          schema: { type: string }
+        - name: status
+          in: query
+          description: pending limits the page to events the relay has not published yet
+          schema: { type: string, enum: [pending] }
+      responses:
+        "200":
+          description: One page of outbox events
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/OutboxList"
+                  - type: object
+                    required: [pending]
+                    properties:
+                      pending: { type: integer, description: Events not yet published }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/streams/dead-letters:
+    get:
+      tags: [jobs]
+      summary: Page parked poison messages for inspection and replay
+      description: >-
+        Streams admin console feed of messages the pipeline could not apply,
+        newest first, with the count of not-yet-replayed letters for the page
+        chip. pending=true filters to unreplayed letters.
+      operationId: listDeadLetters
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: "#/components/parameters/mode"
+        - { $ref: "#/components/parameters/limit" }
+        - { $ref: "#/components/parameters/offset" }
+        - name: after
+          in: query
+          description: Last letter id of the previous page (cursor and keyset modes)
+          schema: { type: string }
+        - name: pending
+          in: query
+          description: "true limits the page to letters not replayed yet"
+          schema: { type: string, enum: ["true", "false"] }
+      responses:
+        "200":
+          description: One page of dead letters
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/DeadLetterList"
+                  - type: object
+                    required: [pending]
+                    properties:
+                      pending: { type: integer, description: Letters not yet replayed }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/streams/dead-letters/{id}/replay:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [jobs]
+      summary: Re-run a parked message through its live handler
+      description: >-
+        Every attempt — successful or not — is audit-logged with the outcome,
+        so the console can show who replayed what and when.
+      operationId: replayDeadLetter
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The letter after the replay attempt
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/DeadLetter" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/reports:
     get:
       tags: [reports]
@@ -631,6 +730,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/AnalyticsSummary" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/jobs/{id}:
     parameters:
       - name: id
@@ -1174,8 +1274,13 @@ paths:
       operationId: listAudit
       security: [{ bearerAuth: [] }]
       parameters:
+        - $ref: "#/components/parameters/mode"
         - { $ref: "#/components/parameters/limit" }
         - { $ref: "#/components/parameters/offset" }
+        - name: after
+          in: query
+          description: Last entry offset of the previous page (cursor and keyset modes)
+          schema: { type: string }
         - { name: actor, in: query, schema: { type: string } }
         - { name: action, in: query, schema: { type: string } }
         - { name: resource, in: query, schema: { type: string } }
@@ -1249,14 +1354,25 @@ paths:
               type: object
               required: [email, role]
               properties:
-                email: { type: string, format: email }
+                email: { type: string }
                 role: { type: string, description: Role key granted in the org domain on acceptance }
       responses:
         "201":
           description: Invitation created (token echoed for dev tooling)
           content:
             application/json:
-              schema: { $ref: "#/components/schemas/OrgInvitation" }
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/OrgInvitation"
+                  - type: object
+                    required: [token]
+                    properties:
+                      token:
+                        type: string
+                        description: >-
+                          Single-use acceptance token, echoed so dev tooling
+                          can complete the flow without reading the email
+                          link; expires in 7 days.
         default: { $ref: "#/components/responses/Problem" }
   /api/orgs/{orgId}/invitations/{invId}:
     delete:
@@ -1464,7 +1580,7 @@ paths:
               required: [token, password]
               properties:
                 token: { type: string }
-                password: { type: string, minLength: 8 }
+                password: { type: string }
       responses:
         "204": { description: Updated }
         default: { $ref: "#/components/responses/Problem" }
@@ -1961,7 +2077,10 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
+                # anyOf, not oneOf: an empty page satisfies both branches, and
+                # strict validators (JSON Schema 2020-12) reject oneOf when
+                # more than one branch matches.
+                anyOf:
                   - $ref: "#/components/schemas/TicketList"
                   - $ref: "#/components/schemas/TicketDecisionList"
         default: { $ref: "#/components/responses/Problem" }
@@ -2248,7 +2367,7 @@ components:
       properties:
         id: { type: string }
         org_id: { type: string }
-        email: { type: string, format: email }
+        email: { type: string }
         role: { type: string }
         invited_by: { type: string }
         status: { type: string, enum: [pending, accepted, revoked, expired] }
@@ -2452,12 +2571,65 @@ components:
       properties:
         day: { type: string }
         count: { type: integer, format: int64 }
+    OutboxEvent:
+      type: object
+      required: [id, event_type, aggregate_id, payload, created_at, attempts]
+      properties:
+        id: { type: string }
+        event_type: { type: string, description: e.g. user.enriched }
+        aggregate_id: { type: string }
+        payload: { type: string, description: JSON-encoded event body }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: Relay headers propagating trace context across the hop
+        created_at: { type: string, format: date-time }
+        claimed_at: { type: string, format: date-time }
+        processed_at: { type: string, format: date-time }
+        attempts: { type: integer }
+    OutboxList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/OutboxEvent" }
+        next_cursor:
+          type: string
+          description: Empty on the last page.
+    DeadLetter:
+      type: object
+      required: [id, source, topic, payload, reason, attempts, created_at]
+      properties:
+        id: { type: string }
+        source:
+          type: string
+          description: Stream that parked the message (kafka or nats)
+        topic: { type: string }
+        payload: { type: string, description: JSON-encoded message body }
+        reason:
+          type: string
+          enum: [malformed, unknown_user, max_attempts]
+          description: Why the message was parked
+        attempts: { type: integer }
+        created_at: { type: string, format: date-time }
+        replayed_at: { type: string, format: date-time }
+    DeadLetterList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/DeadLetter" }
+        next_cursor:
+          type: string
+          description: Empty on the last page.
     User:
       type: object
       required: [id, email, name, created_at, updated_at]
       properties:
         id: { type: string }
-        email: { type: string, format: email }
+        email: { type: string }
         name: { type: string }
         external_ref:
           type: string
@@ -2469,11 +2641,33 @@ components:
           type: string
           description: Raw JSON object of NATS-owned enrichment fields.
         enriched_at:
-          type: string
+          type: [string, "null"]
           format: date-time
-          nullable: true
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+    Me:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/User"
+      required: [orgs, active_org, roles, permissions, impersonated]
+      properties:
+        orgs:
+          type: array
+          description: Organizations the account can enter; [] keeps the SPA's reads safe.
+          items: { $ref: "#/components/schemas/Organization" }
+        active_org:
+          type: string
+          description: Casbin domain of the active organization; empty is the platform scope.
+        roles:
+          type: array
+          items: { type: string }
+        permissions:
+          type: array
+          description: Expanded catalog permissions (object:action) the UI gates on.
+          items: { type: string }
+        impersonated: { type: boolean }
+        impersonator_id: { type: string }
+        impersonator_name: { type: string }
     UserWithToken:
       type: object
       required: [user, token]
@@ -2484,27 +2678,27 @@ components:
       type: object
       required: [email, password]
       properties:
-        email: { type: string, format: email }
+        email: { type: string }
         name: { type: string }
-        password: { type: string, minLength: 8 }
+        password: { type: string }
     LoginRequest:
       type: object
       required: [email, password]
       properties:
-        email: { type: string, format: email }
+        email: { type: string }
         password: { type: string }
     CreateUserRequest:
       type: object
       required: [email]
       properties:
-        email: { type: string, format: email }
+        email: { type: string }
         name: { type: string }
         external_ref: { type: string, description: Correlation id for the enrichment streams. }
     UpdateUserRequest:
       type: object
       required: [email, name]
       properties:
-        email: { type: string, format: email }
+        email: { type: string }
         name: { type: string }
         external_ref: { type: string, description: Correlation id for the enrichment streams. }
     EnrichDemoRequest:
@@ -2697,7 +2891,9 @@ components:
       required: [id, number, type_id, type_key, title, description, priority, status, current_step, created_by, created_at, updated_at]
       properties:
         id: { type: string }
-        number: { type: integer, description: Per-organization sequence, displayed as TCK-0001 }
+        number:
+          type: integer
+          description: Per-organization sequence, displayed as TCK-0001
         org_id: { type: string }
         type_id: { type: string }
         type_key: { type: string }

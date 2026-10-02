@@ -1,6 +1,7 @@
 // Users HTTP surface: admin CRUD over accounts. Self-service and auth-mixed
 // routes (/me, /users/:id/activity, /users/:id/mfa, /users/:id/roles,
 // /users/me/export, /users/:id/enrich-demo) live with their own features.
+
 package users
 
 import (

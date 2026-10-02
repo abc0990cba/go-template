@@ -68,6 +68,7 @@ func NewS3(ctx context.Context, cfg S3Config) (*S3, error) {
 	return &S3{client: client, bucket: cfg.Bucket}, nil
 }
 
+// Put uploads the blob to the bucket under the given key.
 func (s *S3) Put(ctx context.Context, key string, r io.Reader, size int64, contentType string) error {
 	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(s.bucket),
@@ -82,6 +83,7 @@ func (s *S3) Put(ctx context.Context, key string, r io.Reader, size int64, conte
 	return nil
 }
 
+// Open downloads the blob from the bucket.
 func (s *S3) Open(ctx context.Context, key string) (io.ReadCloser, error) {
 	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -107,6 +109,7 @@ func isS3NotFound(err error) bool {
 	return errors.As(err, &respErr) && respErr.HTTPStatusCode() == 404
 }
 
+// Delete removes the blob from the bucket.
 func (s *S3) Delete(ctx context.Context, key string) error {
 	_, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(s.bucket),
@@ -118,6 +121,7 @@ func (s *S3) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
+// Presign returns a pre-signed download URL valid for the given TTL.
 func (s *S3) Presign(ctx context.Context, key string, ttl time.Duration) (string, error) {
 	presign := s3.NewPresignClient(s.client)
 	req, err := presign.PresignGetObject(ctx, &s3.GetObjectInput{

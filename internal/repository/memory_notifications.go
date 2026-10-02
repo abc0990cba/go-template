@@ -10,7 +10,7 @@ import (
 )
 
 // CreateNotification appends one notification.
-func (s *MemoryStore) CreateNotification(ctx context.Context, notification notifications.Notification) error {
+func (s *MemoryStore) CreateNotification(_ context.Context, notification notifications.Notification) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if notification.CreatedAt.IsZero() {
@@ -21,7 +21,7 @@ func (s *MemoryStore) CreateNotification(ctx context.Context, notification notif
 }
 
 // ListNotifications returns the user's notifications newest first.
-func (s *MemoryStore) ListNotifications(ctx context.Context, userID string, limit, offset int) ([]notifications.Notification, error) {
+func (s *MemoryStore) ListNotifications(_ context.Context, userID string, limit, offset int) ([]notifications.Notification, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var rows []notifications.Notification
@@ -45,7 +45,7 @@ func (s *MemoryStore) ListNotifications(ctx context.Context, userID string, limi
 }
 
 // CountUnreadNotifications returns the user's unread count.
-func (s *MemoryStore) CountUnreadNotifications(ctx context.Context, userID string) (int64, error) {
+func (s *MemoryStore) CountUnreadNotifications(_ context.Context, userID string) (int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var n int64
@@ -58,7 +58,7 @@ func (s *MemoryStore) CountUnreadNotifications(ctx context.Context, userID strin
 }
 
 // MarkNotificationRead stamps one notification as read.
-func (s *MemoryStore) MarkNotificationRead(ctx context.Context, id, userID string) error {
+func (s *MemoryStore) MarkNotificationRead(_ context.Context, id, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, notification := range s.notifs {
@@ -74,7 +74,7 @@ func (s *MemoryStore) MarkNotificationRead(ctx context.Context, id, userID strin
 }
 
 // MarkAllNotificationsRead stamps every unread notification of the user.
-func (s *MemoryStore) MarkAllNotificationsRead(ctx context.Context, userID string) error {
+func (s *MemoryStore) MarkAllNotificationsRead(_ context.Context, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
@@ -87,7 +87,7 @@ func (s *MemoryStore) MarkAllNotificationsRead(ctx context.Context, userID strin
 }
 
 // GetNotification returns one notification by id.
-func (s *MemoryStore) GetNotification(ctx context.Context, id string) (notifications.Notification, error) {
+func (s *MemoryStore) GetNotification(_ context.Context, id string) (notifications.Notification, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, notification := range s.notifs {
@@ -99,7 +99,7 @@ func (s *MemoryStore) GetNotification(ctx context.Context, id string) (notificat
 }
 
 // DeleteDemoNotifications drops demo-seeded notifications (demo reset).
-func (s *MemoryStore) DeleteDemoNotifications(ctx context.Context) error {
+func (s *MemoryStore) DeleteDemoNotifications(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.notifs[:0]

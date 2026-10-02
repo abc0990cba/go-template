@@ -26,8 +26,8 @@ const (
 // snapshot is the periodic state push; it lets the UI converge even when it
 // missed live events.
 type snapshot struct {
-	Summary analytics.AnalyticsSummary `json:"summary"`
-	Jobs    []jobs.Job                 `json:"jobs"`
+	Summary analytics.Summary `json:"summary"`
+	Jobs    []jobs.Job        `json:"jobs"`
 }
 
 // sseStream pushes analytics events, job transitions, and periodic

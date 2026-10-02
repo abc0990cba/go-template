@@ -262,7 +262,7 @@ func secretValue(key string) (string, error) {
 		return "", fmt.Errorf("%s and %s are mutually exclusive", key, key+"_FILE")
 	}
 	if file != "" {
-		data, err := os.ReadFile(file)
+		data, err := os.ReadFile(file) // #nosec G304,G703 -- path is the operator-provided KEY_FILE (docker-secrets pattern); reading it is the feature
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", key+"_FILE", err)
 		}

@@ -235,7 +235,7 @@ func TestLandingLiveEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatalf("read body: %v", err)
@@ -254,7 +254,7 @@ func TestLandingLiveEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /login: %v", err)
 	}
-	defer spaRes.Body.Close()
+	defer func() { _ = spaRes.Body.Close() }()
 	if spaRes.StatusCode != http.StatusOK {
 		t.Fatalf("/login: want 200, got %d", spaRes.StatusCode)
 	}
@@ -265,7 +265,7 @@ func TestLandingLiveEmbedded(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GET %s: %v", seo, err)
 		}
-		seoRes.Body.Close()
+		_ = seoRes.Body.Close()
 		if seoRes.StatusCode != http.StatusOK {
 			t.Fatalf("%s: want 200, got %d", seo, seoRes.StatusCode)
 		}
@@ -290,7 +290,7 @@ func TestRootRouteIsLandingNotAPI404(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GET /: %v", err)
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		t.Fatalf("read body: %v", err)

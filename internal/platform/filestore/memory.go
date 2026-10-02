@@ -20,6 +20,7 @@ func NewMemory() *Memory {
 	return &Memory{blobs: map[string][]byte{}}
 }
 
+// Put writes the blob to memory under the given key.
 func (m *Memory) Put(_ context.Context, key string, r io.Reader, _ int64, _ string) error {
 	data, err := io.ReadAll(r)
 	if err != nil {
@@ -31,6 +32,7 @@ func (m *Memory) Put(_ context.Context, key string, r io.Reader, _ int64, _ stri
 	return nil
 }
 
+// Open returns a reader over the stored blob.
 func (m *Memory) Open(_ context.Context, key string) (io.ReadCloser, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -41,6 +43,7 @@ func (m *Memory) Open(_ context.Context, key string) (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(data)), nil
 }
 
+// Delete removes the blob; a missing key is not an error.
 func (m *Memory) Delete(_ context.Context, key string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -48,6 +51,7 @@ func (m *Memory) Delete(_ context.Context, key string) error {
 	return nil
 }
 
+// Presign is unsupported by the in-process store and reports ErrNotSupported.
 func (m *Memory) Presign(context.Context, string, time.Duration) (string, error) {
 	return "", ErrNotSupported
 }

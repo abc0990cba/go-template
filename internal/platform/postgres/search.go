@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"math"
 
 	"github.com/your-org/go-template/internal/platform/postgres/db"
 	"github.com/your-org/go-template/internal/search"
@@ -9,10 +10,11 @@ import (
 	"github.com/your-org/go-template/internal/users"
 )
 
+// SearchUsers matches users by vector similarity.
 func (s *Store) SearchUsers(ctx context.Context, query string, limit int) ([]users.User, error) {
 	rows, err := s.q.SearchUsersByVector(ctx, db.SearchUsersByVectorParams{
 		Query: query,
-		Limit: int32(limit),
+		Limit: int32(min(limit, math.MaxInt32)), // #nosec G115 -- clamped to int32 range
 	})
 	if err != nil {
 		return nil, mapErr(err)
@@ -30,11 +32,12 @@ func (s *Store) SearchUsers(ctx context.Context, query string, limit int) ([]use
 	return out, nil
 }
 
+// SearchTickets matches one org's tickets by vector similarity.
 func (s *Store) SearchTickets(ctx context.Context, domain, query string, limit int) ([]tickets.Ticket, error) {
 	rows, err := s.q.SearchTicketsByVector(ctx, db.SearchTicketsByVectorParams{
 		OrgID: domain,
 		Query: query,
-		Limit: int32(limit),
+		Limit: int32(min(limit, math.MaxInt32)), // #nosec G115 -- clamped to int32 range
 	})
 	if err != nil {
 		return nil, mapErr(err)

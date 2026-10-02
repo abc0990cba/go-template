@@ -1,12 +1,5 @@
 package streams
 
-// Store applies enrichment events from the Kafka and NATS streams and
-// manages the transactional outbox and the dead-letter queue.
-// ApplyStreamEvent is exactly-once per (source, event_id) and atomic: dedupe
-// check, per-source sequence guard, owned-fields merge, and the outbox write
-// commit together. The in-memory fake and the PostgreSQL adapter both
-// implement it; contract tests keep the two interchangeable.
-
 import (
 	"context"
 	"time"
@@ -14,6 +7,12 @@ import (
 	"github.com/your-org/go-template/internal/kernel"
 )
 
+// Store applies enrichment events from the Kafka and NATS streams and
+// manages the transactional outbox and the dead-letter queue.
+// ApplyStreamEvent is exactly-once per (source, event_id) and atomic: dedupe
+// check, per-source sequence guard, owned-fields merge, and the outbox write
+// commit together. The in-memory fake and the PostgreSQL adapter both
+// implement it; contract tests keep the two interchangeable.
 type Store interface {
 	ApplyStreamEvent(ctx context.Context, event Event) (ApplyResult, error)
 

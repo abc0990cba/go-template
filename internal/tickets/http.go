@@ -2,6 +2,7 @@
 // approver's inbox and decision history, comments, and timeline events.
 // Ticket-type administration lives in http_types.go; the attachments list
 // is served by the files feature (GET /tickets/:id/attachments).
+
 package tickets
 
 import (

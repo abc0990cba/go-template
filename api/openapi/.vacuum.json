@@ -1,0 +1,43 @@
+{
+  "description": "Contract lint for api/openapi/openapi.yaml, run by `make lint-spec` and the CI codegen job. The frontend generator keys on operationIds and the MSW contract test on documented JSON responses, so those rules are errors, not style advice.",
+  "rules": {
+    "operation-operationId": {
+      "description": "Every operation needs an operationId — openapi-typescript and the typed client key on it.",
+      "severity": "error",
+      "given": "$.paths[*][get,put,post,delete,options,head,patch,trace]",
+      "then": { "field": "operationId", "function": "truthy" }
+    },
+    "operation-summary": {
+      "description": "Operations carry a summary; the description documents non-obvious behavior.",
+      "severity": "warn",
+      "given": "$.paths[*][get,put,post,delete,options,head,patch,trace]",
+      "then": { "field": "summary", "function": "truthy" }
+    },
+    "operation-success-response": {
+      "description": "Every operation must document its success response.",
+      "severity": "error",
+      "given": "$.paths[*][get,put,post,delete,options,head,patch,trace]",
+      "then": {
+        "field": "responses",
+        "function": "schema",
+        "functionOptions": {
+          "schema": {
+            "type": "object",
+            "anyOf": [
+              { "required": ["200"] },
+              { "required": ["201"] },
+              { "required": ["202"] },
+              { "required": ["204"] }
+            ]
+          }
+        }
+      }
+    },
+    "operation-default-response": {
+      "description": "Every operation must declare its error response (the problem+json default).",
+      "severity": "warn",
+      "given": "$.paths[*][get,put,post,delete,options,head,patch,trace]",
+      "then": { "field": "responses.default", "function": "truthy" }
+    }
+  }
+}

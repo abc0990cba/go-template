@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -80,7 +81,15 @@ func durationEnv(key string, fallback time.Duration) (time.Duration, error) {
 }
 
 func intEnv(key string, fallback int) (int, error) {
-	value, err := int32Env(key, int32(fallback))
+	// intEnv is backed by int32Env; clamp the fallback so the int->int32
+	// conversion cannot overflow (all defaults are small positive values).
+	if fallback > math.MaxInt32 {
+		fallback = math.MaxInt32
+	}
+	if fallback < math.MinInt32 {
+		fallback = math.MinInt32
+	}
+	value, err := int32Env(key, int32(fallback)) // #nosec G115 -- clamped above
 	return int(value), err
 }
 

@@ -35,9 +35,10 @@ func (s *Store) GetJob(ctx context.Context, id string) (jobs.Job, error) {
 	}, nil
 }
 
-// listPage applies the shared pagination strategy to a keyset/offset query
-// pair: limit is fetched with one extra row to detect a next page, and the
-// returned cursor is the last emitted row's key.
+// ListJobs pages the operations job list. The shared pagination strategy
+// applies to the keyset/offset query pair: limit is fetched with one extra
+// row to detect a next page, and the returned cursor is the last emitted
+// row's key.
 func (s *Store) ListJobs(ctx context.Context, opts kernel.ListOptions) ([]jobs.Job, string, error) {
 	const def = 25
 	limit := int32(def)
@@ -300,12 +301,12 @@ func (s *Store) ResetDemoData(ctx context.Context) error {
 }
 
 // Analytics computes dashboard counters with filtered subqueries.
-func (s *Store) Analytics(ctx context.Context) analytics.AnalyticsSummary {
+func (s *Store) Analytics(ctx context.Context) analytics.Summary {
 	row, err := s.q.Analytics(ctx)
 	if err != nil {
-		return analytics.AnalyticsSummary{}
+		return analytics.Summary{}
 	}
-	return analytics.AnalyticsSummary{
+	return analytics.Summary{
 		TotalUsers:          int(row.TotalUsers),
 		PasswordIdentities:  int(row.PasswordIdentities),
 		GoogleIdentities:    int(row.GoogleIdentities),

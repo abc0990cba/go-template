@@ -95,7 +95,7 @@ func (s *MemoryStore) MarkDeadLetterReplayed(_ context.Context, id string) error
 }
 
 // CountDeadLettersPending reports parked messages awaiting replay.
-func (s *MemoryStore) CountDeadLettersPending(ctx context.Context) (int, error) {
+func (s *MemoryStore) CountDeadLettersPending(_ context.Context) (int, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	n := 0

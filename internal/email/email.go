@@ -83,7 +83,8 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 	err = s.mailer.Send(ctx, mailer.Message{
 		To:      user.Email,
 		Subject: "Reset your password",
-		Body:    template.HTML("<p>We received a request to reset your password.</p>" + string(body)),
+		// #nosec G203 -- body comes from mailer.Button, which HTML-escapes its inputs
+		Body: template.HTML("<p>We received a request to reset your password.</p>" + string(body)),
 	})
 	if err != nil {
 		// Mail problems never surface to the caller; the log has the detail
@@ -128,7 +129,8 @@ func (s *Service) SendVerification(ctx context.Context, user users.User) error {
 	return s.mailer.Send(ctx, mailer.Message{
 		To:      user.Email,
 		Subject: "Confirm your email",
-		Body:    template.HTML("<p>Please confirm your email address.</p>" + string(body)),
+		// #nosec G203 -- body comes from mailer.Button, which HTML-escapes its inputs
+		Body: template.HTML("<p>Please confirm your email address.</p>" + string(body)),
 	})
 }
 

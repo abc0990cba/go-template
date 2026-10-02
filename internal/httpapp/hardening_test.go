@@ -209,6 +209,7 @@ func TestSecretValueFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load with file secret: %v", err)
 	}
+	// #nosec G101 -- fixture value proving file-secret loading, not a real credential
 	if cfg.DatabaseURL != "postgres://app:secret@db/app?sslmode=disable" {
 		t.Fatalf("want trimmed file contents, got %q", cfg.DatabaseURL)
 	}

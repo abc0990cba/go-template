@@ -109,7 +109,7 @@ describe("useTableView (infinite)", () => {
     server.use(
       http.get("/api/tickets", ({ request }) => {
         const search = new URL(request.url).searchParams;
-        // buildListQuery omits offset=0, the feed's starting position.
+        // The feed's starting position offset arrives as 0.
         offsets.push(Number(search.get("offset") ?? 0));
         const offset = Number(search.get("offset") ?? 0);
         return offset === 0

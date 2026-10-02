@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Keeps the manually-pinned toolchain current: SHA-pinned GitHub Actions, the Makefile's go-run tool pins (@ vX.Y.Z), npm, docker, and the Go module deps.",
+  "extends": [
+    "config:recommended",
+    ":semanticPrefixFixDepsChoreOthers",
+    "group:allNonMajor",
+    "schedule:weekly"
+  ],
+  "rangeStrategy": "pin",
+  "labels": ["dependencies"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Makefile-pinned go-run tools (sqlc, oapi-codegen, vacuum, govulncheck), written as module@version for this match",
+      "managerFilePatterns": ["^Makefile$"],
+      "matchStrings": [
+        "^(?<depName>github\\.com/[A-Za-z0-9_./-]+(?:/v\\d+)?|golang\\.org/x/[a-z]+/cmd/[a-z]+)@(?<currentValue>v\\d+\\.\\d+\\.\\d+)\\s*(?:#.*)?$"
+      ],
+      "datasourceTemplate": "go"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "oapi-codegen output and vacuum rules change with generator versions; batch them with the codegen pins they belong to.",
+      "matchManagers": ["regex"],
+      "automerge": false
+    },
+    {
+      "description": "The npm generator pin lives in web/package.json scripts; Renovate's npm manager covers openapi-typescript there.",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ]
+}

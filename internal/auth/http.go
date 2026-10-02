@@ -1,5 +1,6 @@
 // Auth HTTP surface: registration, login/logout, the SPA session probe,
 // the profile self-service listings, and the OAuth provider probe.
+
 package auth
 
 import (

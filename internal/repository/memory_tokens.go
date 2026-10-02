@@ -1,4 +1,5 @@
 // Memory-store refresh-token methods: JWT grant rotation families.
+
 package repository
 
 import (
@@ -14,6 +15,7 @@ import (
 
 var _ tokens.Store = (*MemoryStore)(nil)
 
+// CreateRefreshToken stores a new refresh token.
 func (s *MemoryStore) CreateRefreshToken(_ context.Context, token tokens.RefreshToken) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -21,6 +23,7 @@ func (s *MemoryStore) CreateRefreshToken(_ context.Context, token tokens.Refresh
 	return nil
 }
 
+// GetRefreshTokenByHash resolves a refresh token by hash.
 func (s *MemoryStore) GetRefreshTokenByHash(_ context.Context, tokenHash string) (tokens.RefreshToken, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -32,6 +35,7 @@ func (s *MemoryStore) GetRefreshTokenByHash(_ context.Context, tokenHash string)
 	return tokens.RefreshToken{}, fmt.Errorf("%w: refresh token not found", kernel.ErrNotFound)
 }
 
+// RevokeRefreshToken marks one refresh token revoked.
 func (s *MemoryStore) RevokeRefreshToken(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -47,6 +51,7 @@ func (s *MemoryStore) RevokeRefreshToken(_ context.Context, id string) error {
 	return fmt.Errorf("%w: refresh token not found", kernel.ErrNotFound)
 }
 
+// RevokeRefreshFamily revokes every token in a rotation family.
 func (s *MemoryStore) RevokeRefreshFamily(_ context.Context, familyID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -59,6 +64,7 @@ func (s *MemoryStore) RevokeRefreshFamily(_ context.Context, familyID string) er
 	return nil
 }
 
+// RevokeRefreshTokensForUser revokes every refresh token of a user.
 func (s *MemoryStore) RevokeRefreshTokensForUser(_ context.Context, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -71,6 +77,7 @@ func (s *MemoryStore) RevokeRefreshTokensForUser(_ context.Context, userID strin
 	return nil
 }
 
+// DeleteExpiredRefreshTokens purges expired refresh tokens.
 func (s *MemoryStore) DeleteExpiredRefreshTokens(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

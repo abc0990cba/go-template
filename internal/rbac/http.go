@@ -2,6 +2,7 @@
 // handlers the admin console talks to. The domain middleware and the
 // permission guard stay in the assembly (httpapp) — they are shared glue,
 // not feature surface.
+
 package rbac
 
 import (

@@ -1,5 +1,6 @@
 // Analytics reports and the event trail on the memory fake: the report
 // pages, the warehouse-stats reads, and the sink the fan-out writes into.
+
 package repository
 
 import (
@@ -56,7 +57,7 @@ func (s *MemoryStore) listReportsLocked(opts kernel.ListOptions) ([]analytics.Re
 }
 
 // ListReports returns one page of reports plus the next-page cursor.
-func (s *MemoryStore) ListReports(ctx context.Context, opts kernel.ListOptions) ([]analytics.Report, string, error) {
+func (s *MemoryStore) ListReports(_ context.Context, opts kernel.ListOptions) ([]analytics.Report, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rows, next := s.listReportsLocked(opts)
@@ -64,7 +65,7 @@ func (s *MemoryStore) ListReports(ctx context.Context, opts kernel.ListOptions) 
 }
 
 // SaveReport upserts a report by id.
-func (s *MemoryStore) SaveReport(ctx context.Context, report analytics.Report) error {
+func (s *MemoryStore) SaveReport(_ context.Context, report analytics.Report) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reports[report.ID] = report
@@ -72,7 +73,7 @@ func (s *MemoryStore) SaveReport(ctx context.Context, report analytics.Report) e
 }
 
 // GetReport returns a report by id.
-func (s *MemoryStore) GetReport(ctx context.Context, id string) (analytics.Report, error) {
+func (s *MemoryStore) GetReport(_ context.Context, id string) (analytics.Report, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	report, ok := s.reports[id]
@@ -83,7 +84,7 @@ func (s *MemoryStore) GetReport(ctx context.Context, id string) (analytics.Repor
 }
 
 // RecentEvents returns the most recent analytics events, newest first.
-func (s *MemoryStore) RecentEvents(ctx context.Context, limit int) ([]analytics.EventRecord, error) {
+func (s *MemoryStore) RecentEvents(_ context.Context, limit int) ([]analytics.EventRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if limit <= 0 || limit > 200 {
@@ -97,7 +98,7 @@ func (s *MemoryStore) RecentEvents(ctx context.Context, limit int) ([]analytics.
 }
 
 // EventCounts aggregates the local event trail by name.
-func (s *MemoryStore) EventCounts(ctx context.Context) (map[string]int64, error) {
+func (s *MemoryStore) EventCounts(_ context.Context) (map[string]int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	counts := map[string]int64{}
@@ -109,7 +110,7 @@ func (s *MemoryStore) EventCounts(ctx context.Context) (map[string]int64, error)
 
 // InsertEvents bulk-loads historical events (demo seed backfill); the fake
 // just appends them in the given order.
-func (s *MemoryStore) InsertEvents(ctx context.Context, events []analytics.EventRecord) error {
+func (s *MemoryStore) InsertEvents(_ context.Context, events []analytics.EventRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, e := range events {
@@ -119,7 +120,7 @@ func (s *MemoryStore) InsertEvents(ctx context.Context, events []analytics.Event
 }
 
 // DeleteDemoEvents drops events attributed to demo users (demo reset).
-func (s *MemoryStore) DeleteDemoEvents(ctx context.Context) error {
+func (s *MemoryStore) DeleteDemoEvents(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.events[:0]
@@ -134,7 +135,7 @@ func (s *MemoryStore) DeleteDemoEvents(ctx context.Context) error {
 }
 
 // EventTimeseries aggregates the local event trail by calendar day.
-func (s *MemoryStore) EventTimeseries(ctx context.Context, days int) ([]analytics.EventDayPoint, error) {
+func (s *MemoryStore) EventTimeseries(_ context.Context, days int) ([]analytics.EventDayPoint, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	since := time.Now().AddDate(0, 0, -days).Truncate(24 * time.Hour)
@@ -155,7 +156,7 @@ func (s *MemoryStore) EventTimeseries(ctx context.Context, days int) ([]analytic
 }
 
 // EventBreakdown groups the window's events by one JSON property dimension.
-func (s *MemoryStore) EventBreakdown(ctx context.Context, dimension string, days int) ([]analytics.NameCount, error) {
+func (s *MemoryStore) EventBreakdown(_ context.Context, dimension string, days int) ([]analytics.NameCount, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	since := time.Now().AddDate(0, 0, -days)
@@ -179,7 +180,7 @@ func (s *MemoryStore) EventBreakdown(ctx context.Context, dimension string, days
 }
 
 // DailyActiveUsers counts distinct event-attributed users per day.
-func (s *MemoryStore) DailyActiveUsers(ctx context.Context, days int) ([]analytics.DayCount, error) {
+func (s *MemoryStore) DailyActiveUsers(_ context.Context, days int) ([]analytics.DayCount, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	since := time.Now().AddDate(0, 0, -days)
@@ -207,17 +208,17 @@ func (s *MemoryStore) DailyActiveUsers(ctx context.Context, days int) ([]analyti
 }
 
 // AddEvent records a named analytics event tied to the acting user.
-func (s *MemoryStore) AddEvent(ctx context.Context, event, userID string) {
+func (s *MemoryStore) AddEvent(_ context.Context, event, userID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events = append(s.events, eventRecord{name: event, userID: userID, at: time.Now()})
 }
 
 // Analytics computes the dashboard summary from the current state.
-func (s *MemoryStore) Analytics(ctx context.Context) analytics.AnalyticsSummary {
+func (s *MemoryStore) Analytics(_ context.Context) analytics.Summary {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var summary analytics.AnalyticsSummary
+	var summary analytics.Summary
 	summary.TotalUsers = len(s.users)
 	for _, identity := range s.identities {
 		switch identity.Provider {

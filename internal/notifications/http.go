@@ -1,5 +1,6 @@
 // In-app notification endpoints: every route is self-service — a user only
 // ever sees and mutates their own records.
+
 package notifications
 
 import (

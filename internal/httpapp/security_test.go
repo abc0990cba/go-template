@@ -23,10 +23,8 @@ import (
 	"github.com/your-org/go-template/internal/repository"
 )
 
-// newSecurityServer builds the full router. The returned rebuild closure
-// re-creates the handler after tests mutate cfg in ways that affect
-// construction-time state (for example BaseURL).
-func newSecurityServer(t *testing.T, mutate func(*config.Config)) (*httptest.Server, *config.Config, func()) {
+// newSecurityServer builds the full router.
+func newSecurityServer(t *testing.T, mutate func(*config.Config)) *httptest.Server {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
@@ -44,10 +42,7 @@ func newSecurityServer(t *testing.T, mutate func(*config.Config)) (*httptest.Ser
 	jar, _ := cookiejar.New(nil)
 	server.Client().Jar = jar
 	t.Cleanup(server.Close)
-	rebuild := func() {
-		server.Config.Handler = NewRouter(cfg, services, logger, store, observ.Build{}, hub)
-	}
-	return server, &cfg, rebuild
+	return server
 }
 
 // newOAuthSecurityServer builds the full router with an OAuth manager
@@ -82,7 +77,7 @@ func newOAuthSecurityServer(t *testing.T, mutate func(*config.Config)) *httptest
 // double-submit check: browsers are now protected by Origin/Sec-Fetch-Site
 // validation on unsafe API methods plus the SameSite=Lax session cookie.
 func TestOriginCheckRejectsCrossSitePosts(t *testing.T) {
-	server, _, _ := newSecurityServer(t, nil)
+	server := newSecurityServer(t, nil)
 	token := registerAndLogin(t, server, "ada@example.com")
 
 	emailN := 0
@@ -124,7 +119,7 @@ func TestOriginCheckRejectsCrossSitePosts(t *testing.T) {
 }
 
 func TestSecurityHeadersPresent(t *testing.T) {
-	server, _, _ := newSecurityServer(t, nil)
+	server := newSecurityServer(t, nil)
 	resp, err := server.Client().Get(server.URL + "/health/live")
 	if err != nil {
 		t.Fatalf("health: %v", err)
@@ -145,7 +140,7 @@ func TestSecurityHeadersPresent(t *testing.T) {
 }
 
 func TestAuthRateLimitReturns429(t *testing.T) {
-	server, _, _ := newSecurityServer(t, func(cfg *config.Config) {
+	server := newSecurityServer(t, func(cfg *config.Config) {
 		cfg.AuthRateBurst = 3
 		cfg.AuthRateRPS = 0.001
 	})
@@ -419,7 +414,7 @@ func TestOAuthFlowWithPKCEProvider(t *testing.T) {
 // TestSSEStreamDeliversAnalyticsEvents reads the live stream while a login
 // generates an event through the fan sink.
 func TestSSEStreamDeliversAnalyticsEvents(t *testing.T) {
-	server, _, _ := newSecurityServer(t, nil)
+	server := newSecurityServer(t, nil)
 	registerAndLogin(t, server, "stream@example.com")
 
 	stream := openSSE(t, server)

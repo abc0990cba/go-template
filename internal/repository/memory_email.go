@@ -9,7 +9,7 @@ import (
 )
 
 // CreateEmailToken stores a hashed single-use token.
-func (s *MemoryStore) CreateEmailToken(ctx context.Context, token email.Token, tokenHash string) error {
+func (s *MemoryStore) CreateEmailToken(_ context.Context, token email.Token, tokenHash string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if token.CreatedAt.IsZero() {
@@ -20,7 +20,7 @@ func (s *MemoryStore) CreateEmailToken(ctx context.Context, token email.Token, t
 }
 
 // GetEmailTokenByHash resolves a token by its hash.
-func (s *MemoryStore) GetEmailTokenByHash(ctx context.Context, tokenHash string) (email.Token, error) {
+func (s *MemoryStore) GetEmailTokenByHash(_ context.Context, tokenHash string) (email.Token, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, row := range s.emailTokens {
@@ -32,7 +32,7 @@ func (s *MemoryStore) GetEmailTokenByHash(ctx context.Context, tokenHash string)
 }
 
 // MarkEmailTokenUsed consumes the token.
-func (s *MemoryStore) MarkEmailTokenUsed(ctx context.Context, id string) error {
+func (s *MemoryStore) MarkEmailTokenUsed(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for i, row := range s.emailTokens {

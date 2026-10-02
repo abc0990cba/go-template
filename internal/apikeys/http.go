@@ -1,5 +1,5 @@
-// Personal API key endpoints: self-service issue/revoke; the raw secret is
-// returned exactly once at creation.
+// Package apikeys implements the personal API key HTTP surface: self-service
+// issue/revoke; the raw secret is returned exactly once at creation.
 package apikeys
 
 import (

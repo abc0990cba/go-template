@@ -1,27 +1,15 @@
-export interface AuthIdentity {
-  user_id: string;
-  provider: "password" | "google" | "github" | "facebook" | "twitter";
-  provider_subject: string;
-  email: string;
-  name: string;
-  avatar_url: string;
-  linked_at: string;
-  last_login_at: string;
-}
+import type { components } from "@/shared/api/schema.gen";
 
-export interface OAuthProviderInfo {
-  name: string;
-  configured: boolean;
-}
+/**
+ * Wire shapes of the profile slice, derived from the generated API contract
+ * (schema.gen.ts ← api/openapi/openapi.yaml). To change a shape, change the
+ * spec and run `npm run gen:api` — these types are never hand-edited.
+ */
 
-export interface APIKey {
-  id: string;
-  user_id: string;
-  name: string;
-  prefix: string;
-  scopes: string[];
-  last_used_at: string | null;
-  expires_at: string | null;
-  revoked_at: string | null;
-  created_at: string;
-}
+type Schemas = components["schemas"];
+
+export type AuthIdentity = Schemas["AuthIdentity"];
+
+export type OAuthProviderInfo = Schemas["OAuthProviderInfo"];
+
+export type APIKey = Schemas["APIKey"];

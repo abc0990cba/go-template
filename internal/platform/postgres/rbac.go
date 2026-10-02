@@ -1,6 +1,7 @@
 // RBAC and organization persistence: role metadata, Casbin policy rules,
 // and organization memberships. The Casbin adapter in internal/platform/rbac
 // builds directly on the rbac.RuleStore methods here.
+
 package postgres
 
 import (

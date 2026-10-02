@@ -9,7 +9,7 @@ import (
 )
 
 // RecordAudit appends one immutable audit record.
-func (s *MemoryStore) RecordAudit(ctx context.Context, entry audit.Entry) error {
+func (s *MemoryStore) RecordAudit(_ context.Context, entry audit.Entry) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if entry.CreatedAt.IsZero() {
@@ -21,7 +21,7 @@ func (s *MemoryStore) RecordAudit(ctx context.Context, entry audit.Entry) error 
 
 // ListAudit returns the trail newest first, filtered by the options. The
 // fake keeps every record; retention is a PostgreSQL concern.
-func (s *MemoryStore) ListAudit(ctx context.Context, opts kernel.AuditOptions) ([]audit.Entry, error) {
+func (s *MemoryStore) ListAudit(_ context.Context, opts kernel.AuditOptions) ([]audit.Entry, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	rows := make([]audit.Entry, 0, len(s.auditLog))

@@ -19,26 +19,9 @@ export interface ListParams {
   user_id: string;
 }
 
-/** One page of a server-paginated collection. */
+/** One page of a server-paginated collection. The cursor is absent on the
+ * last page, exactly as the spec's *List schemas declare it. */
 export interface Paged<T> {
   data: T[];
-  next_cursor: string;
-}
-
-/** buildListQuery renders the shared list vocabulary into a URL query string. */
-export function buildListQuery(params: Partial<ListParams>): string {
-  const search = new URLSearchParams();
-  search.set("mode", params.mode ?? "offset");
-  search.set("limit", String(params.limit ?? 10));
-  if (params.mode === "offset" && (params.offset ?? 0) > 0) {
-    search.set("offset", String(params.offset));
-  }
-  if (params.mode !== "offset" && params.after) {
-    search.set("after", params.after);
-  }
-  if (params.q) search.set("q", params.q);
-  if (params.status) search.set("status", params.status);
-  if (params.type) search.set("type", params.type);
-  if (params.user_id) search.set("user_id", params.user_id);
-  return search.toString();
+  next_cursor?: string;
 }

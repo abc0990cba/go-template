@@ -1,6 +1,7 @@
 // RBAC assembly glue: the domain middleware and the permission guard. The
 // role/org/policy handlers live in the rbac feature package, impersonation
 // moved to the auth feature.
+
 package httpapp
 
 import (

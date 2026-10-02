@@ -1,0 +1,16 @@
+# Fast pre-commit hygiene: staged files only, no builds, no test runs —
+# the whole hook stays under a couple of seconds. CI owns the deep checks.
+# `make hooks` wires this up (requires lefthook on PATH).
+pre-commit:
+  commands:
+    web-lint:
+      glob: "*.{ts,tsx}"
+      run: cd web && npx oxlint {staged_files}
+    web-format:
+      glob: "*.{ts,tsx}"
+      run: cd web && npx oxfmt {staged_files}
+      stage_fixed: true
+    go-format:
+      glob: "*.go"
+      run: gofmt -l -w {staged_files}
+      stage_fixed: true

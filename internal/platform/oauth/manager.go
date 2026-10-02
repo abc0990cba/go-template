@@ -59,13 +59,13 @@ func NewManager(cfg config.Config) *Manager {
 	googleUserInfo := "https://www.googleapis.com/oauth2/v3/userinfo"
 	githubUser := "https://api.github.com/user"
 	githubEmails := "https://api.github.com/user/emails"
-	facebookEndpoint := oauth2.Endpoint{
+	facebookEndpoint := oauth2.Endpoint{ // #nosec G101 -- public OAuth endpoint URLs, not credentials
 		AuthURL:   "https://www.facebook.com/v24.0/dialog/oauth",
 		TokenURL:  "https://graph.facebook.com/v24.0/oauth/access_token",
 		AuthStyle: oauth2.AuthStyleInParams,
 	}
 	facebookUserInfo := "https://graph.facebook.com/me?fields=id,name,email,picture.type(large)"
-	twitterEndpoint := oauth2.Endpoint{
+	twitterEndpoint := oauth2.Endpoint{ // #nosec G101 -- public OAuth endpoint URLs, not credentials
 		AuthURL:   "https://twitter.com/i/oauth2/authorize",
 		TokenURL:  "https://api.twitter.com/2/oauth2/token",
 		AuthStyle: oauth2.AuthStyleInHeader,

@@ -2,6 +2,7 @@
 // sessions, OAuth identities, and single-use OAuth state. The user CRUD
 // they share (CreateUser/GetUser/GetUserByEmail) stays in memory.go — the
 // users.Store port declares it too.
+
 package repository
 
 import (
@@ -15,7 +16,7 @@ import (
 
 // CreateSession maps an opaque session token to a user id with a TTL.
 // impersonatedBy marks an impersonation session ("" for normal logins).
-func (s *MemoryStore) CreateSession(ctx context.Context, token, userID, impersonatedBy string, ttl time.Duration) error {
+func (s *MemoryStore) CreateSession(_ context.Context, token, userID, impersonatedBy string, ttl time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.sessions[token] = sessionEntry{userID: userID, impersonatedBy: impersonatedBy, expiresAt: time.Now().Add(ttl)}
@@ -25,7 +26,7 @@ func (s *MemoryStore) CreateSession(ctx context.Context, token, userID, imperson
 // GetSession returns the user id behind a session token and slides its
 // expiry forward (renewal on use). Expired tokens are removed. It reports
 // the impersonator, if any.
-func (s *MemoryStore) GetSession(ctx context.Context, token string, ttl time.Duration) (auth.Session, error) {
+func (s *MemoryStore) GetSession(_ context.Context, token string, ttl time.Duration) (auth.Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	entry, ok := s.sessions[token]
@@ -42,7 +43,7 @@ func (s *MemoryStore) GetSession(ctx context.Context, token string, ttl time.Dur
 }
 
 // DeleteSession revokes a session token.
-func (s *MemoryStore) DeleteSession(ctx context.Context, token string) error {
+func (s *MemoryStore) DeleteSession(_ context.Context, token string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.sessions, token)
@@ -50,7 +51,7 @@ func (s *MemoryStore) DeleteSession(ctx context.Context, token string) error {
 }
 
 // DeleteSessionsForUser revokes every session of the user (logout-all).
-func (s *MemoryStore) DeleteSessionsForUser(ctx context.Context, userID string) error {
+func (s *MemoryStore) DeleteSessionsForUser(_ context.Context, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for token, entry := range s.sessions {
@@ -63,7 +64,7 @@ func (s *MemoryStore) DeleteSessionsForUser(ctx context.Context, userID string) 
 
 // SetPasswordCredential upserts the stored password hash; "" removes the
 // credential entirely.
-func (s *MemoryStore) SetPasswordCredential(ctx context.Context, userID, passwordHash string) error {
+func (s *MemoryStore) SetPasswordCredential(_ context.Context, userID, passwordHash string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	user, ok := s.users[userID]
@@ -81,7 +82,7 @@ func (s *MemoryStore) SetPasswordCredential(ctx context.Context, userID, passwor
 // LinkIdentity attaches an external identity to a user. Relinking the same
 // (provider, subject) to the same user is a no-op; a different user is a
 // conflict.
-func (s *MemoryStore) LinkIdentity(ctx context.Context, identity auth.Identity) error {
+func (s *MemoryStore) LinkIdentity(_ context.Context, identity auth.Identity) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, existing := range s.identities {
@@ -101,7 +102,7 @@ func (s *MemoryStore) LinkIdentity(ctx context.Context, identity auth.Identity) 
 }
 
 // GetIdentity returns the identity for a (provider, subject) pair.
-func (s *MemoryStore) GetIdentity(ctx context.Context, provider, subject string) (auth.Identity, error) {
+func (s *MemoryStore) GetIdentity(_ context.Context, provider, subject string) (auth.Identity, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, identity := range s.identities {
@@ -113,7 +114,7 @@ func (s *MemoryStore) GetIdentity(ctx context.Context, provider, subject string)
 }
 
 // UnlinkIdentity removes the identity a user holds with the given provider.
-func (s *MemoryStore) UnlinkIdentity(ctx context.Context, userID, provider string) error {
+func (s *MemoryStore) UnlinkIdentity(_ context.Context, userID, provider string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.identities[:0]
@@ -128,7 +129,7 @@ func (s *MemoryStore) UnlinkIdentity(ctx context.Context, userID, provider strin
 }
 
 // ListIdentities returns every identity linked to the user.
-func (s *MemoryStore) ListIdentities(ctx context.Context, userID string) ([]auth.Identity, error) {
+func (s *MemoryStore) ListIdentities(_ context.Context, userID string) ([]auth.Identity, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var identities []auth.Identity
@@ -142,7 +143,7 @@ func (s *MemoryStore) ListIdentities(ctx context.Context, userID string) ([]auth
 
 // ListSessions returns the user's active sessions newest first, keyed by a
 // short prefix of the opaque token.
-func (s *MemoryStore) ListSessions(ctx context.Context, userID string) ([]auth.SessionInfo, error) {
+func (s *MemoryStore) ListSessions(_ context.Context, userID string) ([]auth.SessionInfo, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	now := time.Now()
@@ -162,7 +163,7 @@ func (s *MemoryStore) ListSessions(ctx context.Context, userID string) ([]auth.S
 }
 
 // SaveOAuthState remembers a single-use OAuth state value with its expiry.
-func (s *MemoryStore) SaveOAuthState(ctx context.Context, state auth.OAuthState) error {
+func (s *MemoryStore) SaveOAuthState(_ context.Context, state auth.OAuthState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.oauthStates[state.State] = state
@@ -171,7 +172,7 @@ func (s *MemoryStore) SaveOAuthState(ctx context.Context, state auth.OAuthState)
 
 // ConsumeOAuthState removes and returns the state, or kernel.ErrNotFound when it is
 // unknown or expired. A consumed state can never be used again.
-func (s *MemoryStore) ConsumeOAuthState(ctx context.Context, state string, now time.Time) (auth.OAuthState, error) {
+func (s *MemoryStore) ConsumeOAuthState(_ context.Context, state string, now time.Time) (auth.OAuthState, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	parsed, ok := s.oauthStates[state]

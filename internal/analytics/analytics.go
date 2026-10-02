@@ -46,8 +46,8 @@ type Report struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// AnalyticsSummary aggregates the counters shown on the dashboard.
-type AnalyticsSummary struct {
+// Summary aggregates the counters shown on the dashboard.
+type Summary struct {
 	TotalUsers          int `json:"total_users"`
 	PasswordIdentities  int `json:"password_identities"`
 	GoogleIdentities    int `json:"google_identities"`

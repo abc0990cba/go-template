@@ -4,6 +4,7 @@
     ".dependency-cruiser.cjs",
     ".oxlintrc.json",
     "AGENTS.md",
-    "src/routeTree.gen.ts"
+    "src/routeTree.gen.ts",
+    "src/shared/api/schema.gen.ts"
   ]
 }

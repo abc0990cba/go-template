@@ -170,6 +170,7 @@ func (s *Service) sendInviteEmail(ctx context.Context, invitation Invitation, li
 		return
 	}
 	subject := "You are invited to join an organization"
+	// #nosec G203 -- the text is passed through template.HTMLEscapeString immediately above
 	body := template.HTML(template.HTMLEscapeString(
 		`You have been invited with the role "` + invitation.Role + `". ` +
 			`Accept: <a href="` + link + `">` + link + `</a> ` +

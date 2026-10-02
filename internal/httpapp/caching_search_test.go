@@ -14,7 +14,7 @@ import (
 
 // newCachedServer builds the standard memory-store router with an in-process
 // cache attached to the user and auth services.
-func newCachedServer(t *testing.T) (*httptest.Server, *platformcache.Memory) {
+func newCachedServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	cfg, err := config.Load()
 	if err != nil {
@@ -28,11 +28,11 @@ func newCachedServer(t *testing.T) (*httptest.Server, *platformcache.Memory) {
 	services.Auth.WithCache(mem)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))
 	t.Cleanup(server.Close)
-	return server, mem
+	return server
 }
 
 func TestUserCacheInvalidatesOnUpdate(t *testing.T) {
-	server, _ := newCachedServer(t)
+	server := newCachedServer(t)
 	admin := registerAndLogin(t, server, "cache-admin@example.com")
 	target := registerAndLogin(t, server, "cache-target@example.com")
 	targetID := userIDOf(t, server, target)
@@ -59,7 +59,7 @@ func TestUserCacheInvalidatesOnUpdate(t *testing.T) {
 }
 
 func TestETagShortCircuitsUnchangedLists(t *testing.T) {
-	server, _ := newCachedServer(t)
+	server := newCachedServer(t)
 	admin := registerAndLogin(t, server, "etag-admin@example.com")
 
 	etag := lastETag(t, server, admin)
@@ -112,7 +112,7 @@ func lastETag(t *testing.T, server *httptest.Server, token string) string {
 }
 
 func TestSearchFindsUsersByPermission(t *testing.T) {
-	server, _ := newCachedServer(t)
+	server := newCachedServer(t)
 	admin := registerAndLogin(t, server, "search-admin@example.com") // superadmin
 	viewer := registerAndLogin(t, server, "search-viewer@example.com")
 

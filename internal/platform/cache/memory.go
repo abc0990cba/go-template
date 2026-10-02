@@ -26,6 +26,7 @@ func NewMemory() *Memory {
 	return &Memory{entries: map[string]memoryEntry{}}
 }
 
+// Get returns the cached value for the key, if present and fresh.
 func (m *Memory) Get(_ context.Context, key string) ([]byte, bool) {
 	m.mu.RLock()
 	entry, ok := m.entries[key]
@@ -36,12 +37,14 @@ func (m *Memory) Get(_ context.Context, key string) ([]byte, bool) {
 	return entry.value, true
 }
 
+// Set stores the value under the key until the TTL expires.
 func (m *Memory) Set(_ context.Context, key string, value []byte, ttl time.Duration) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.entries[key] = memoryEntry{value: value, expires: time.Now().Add(ttl)}
 }
 
+// Delete drops the keys from the cache.
 func (m *Memory) Delete(_ context.Context, keys ...string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -50,6 +53,7 @@ func (m *Memory) Delete(_ context.Context, keys ...string) {
 	}
 }
 
+// DeletePrefix drops every key starting with the prefix.
 func (m *Memory) DeletePrefix(_ context.Context, prefix string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

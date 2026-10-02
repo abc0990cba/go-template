@@ -1,9 +1,12 @@
+import createClient from "openapi-fetch";
 import type { Paged, ListParams } from "@/shared/api/pagination";
+import type { paths } from "./schema.gen";
 
 /**
- * Transport core: one fetch wrapper for the whole SPA. Problem+json errors
- * become ApiError; the active org (Casbin domain) rides every call as
- * X-Org-Id. Feature modules own endpoints; this file only knows transport.
+ * Transport core: one typed client for the whole SPA, with the wire shapes
+ * generated from api/openapi/openapi.yaml (schema.gen.ts). Problem+json
+ * errors become ApiError; the active org (Casbin domain) rides every call
+ * as X-Org-Id. Feature modules own endpoints; this file only knows transport.
  */
 
 /**
@@ -53,19 +56,17 @@ export function setActiveOrg(orgId: string): void {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * The fetch openapi-fetch invokes: adds the session cookie and the active
+ * org header the same-origin backend expects, and maps network failures to
+ * ApiError(status 0) before the client ever sees them.
+ */
+const transportFetch: typeof fetch = async (input, init) => {
   const orgId = getActiveOrg();
-  let response: Response;
+  const headers = new Headers(init?.headers);
+  if (orgId) headers.set("X-Org-Id", orgId);
   try {
-    response = await fetch(path, {
-      credentials: "include",
-      ...init,
-      headers: {
-        ...(init?.body === undefined ? {} : { "Content-Type": "application/json" }),
-        ...(orgId ? { "X-Org-Id": orgId } : {}),
-        ...init?.headers,
-      },
-    } satisfies RequestInit);
+    return await fetch(input, { ...init, credentials: "include", headers });
   } catch (cause) {
     throw new ApiError(
       0,
@@ -73,38 +74,39 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       cause instanceof Error ? cause.message : "network error",
     );
   }
-  if (!response.ok) {
-    let problem: ProblemBody = {};
-    try {
-      problem = (await response.json()) satisfies ProblemBody;
-    } catch {
-      // Non-JSON error bodies are fine; the status still carries meaning.
-    }
-    throw new ApiError(response.status, problem.title ?? "request failed", problem.detail ?? "");
-  }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  return (await response.json()) as T;
-}
-
-/** Verbs the feature endpoint modules are built from. */
-export const http = {
-  get: <T>(path: string): Promise<T> => request<T>(path),
-  post: <T>(path: string, body?: unknown): Promise<T> =>
-    request<T>(path, {
-      method: "POST",
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
-  put: <T>(path: string, body: unknown): Promise<T> =>
-    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown): Promise<T> =>
-    request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
-  del: <T>(path: string, body?: unknown): Promise<T> =>
-    request<T>(path, {
-      method: "DELETE",
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
 };
+
+/**
+ * The typed API client: paths, parameters, request bodies, and response
+ * shapes all come from schema.gen.ts, so a spec change fails compilation at
+ * the calling slice instead of at runtime. The base URL is the page origin —
+ * openapi-fetch builds Request objects itself, and Node's Request (tests,
+ * prerender) rejects relative URLs where browsers allow them — so every
+ * request stays same-origin in the browser, through the dev proxy, and in
+ * production behind the embedded-SPA router.
+ */
+export const api = createClient<paths>({
+  baseUrl: typeof window === "undefined" ? undefined : window.location.origin,
+  fetch: transportFetch,
+});
+
+/**
+ * unwrap converts the client's {data, error} result into the app's throwing
+ * style: 2xx resolves with the body (204 → undefined), and any error
+ * response throws ApiError built from the problem+json fields — non-JSON
+ * error bodies degrade to the status title, as before.
+ */
+export async function unwrap<T>(
+  call: Promise<{
+    data?: T;
+    error?: unknown;
+    response: Response;
+  }>,
+): Promise<T> {
+  const { data, error, response } = await call;
+  if (response.ok) return data as T;
+  const problem = (error ?? {}) as ProblemBody;
+  throw new ApiError(response.status, problem.title ?? "request failed", problem.detail ?? "");
+}
 
 export type { Paged, ListParams };

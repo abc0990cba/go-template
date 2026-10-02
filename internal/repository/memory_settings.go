@@ -9,7 +9,7 @@ import (
 )
 
 // UpsertSetting stores one setting.
-func (s *MemoryStore) UpsertSetting(ctx context.Context, setting settings.Setting) error {
+func (s *MemoryStore) UpsertSetting(_ context.Context, setting settings.Setting) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.settings[setting.Key] = setting
@@ -17,7 +17,7 @@ func (s *MemoryStore) UpsertSetting(ctx context.Context, setting settings.Settin
 }
 
 // GetSetting returns one setting by key.
-func (s *MemoryStore) GetSetting(ctx context.Context, key string) (settings.Setting, error) {
+func (s *MemoryStore) GetSetting(_ context.Context, key string) (settings.Setting, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	setting, ok := s.settings[key]
@@ -28,7 +28,7 @@ func (s *MemoryStore) GetSetting(ctx context.Context, key string) (settings.Sett
 }
 
 // ListSettings returns every setting ordered by key.
-func (s *MemoryStore) ListSettings(ctx context.Context) ([]settings.Setting, error) {
+func (s *MemoryStore) ListSettings(_ context.Context) ([]settings.Setting, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]settings.Setting, 0, len(s.settings))

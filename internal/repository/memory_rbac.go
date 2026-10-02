@@ -1,6 +1,7 @@
 // Organization, membership, role metadata, and Casbin policy rule
 // persistence for the memory fake. The Casbin adapter in
 // internal/platform/rbac builds directly on the rule methods here.
+
 package repository
 
 import (
@@ -20,7 +21,7 @@ var _ rbac.RuleStore = (*MemoryStore)(nil)
 // CreateOrg stores an organization. Mirroring the Postgres constraints:
 // slugs conflict (UNIQUE), while a duplicate id is a silent no-op that
 // keeps the original (ON CONFLICT (id) DO NOTHING).
-func (s *MemoryStore) CreateOrg(ctx context.Context, org rbac.Organization) error {
+func (s *MemoryStore) CreateOrg(_ context.Context, org rbac.Organization) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.orgs[org.ID]; ok {
@@ -42,7 +43,7 @@ func (s *MemoryStore) CreateOrg(ctx context.Context, org rbac.Organization) erro
 }
 
 // GetOrg returns an organization by id.
-func (s *MemoryStore) GetOrg(ctx context.Context, id string) (rbac.Organization, error) {
+func (s *MemoryStore) GetOrg(_ context.Context, id string) (rbac.Organization, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	org, ok := s.orgs[id]
@@ -53,7 +54,7 @@ func (s *MemoryStore) GetOrg(ctx context.Context, id string) (rbac.Organization,
 }
 
 // UpdateOrg overwrites name and slug, refreshing UpdatedAt.
-func (s *MemoryStore) UpdateOrg(ctx context.Context, org rbac.Organization) error {
+func (s *MemoryStore) UpdateOrg(_ context.Context, org rbac.Organization) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.orgs[org.ID]; !ok {
@@ -70,7 +71,7 @@ func (s *MemoryStore) UpdateOrg(ctx context.Context, org rbac.Organization) erro
 }
 
 // DeleteOrg removes the organization; memberships cascade.
-func (s *MemoryStore) DeleteOrg(ctx context.Context, id string) error {
+func (s *MemoryStore) DeleteOrg(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.orgs[id]; !ok {
@@ -88,7 +89,7 @@ func (s *MemoryStore) DeleteOrg(ctx context.Context, id string) error {
 }
 
 // ListOrgs returns a page of organizations newest first.
-func (s *MemoryStore) ListOrgs(ctx context.Context, opts kernel.ListOptions) ([]rbac.Organization, string, error) {
+func (s *MemoryStore) ListOrgs(_ context.Context, opts kernel.ListOptions) ([]rbac.Organization, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	orgs := make([]rbac.Organization, 0, len(s.orgs))
@@ -110,7 +111,7 @@ func (s *MemoryStore) ListOrgs(ctx context.Context, opts kernel.ListOptions) ([]
 }
 
 // ListOrgsForUser returns the organizations the user belongs to, name order.
-func (s *MemoryStore) ListOrgsForUser(ctx context.Context, userID string) ([]rbac.Organization, error) {
+func (s *MemoryStore) ListOrgsForUser(_ context.Context, userID string) ([]rbac.Organization, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var orgs []rbac.Organization
@@ -128,7 +129,7 @@ func (s *MemoryStore) ListOrgsForUser(ctx context.Context, userID string) ([]rba
 
 // AddOrgMember records a membership; duplicates are a no-op and unknown
 // organizations or users are kernel.ErrNotFound.
-func (s *MemoryStore) AddOrgMember(ctx context.Context, member rbac.OrgMember) error {
+func (s *MemoryStore) AddOrgMember(_ context.Context, member rbac.OrgMember) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.orgs[member.OrgID]; !ok {
@@ -150,7 +151,7 @@ func (s *MemoryStore) AddOrgMember(ctx context.Context, member rbac.OrgMember) e
 }
 
 // RemoveOrgMember detaches the user from the organization.
-func (s *MemoryStore) RemoveOrgMember(ctx context.Context, orgID, userID string) error {
+func (s *MemoryStore) RemoveOrgMember(_ context.Context, orgID, userID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	members := s.orgMembers[:0]
@@ -165,7 +166,7 @@ func (s *MemoryStore) RemoveOrgMember(ctx context.Context, orgID, userID string)
 }
 
 // IsOrgMember reports membership.
-func (s *MemoryStore) IsOrgMember(ctx context.Context, orgID, userID string) (bool, error) {
+func (s *MemoryStore) IsOrgMember(_ context.Context, orgID, userID string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, member := range s.orgMembers {
@@ -178,7 +179,7 @@ func (s *MemoryStore) IsOrgMember(ctx context.Context, orgID, userID string) (bo
 
 // ListOrgMembers returns the members of an organization with their user
 // snapshot, oldest join first.
-func (s *MemoryStore) ListOrgMembers(ctx context.Context, orgID string) ([]rbac.OrgMember, error) {
+func (s *MemoryStore) ListOrgMembers(_ context.Context, orgID string) ([]rbac.OrgMember, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	if _, ok := s.orgs[orgID]; !ok {
@@ -200,7 +201,7 @@ func (s *MemoryStore) ListOrgMembers(ctx context.Context, orgID string) ([]rbac.
 }
 
 // CreateRole stores role metadata; keys are unique, re-seeding is a no-op.
-func (s *MemoryStore) CreateRole(ctx context.Context, role rbac.Role) error {
+func (s *MemoryStore) CreateRole(_ context.Context, role rbac.Role) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.roles[role.Key]; ok {
@@ -214,7 +215,7 @@ func (s *MemoryStore) CreateRole(ctx context.Context, role rbac.Role) error {
 }
 
 // GetRole returns role metadata by key.
-func (s *MemoryStore) GetRole(ctx context.Context, key string) (rbac.Role, error) {
+func (s *MemoryStore) GetRole(_ context.Context, key string) (rbac.Role, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	role, ok := s.roles[key]
@@ -226,7 +227,7 @@ func (s *MemoryStore) GetRole(ctx context.Context, key string) (rbac.Role, error
 
 // UpdateRole overwrites display metadata; keys and the system flag are
 // immutable.
-func (s *MemoryStore) UpdateRole(ctx context.Context, role rbac.Role) error {
+func (s *MemoryStore) UpdateRole(_ context.Context, role rbac.Role) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	existing, ok := s.roles[role.Key]
@@ -240,7 +241,7 @@ func (s *MemoryStore) UpdateRole(ctx context.Context, role rbac.Role) error {
 }
 
 // DeleteRole removes role metadata.
-func (s *MemoryStore) DeleteRole(ctx context.Context, key string) error {
+func (s *MemoryStore) DeleteRole(_ context.Context, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.roles[key]; !ok {
@@ -251,7 +252,7 @@ func (s *MemoryStore) DeleteRole(ctx context.Context, key string) error {
 }
 
 // ListRoles returns every role, creation order.
-func (s *MemoryStore) ListRoles(ctx context.Context) ([]rbac.Role, error) {
+func (s *MemoryStore) ListRoles(_ context.Context) ([]rbac.Role, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	roles := make([]rbac.Role, 0, len(s.roles))
@@ -264,7 +265,7 @@ func (s *MemoryStore) ListRoles(ctx context.Context) ([]rbac.Role, error) {
 
 // ListPolicyRules returns stored rules of one ptype in insertion order —
 // the same order the Casbin adapter loads them in.
-func (s *MemoryStore) ListPolicyRules(ctx context.Context, ptype string) ([]rbac.PolicyRule, error) {
+func (s *MemoryStore) ListPolicyRules(_ context.Context, ptype string) ([]rbac.PolicyRule, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var rules []rbac.PolicyRule
@@ -278,7 +279,7 @@ func (s *MemoryStore) ListPolicyRules(ctx context.Context, ptype string) ([]rbac
 
 // InsertPolicyRule appends one rule; duplicates are a no-op so re-seeding
 // stays idempotent.
-func (s *MemoryStore) InsertPolicyRule(ctx context.Context, rule rbac.PolicyRule) error {
+func (s *MemoryStore) InsertPolicyRule(_ context.Context, rule rbac.PolicyRule) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, existing := range s.rules {
@@ -292,7 +293,7 @@ func (s *MemoryStore) InsertPolicyRule(ctx context.Context, rule rbac.PolicyRule
 }
 
 // DeletePolicyRule removes the exact rule.
-func (s *MemoryStore) DeletePolicyRule(ctx context.Context, rule rbac.PolicyRule) error {
+func (s *MemoryStore) DeletePolicyRule(_ context.Context, rule rbac.PolicyRule) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.rules[:0]
@@ -308,7 +309,7 @@ func (s *MemoryStore) DeletePolicyRule(ctx context.Context, rule rbac.PolicyRule
 
 // DeleteFilteredPolicyRules removes every rule of the ptype whose subject
 // and domain match — replacing a role's permission set in one domain.
-func (s *MemoryStore) DeleteFilteredPolicyRules(ctx context.Context, ptype, subject, domain string) error {
+func (s *MemoryStore) DeleteFilteredPolicyRules(_ context.Context, ptype, subject, domain string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.rules[:0]
@@ -324,7 +325,7 @@ func (s *MemoryStore) DeleteFilteredPolicyRules(ctx context.Context, ptype, subj
 
 // DeletePolicyRulesByType removes every rule of the ptype (adapter
 // SavePolicy rebuild).
-func (s *MemoryStore) DeletePolicyRulesByType(ctx context.Context, ptype string) error {
+func (s *MemoryStore) DeletePolicyRulesByType(_ context.Context, ptype string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.rules[:0]
@@ -338,7 +339,7 @@ func (s *MemoryStore) DeletePolicyRulesByType(ctx context.Context, ptype string)
 }
 
 // DeleteDemoGroupRules drops demo role assignments (demo reset).
-func (s *MemoryStore) DeleteDemoGroupRules(ctx context.Context) error {
+func (s *MemoryStore) DeleteDemoGroupRules(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.rules[:0]
@@ -353,7 +354,7 @@ func (s *MemoryStore) DeleteDemoGroupRules(ctx context.Context) error {
 }
 
 // DeleteDemoOrgRules drops demo org-scoped policies (demo reset).
-func (s *MemoryStore) DeleteDemoOrgRules(ctx context.Context) error {
+func (s *MemoryStore) DeleteDemoOrgRules(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	next := s.rules[:0]

@@ -1,64 +1,24 @@
-export interface AnalyticsSummary {
-  total_users: number;
-  password_identities: number;
-  google_identities: number;
-  github_identities: number;
-  facebook_identities: number;
-  twitter_identities: number;
-  enrichment_succeeded: number;
-  enrichment_failed: number;
-  jobs_queued: number;
-  jobs_done: number;
-  jobs_failed: number;
-  events_registered?: number;
-  events_logged_in?: number;
-  events_oauth_linked?: number;
-  events_jobs_queued?: number;
-  events_jobs_done?: number;
-  events_jobs_failed?: number;
-}
+import type { components } from "@/shared/api/schema.gen";
 
-export interface EventRecord {
-  name: string;
-  occurred_at: string;
-  user_id?: string;
-}
+/**
+ * Wire shapes of the admin-insights slice, derived from the generated API
+ * contract (schema.gen.ts ← api/openapi/openapi.yaml). To change a shape,
+ * change the spec and run `npm run gen:api` — these types are never
+ * hand-edited.
+ */
 
-export interface EventDayPoint {
-  day: string;
-  events: Record<string, number>;
-  total: number;
-}
+type Schemas = components["schemas"];
 
-export interface NameCount {
-  name: string;
-  count: number;
-}
+export type AnalyticsSummary = Schemas["AnalyticsSummary"];
 
-export interface DayCount {
-  day: string;
-  count: number;
-}
+export type EventRecord = Schemas["EventRecord"];
 
-export interface Report {
-  id: string;
-  status: "done" | "failed";
-  result: string;
-  error: string;
-  created_at: string;
-  updated_at: string;
-}
+export type EventDayPoint = Schemas["EventDayPoint"];
 
-export interface AuditEntry {
-  id: string;
-  actor_id: string;
-  actor_email: string;
-  action: string;
-  resource_type: string;
-  resource_id?: string;
-  domain?: string;
-  diff?: string;
-  ip?: string;
-  request_id?: string;
-  created_at: string;
-}
+export type NameCount = Schemas["NameCount"];
+
+export type DayCount = Schemas["DayCount"];
+
+export type Report = Schemas["Report"];
+
+export type AuditEntry = Schemas["AuditEntry"];

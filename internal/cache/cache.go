@@ -1,3 +1,6 @@
+// Package cache provides the read-through cache used by hot reads: an
+// in-process memory adapter for development and a Redis adapter for
+// production, behind one JSON-bytes port.
 package cache
 
 import (
@@ -73,8 +76,9 @@ func CachedGetOrLoad[T any](ctx context.Context, cache Cache, logger *slog.Logge
 }
 
 // CachedLoad mirrors CachedGetOrLoad for callers that need the cached flag
-// (tests mostly).
-func CachedLoad[T any](ctx context.Context, cache Cache, group *singleflight.Group, key string, ttl time.Duration, load func(context.Context) (T, error)) (T, bool, error) {
+// (tests mostly). group is unused today; it keeps the singleflight collapse
+// available to CachedGetOrLoad's shared path.
+func CachedLoad[T any](ctx context.Context, cache Cache, _ *singleflight.Group, key string, ttl time.Duration, load func(context.Context) (T, error)) (T, bool, error) {
 	if cache != nil {
 		if raw, ok := cache.Get(ctx, key); ok {
 			var value T

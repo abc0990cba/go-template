@@ -51,7 +51,7 @@ func TestCachedGetOrLoadSingleflight(t *testing.T) {
 	calls := 0
 	start := make(chan struct{})
 	release := make(chan struct{})
-	load := func(context.Context) (string, error) {
+	load := func(context.Context) (string, error) { //nolint:unparam // signature is fixed by CachedGetOrLoad; the failing-loader case is covered above
 		mu.Lock()
 		calls++
 		first := calls == 1

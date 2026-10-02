@@ -14,7 +14,7 @@ import (
 // CreateUser stores a user and, when passwordHash is non-empty, the password
 // credential plus the "password" identity. Emails are unique
 // case-insensitively.
-func (s *MemoryStore) CreateUser(ctx context.Context, user users.User, passwordHash string) error {
+func (s *MemoryStore) CreateUser(_ context.Context, user users.User, passwordHash string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, existing := range s.users {
@@ -38,7 +38,7 @@ func (s *MemoryStore) CreateUser(ctx context.Context, user users.User, passwordH
 // UpdateUser overwrites an existing user and refreshes UpdatedAt. The
 // enrichment columns are stream-owned; a conflicting external_ref on another
 // user is rejected, mirroring the partial unique index.
-func (s *MemoryStore) UpdateUser(ctx context.Context, user users.User) error {
+func (s *MemoryStore) UpdateUser(_ context.Context, user users.User) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.users[user.ID]; !ok {
@@ -57,7 +57,7 @@ func (s *MemoryStore) UpdateUser(ctx context.Context, user users.User) error {
 }
 
 // DeleteUser removes the user by id and cascades org memberships.
-func (s *MemoryStore) DeleteUser(ctx context.Context, id string) error {
+func (s *MemoryStore) DeleteUser(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.users[id]; !ok {
@@ -75,7 +75,7 @@ func (s *MemoryStore) DeleteUser(ctx context.Context, id string) error {
 }
 
 // GetUser returns the user by id.
-func (s *MemoryStore) GetUser(ctx context.Context, id string) (users.User, error) {
+func (s *MemoryStore) GetUser(_ context.Context, id string) (users.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	user, ok := s.users[id]
@@ -87,7 +87,7 @@ func (s *MemoryStore) GetUser(ctx context.Context, id string) (users.User, error
 
 // GetUserByEmail looks a user up case-insensitively and returns the stored
 // password hash alongside.
-func (s *MemoryStore) GetUserByEmail(ctx context.Context, email string) (users.User, string, error) {
+func (s *MemoryStore) GetUserByEmail(_ context.Context, email string) (users.User, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, user := range s.users {
@@ -101,7 +101,7 @@ func (s *MemoryStore) GetUserByEmail(ctx context.Context, email string) (users.U
 // ListUsers returns a page of users ordered newest first (id ascending as a
 // tiebreaker) plus the cursor for the next page, empty at the end of the
 // list. Limit is clamped to the 1..100 range.
-func (s *MemoryStore) ListUsers(ctx context.Context, opts kernel.ListOptions) ([]users.User, string, error) {
+func (s *MemoryStore) ListUsers(_ context.Context, opts kernel.ListOptions) ([]users.User, string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	page := make([]users.User, 0, len(s.users))
@@ -149,14 +149,14 @@ func (s *MemoryStore) ListUsers(ctx context.Context, opts kernel.ListOptions) ([
 }
 
 // CountUsers returns the total number of users.
-func (s *MemoryStore) CountUsers(ctx context.Context) int {
+func (s *MemoryStore) CountUsers(_ context.Context) int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.users)
 }
 
 // ResetDemoData drops demo-seeded entities (bootstrap reset extension).
-func (s *MemoryStore) ResetDemoData(ctx context.Context) error {
+func (s *MemoryStore) ResetDemoData(_ context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for id := range s.users {

@@ -1,4 +1,4 @@
-// Settings and feature flags HTTP surface.
+// Package settings serves the settings and feature flags HTTP surface.
 package settings
 
 import (

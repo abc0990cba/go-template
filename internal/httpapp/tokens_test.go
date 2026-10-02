@@ -17,7 +17,7 @@ import (
 // newTokenTestServer builds a router with the JWT grant enabled. The shared
 // test container loads config from the environment (no secret there), so the
 // token service is rebuilt against the same stores with a test secret.
-func newTokenTestServer(t *testing.T, cfg config.Config) (*httptest.Server, *repository.MemoryStore) {
+func newTokenTestServer(t *testing.T, cfg config.Config) *httptest.Server {
 	t.Helper()
 	logger := discardLogger()
 	store := repository.NewMemoryStore()
@@ -25,7 +25,7 @@ func newTokenTestServer(t *testing.T, cfg config.Config) (*httptest.Server, *rep
 	services.Tokens = tokens.NewService(store, store, services.MFA, store, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, auth.VerifyPassword)
 	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))
 	t.Cleanup(server.Close)
-	return server, store
+	return server
 }
 
 // loadTestConfigWithJWT returns config with the token grant turned on.
@@ -40,7 +40,7 @@ func loadTestConfigWithJWT(t *testing.T) config.Config {
 }
 
 func TestTokenGrantLifecycle(t *testing.T) {
-	server, _ := newTokenTestServer(t, loadTestConfigWithJWT(t))
+	server := newTokenTestServer(t, loadTestConfigWithJWT(t))
 	email := "jwt-flow@example.com"
 	registerAndLogin(t, server, email)
 
@@ -101,7 +101,7 @@ func TestTokenGrantDisabledWithoutSecret(t *testing.T) {
 }
 
 func TestJWTBearerResolvesOnAuthorizedRoutes(t *testing.T) {
-	server, _ := newTokenTestServer(t, loadTestConfigWithJWT(t))
+	server := newTokenTestServer(t, loadTestConfigWithJWT(t))
 	email := "jwt-bearer@example.com"
 	registerAndLogin(t, server, email)
 

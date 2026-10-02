@@ -129,7 +129,7 @@ func main() {
 
 	// File store: S3/MinIO when configured (probe fails → warn + memory);
 	// in-process blobs otherwise (dev convenience, resets on restart).
-	blobs := bootstrap.FileStore(cfg, ctx, logger)
+	blobs := bootstrap.FileStore(ctx, cfg, logger)
 
 	// Circuit breakers wrap outbound calls; transitions land in Prometheus.
 	breakers := reliability.NewBreakers(cfg.CBFailureThreshold, cfg.CBOpenTimeout)

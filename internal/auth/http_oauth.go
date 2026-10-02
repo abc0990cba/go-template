@@ -1,5 +1,6 @@
 // OAuth link flows stay on the server: redirects and callbacks. They mount
 // on the root engine (outside /api) and answer redirects, not problem+json.
+
 package auth
 
 import (

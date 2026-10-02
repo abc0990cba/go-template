@@ -144,7 +144,7 @@ func (s *Service) Set(ctx context.Context, key, value, updatedBy string) error {
 	if def.Key == "" {
 		return kernel.Invalid("unknown setting " + key)
 	}
-	storedValue := value
+	var storedValue string
 	switch def.Type {
 	case "bool":
 		if value != "true" && value != "false" {

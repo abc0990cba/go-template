@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"math"
 
 	"github.com/your-org/go-template/internal/files"
 	"github.com/your-org/go-template/internal/platform/postgres/db"
@@ -11,6 +12,7 @@ import (
 // in-memory fake.
 var _ files.Store = (*Store)(nil)
 
+// InsertFile stores a file's metadata row.
 func (s *Store) InsertFile(ctx context.Context, file files.File) error {
 	return mapErr(s.q.InsertFile(ctx, db.InsertFileParams{
 		ID:             file.ID,
@@ -26,6 +28,7 @@ func (s *Store) InsertFile(ctx context.Context, file files.File) error {
 	}))
 }
 
+// GetFile returns one file by id.
 func (s *Store) GetFile(ctx context.Context, id string) (files.File, error) {
 	row, err := s.q.GetFile(ctx, id)
 	if err != nil {
@@ -34,6 +37,7 @@ func (s *Store) GetFile(ctx context.Context, id string) (files.File, error) {
 	return fileFromRow(row), nil
 }
 
+// ListFilesByRef returns the live files attached to a ticket or export.
 func (s *Store) ListFilesByRef(ctx context.Context, refType, refID string) ([]files.File, error) {
 	rows, err := s.q.ListFilesByRef(ctx, db.ListFilesByRefParams{RefType: refType, RefID: refID})
 	if err != nil {
@@ -46,11 +50,12 @@ func (s *Store) ListFilesByRef(ctx context.Context, refType, refID string) ([]fi
 	return out, nil
 }
 
+// ListFilesByOwner pages one owner's files newest first.
 func (s *Store) ListFilesByOwner(ctx context.Context, ownerID string, limit, offset int) ([]files.File, error) {
 	rows, err := s.q.ListFilesByOwner(ctx, db.ListFilesByOwnerParams{
 		OwnerID: ownerID,
-		Offset:  int32(offset),
-		Limit:   int32(limit),
+		Offset:  int32(min(offset, math.MaxInt32)), // #nosec G115 -- clamped to int32 range
+		Limit:   int32(min(limit, math.MaxInt32)),  // #nosec G115 -- clamped to int32 range
 	})
 	if err != nil {
 		return nil, mapErr(err)
@@ -62,6 +67,7 @@ func (s *Store) ListFilesByOwner(ctx context.Context, ownerID string, limit, off
 	return out, nil
 }
 
+// SoftDeleteFile tombstones the file; the blob is reaped separately.
 func (s *Store) SoftDeleteFile(ctx context.Context, id string) error {
 	return mapErr(s.q.SoftDeleteFile(ctx, id))
 }

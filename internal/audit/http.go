@@ -1,5 +1,6 @@
 // Audit HTTP surface: the request-context capture helper every mutating
 // handler uses, and the admin trail listing.
+
 package audit
 
 import (

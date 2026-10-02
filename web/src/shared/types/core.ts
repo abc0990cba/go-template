@@ -1,31 +1,17 @@
-/** Entities every layer talks about: the account, the session probe. */
+import type { components } from "@/shared/api/schema.gen";
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  external_ref?: string;
-  enrich_profile?: string;
-  enrich_contact?: string;
-  enriched_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
+/**
+ * Entities every layer talks about: the account, the session probe.
+ * Derived from the generated API contract (schema.gen.ts ←
+ * api/openapi/openapi.yaml); to change a shape, change the spec and run
+ * `npm run gen:api`.
+ */
+
+type Schemas = components["schemas"];
+
+export type User = Schemas["User"];
 
 /** GET /api/me: the account plus the RBAC context the UI gates on. */
-export interface Me extends User {
-  orgs: { id: string; name: string; slug: string; created_at: string; updated_at: string }[];
-  active_org: string;
-  roles: string[];
-  permissions: string[];
-  impersonated: boolean;
-  impersonator_id?: string;
-  impersonator_name?: string;
-}
+export type Me = Schemas["Me"];
 
-export interface SessionInfo {
-  id: string;
-  created_at: string;
-  expires_at: string;
-  current: boolean;
-}
+export type SessionInfo = Schemas["SessionInfo"];

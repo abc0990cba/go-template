@@ -27,7 +27,7 @@ import {
 } from "@/shared/components/ui/form";
 import { Input } from "@/shared/components/ui/input";
 import { loginStep, mfaChallenge } from "./api";
-import { http } from "@/shared/api/core";
+import { api, unwrap } from "@/shared/api/core";
 import { meQuery } from "@/shared/lib/auth";
 import { DemoAccountPicker } from "./DemoAccountPicker";
 import { I18nProvider } from "@/shared/lib/i18n";
@@ -106,7 +106,7 @@ export function LoginPage({ redirect }: { redirect?: string }) {
   // role-switching console: every seeded account signs in with one click.
   const demo = useQuery({
     queryKey: ["settings", "public"],
-    queryFn: () => http.get<Record<string, string>>("/api/settings/public"),
+    queryFn: () => unwrap(api.GET("/api/settings/public")),
     staleTime: 5 * 60_000,
   });
   const demoMode = demo.data?.demo_mode === "true";

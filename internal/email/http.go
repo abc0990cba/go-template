@@ -1,5 +1,5 @@
-// Email-flow HTTP endpoints. All three answer uniformly so they cannot be
-// used to probe which emails exist.
+// Package email serves the email-flow HTTP endpoints. All three answer
+// uniformly so they cannot be used to probe which emails exist.
 package email
 
 import (

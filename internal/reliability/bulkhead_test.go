@@ -103,8 +103,8 @@ func TestBulkheadsObserversFire(t *testing.T) {
 	r := NewBulkheads(1, 50*time.Millisecond)
 	var inFlightDeltas int
 	var rejected int
-	r.SetObservers(func(name string, delta int) { inFlightDeltas += delta },
-		func(name string) { rejected++ })
+	r.SetObservers(func(_ string, delta int) { inFlightDeltas += delta },
+		func(_ string) { rejected++ })
 
 	_ = r.Get("obs.http").Do(context.Background(), func() error { return nil })
 	if inFlightDeltas != 0 {

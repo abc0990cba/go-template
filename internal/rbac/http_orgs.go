@@ -1,6 +1,7 @@
 // Organization and membership HTTP handlers. The org invitations admin
 // routes (invite/list/revoke) live with the invitations feature; the
 // self-service routes (mine / accept) moved there too.
+
 package rbac
 
 import (

@@ -1,0 +1,22 @@
+# air hot-reloads the Go backend during `make dev` (scripts/dev.sh). Only
+# the server-side tree is watched; the SPA has Vite and the contract has
+# the generator's own --watch.
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o tmp/api ./cmd/api"
+bin = "tmp/api"
+include_ext = ["go", "yaml", "sql"]
+include_dir = ["internal", "cmd", "queries", "migrations"]
+exclude_dir = ["web", "tmp", "deploy", "docs"]
+delay = 300
+stop_on_error = true
+send_interrupt = true
+kill_delay = "5s"
+
+[log]
+time = false
+
+[misc]
+clean_on_exit = true

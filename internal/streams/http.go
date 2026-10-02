@@ -1,6 +1,7 @@
 // Streams admin API: the transactional outbox and the dead-letter queue.
 // Operators inspect pending relay events, inspect parked messages, and
 // replay them back through the live handler path.
+
 package streams
 
 import (
@@ -97,7 +98,7 @@ type enrichDemoRequest struct {
 }
 
 type enrichDemoResult struct {
-	EventId   string `json:"event_id"`
+	EventID   string `json:"event_id"`
 	Published bool   `json:"published"`
 	Seq       int64  `json:"seq"`
 	Source    string `json:"source"`
@@ -157,7 +158,7 @@ func (h *HTTP) triggerEnrichDemo(c *gin.Context) {
 		"source": source, "event_id": eventID, "seq": seq, "by": actor.ID,
 	})
 	c.JSON(http.StatusOK, enrichDemoResult{
-		Published: true, Source: source, EventId: eventID, Seq: seq,
+		Published: true, Source: source, EventID: eventID, Seq: seq,
 	})
 }
 

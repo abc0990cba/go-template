@@ -1,7 +1,7 @@
 import { queryClient } from "@/shared/lib/query-client";
 import { queryOptions } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
-import { http } from "@/shared/api/core";
+import { api, unwrap } from "@/shared/api/core";
 import type { Me } from "@/shared/types/core";
 
 /**
@@ -11,7 +11,7 @@ import type { Me } from "@/shared/types/core";
 export function meQuery() {
   return queryOptions({
     queryKey: ["me"],
-    queryFn: () => http.get<Me>("/api/me"),
+    queryFn: () => unwrap(api.GET("/api/me")) as Promise<Me>,
     staleTime: 60_000,
     retry: false,
   });

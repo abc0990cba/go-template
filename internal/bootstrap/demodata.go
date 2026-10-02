@@ -142,17 +142,15 @@ func resetDemoData(ctx context.Context, services *Container, repos Repos) error 
 	return nil
 }
 
-func seedDemoData(ctx context.Context, services *Container, repos Repos, cfg config.Config, logger *slog.Logger) error {
+func seedDemoData(ctx context.Context, services *Container, repos Repos, _ config.Config, _ *slog.Logger) error {
 	// A fixed seed keeps the dataset reproducible across runs.
-	rng := rand.New(rand.NewSource(42))
+	rng := rand.New(rand.NewSource(42)) // #nosec G404 -- fixed-seed demo data, not security-sensitive
 	now := time.Now()
 
 	if err := seedDemoUsers(ctx, repos, rng, now); err != nil {
 		return fmt.Errorf("seed users: %w", err)
 	}
-	if err := seedDemoIdentities(ctx, services, rng, now); err != nil {
-		return fmt.Errorf("seed identities: %w", err)
-	}
+	seedDemoIdentities(ctx, services, rng, now)
 	jobs, err := seedDemoJobs(ctx, repos, rng, now)
 	if err != nil {
 		return fmt.Errorf("seed jobs: %w", err)

@@ -9,6 +9,7 @@ import (
 
 var _ tokens.Store = (*Store)(nil)
 
+// CreateRefreshToken stores a new refresh token.
 func (s *Store) CreateRefreshToken(ctx context.Context, token tokens.RefreshToken) error {
 	return mapErr(s.q.CreateRefreshToken(ctx, db.CreateRefreshTokenParams{
 		ID:        token.ID,
@@ -21,6 +22,7 @@ func (s *Store) CreateRefreshToken(ctx context.Context, token tokens.RefreshToke
 	}))
 }
 
+// GetRefreshTokenByHash resolves a refresh token by hash.
 func (s *Store) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (tokens.RefreshToken, error) {
 	row, err := s.q.GetRefreshTokenByHash(ctx, tokenHash)
 	if err != nil {
@@ -44,18 +46,22 @@ func (s *Store) GetRefreshTokenByHash(ctx context.Context, tokenHash string) (to
 	return out, nil
 }
 
+// RevokeRefreshToken marks one refresh token revoked.
 func (s *Store) RevokeRefreshToken(ctx context.Context, id string) error {
 	return mapErr(s.q.RevokeRefreshToken(ctx, id))
 }
 
+// RevokeRefreshFamily revokes every token in a rotation family.
 func (s *Store) RevokeRefreshFamily(ctx context.Context, familyID string) error {
 	return mapErr(s.q.RevokeRefreshFamily(ctx, familyID))
 }
 
+// RevokeRefreshTokensForUser revokes every refresh token of a user.
 func (s *Store) RevokeRefreshTokensForUser(ctx context.Context, userID string) error {
 	return mapErr(s.q.RevokeRefreshTokensForUser(ctx, userID))
 }
 
+// DeleteExpiredRefreshTokens purges expired refresh tokens.
 func (s *Store) DeleteExpiredRefreshTokens(ctx context.Context) error {
 	return mapErr(s.q.DeleteExpiredRefreshTokens(ctx))
 }

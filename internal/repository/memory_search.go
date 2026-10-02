@@ -12,6 +12,7 @@ import (
 // Full-text search: case-insensitive substring stands in for the tsvector
 // query the PostgreSQL adapter runs, with the same call shape.
 
+// SearchUsers matches users by vector similarity.
 func (s *MemoryStore) SearchUsers(_ context.Context, query string, limit int) ([]users.User, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -28,6 +29,7 @@ func (s *MemoryStore) SearchUsers(_ context.Context, query string, limit int) ([
 	return out, nil
 }
 
+// SearchTickets matches one org's tickets by vector similarity.
 func (s *MemoryStore) SearchTickets(_ context.Context, domain, query string, limit int) ([]tickets.Ticket, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

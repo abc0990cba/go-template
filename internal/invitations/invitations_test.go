@@ -161,11 +161,10 @@ func TestInvitationExpiryAndMine(t *testing.T) {
 
 	// An expired invitation is refused at accept time.
 	pending[0].ExpiresAt = time.Now().Add(-time.Minute)
-	if err := store.CreateOrgInvitation(ctx, pending[0]); err == nil {
-		// (Create would append a second row; instead verify through the
-		// service by rewinding the clock on the stored row is not exposed,
-		// so exercise the guard directly via a stale copy of the token.)
-	}
+	// (Create would append a second row; instead verify through the
+	// service by rewinding the clock on the stored row is not exposed,
+	// so exercise the guard directly via a stale copy of the token.)
+	_ = store.CreateOrgInvitation(ctx, pending[0])
 	stale := pending[0]
 	staleToken := token
 	_ = stale

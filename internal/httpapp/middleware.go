@@ -3,7 +3,6 @@ package httpapp
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"strings"
 
@@ -54,21 +53,4 @@ func (a *App) bodyLimit() gin.HandlerFunc {
 		}
 		c.Next()
 	}
-}
-
-// bind decodes the JSON request body into dst and writes the error response
-// itself: 413 problem+json when the body exceeded the cap mid-read (the
-// ContentLength pre-check cannot see chunked framing), 400 otherwise. It
-// reports whether decoding succeeded.
-func (a *App) bind(c *gin.Context, dst any) bool {
-	if err := c.ShouldBindJSON(dst); err != nil {
-		var overflow *http.MaxBytesError
-		if errors.As(err, &overflow) {
-			a.problem(c, http.StatusRequestEntityTooLarge, "request body too large", nil)
-		} else {
-			a.problem(c, http.StatusBadRequest, "invalid request body", err)
-		}
-		return false
-	}
-	return true
 }

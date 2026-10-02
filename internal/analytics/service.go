@@ -15,7 +15,7 @@ type ReportStore interface {
 	SaveReport(ctx context.Context, report Report) error
 	GetReport(ctx context.Context, id string) (Report, error)
 	ListReports(ctx context.Context, opts kernel.ListOptions) ([]Report, string, error)
-	Analytics(ctx context.Context) AnalyticsSummary
+	Analytics(ctx context.Context) Summary
 }
 
 // Sink receives named analytics events tied to the acting user;
@@ -67,29 +67,29 @@ func (s *ReportService) Get(ctx context.Context, id string) (Report, error) {
 
 // FormatSummary renders the canonical one-line report body shared by the
 // synchronous API and the background job.
-func FormatSummary(summary AnalyticsSummary) string {
+func FormatSummary(summary Summary) string {
 	return fmt.Sprintf("users=%d password=%d google=%d github=%d facebook=%d twitter=%d jobs_done=%d",
 		summary.TotalUsers, summary.PasswordIdentities, summary.GoogleIdentities,
 		summary.GitHubIdentities, summary.FacebookIdentities, summary.TwitterIdentities, summary.JobsDone)
 }
 
-// AnalyticsService reads the dashboard summary from the store and, when an
+// Service reads the dashboard summary from the store and, when an
 // event warehouse is configured, merges its event counters.
-type AnalyticsService struct {
+type Service struct {
 	store  ReportStore
 	events Stats
 	logger *slog.Logger
 }
 
-// NewAnalyticsService builds the analytics service. The summary comes from
+// NewService builds the analytics service. The summary comes from
 // the report store's Analytics query; the warehouse stats may be nil.
-func NewAnalyticsService(store ReportStore, events Stats, logger *slog.Logger) *AnalyticsService {
-	return &AnalyticsService{store: store, events: events, logger: logger}
+func NewService(store ReportStore, events Stats, logger *slog.Logger) *Service {
+	return &Service{store: store, events: events, logger: logger}
 }
 
 // Summary computes aggregate counters for the dashboard and reports. A
 // warehouse outage degrades to the operational counters, never an error.
-func (s *AnalyticsService) Summary(ctx context.Context) AnalyticsSummary {
+func (s *Service) Summary(ctx context.Context) Summary {
 	summary := s.store.Analytics(ctx)
 	if s.events == nil {
 		return summary
@@ -111,7 +111,7 @@ func (s *AnalyticsService) Summary(ctx context.Context) AnalyticsSummary {
 // Timeseries returns daily event counts for the last days days. It degrades
 // to an empty series when no warehouse is configured or reachable — always a
 // non-nil slice, so JSON clients see [] and chart libraries never choke.
-func (s *AnalyticsService) Timeseries(ctx context.Context, days int) []EventDayPoint {
+func (s *Service) Timeseries(ctx context.Context, days int) []EventDayPoint {
 	if s.events == nil {
 		return []EventDayPoint{}
 	}
@@ -127,7 +127,7 @@ func (s *AnalyticsService) Timeseries(ctx context.Context, days int) []EventDayP
 }
 
 // RecentEvents returns the newest events of the trail, newest first.
-func (s *AnalyticsService) RecentEvents(ctx context.Context, limit int) []EventRecord {
+func (s *Service) RecentEvents(ctx context.Context, limit int) []EventRecord {
 	if s.events == nil {
 		return []EventRecord{}
 	}
@@ -147,7 +147,7 @@ func (s *AnalyticsService) RecentEvents(ctx context.Context, limit int) []EventR
 var validDimensions = map[string]bool{"feature": true, "source": true, "country": true}
 
 // Breakdown groups the window's events by one property dimension.
-func (s *AnalyticsService) Breakdown(ctx context.Context, dimension string, days int) ([]NameCount, error) {
+func (s *Service) Breakdown(ctx context.Context, dimension string, days int) ([]NameCount, error) {
 	if !validDimensions[dimension] {
 		return nil, kernel.Invalid("dimension must be feature, source, or country")
 	}
@@ -159,7 +159,7 @@ func (s *AnalyticsService) Breakdown(ctx context.Context, dimension string, days
 }
 
 // DAU returns distinct active users per day over the window.
-func (s *AnalyticsService) DAU(ctx context.Context, days int) ([]DayCount, error) {
+func (s *Service) DAU(ctx context.Context, days int) ([]DayCount, error) {
 	days = max(min(days, 90), 1)
 	if s.events == nil {
 		return []DayCount{}, nil

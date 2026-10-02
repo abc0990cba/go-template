@@ -2,6 +2,7 @@
 // reads are gated by attachment visibility (the ticket canView rules) in
 // the service, with the files:read catalog guard layered on top. The
 // attachments list rides the ticket detail routes.
+
 package files
 
 import (

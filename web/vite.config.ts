@@ -108,6 +108,7 @@ export default defineConfig({
       exclude: [
         "src/test/**",
         "src/routeTree.gen.ts",
+        "src/shared/api/schema.gen.ts",
         "src/shared/components/ui/**",
         "**/*.test.*",
         "**/*.d.ts",

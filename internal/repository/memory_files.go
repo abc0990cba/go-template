@@ -1,5 +1,6 @@
 // File metadata persistence for the in-memory store: an append-only slice
 // with soft-delete tombstones (the blobs live in the file store adapter).
+
 package repository
 
 import (
@@ -27,6 +28,7 @@ func (s *MemoryStore) InsertFile(_ context.Context, file files.File) error {
 	return nil
 }
 
+// GetFile returns one file by id.
 func (s *MemoryStore) GetFile(_ context.Context, id string) (files.File, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -38,6 +40,7 @@ func (s *MemoryStore) GetFile(_ context.Context, id string) (files.File, error) 
 	return files.File{}, fmt.Errorf("%w: file not found", kernel.ErrNotFound)
 }
 
+// ListFilesByRef returns the live files attached to a ticket or export.
 func (s *MemoryStore) ListFilesByRef(_ context.Context, refType, refID string) ([]files.File, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -50,6 +53,7 @@ func (s *MemoryStore) ListFilesByRef(_ context.Context, refType, refID string) (
 	return out, nil
 }
 
+// ListFilesByOwner pages one owner's files newest first.
 func (s *MemoryStore) ListFilesByOwner(_ context.Context, ownerID string, limit, offset int) ([]files.File, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -69,6 +73,7 @@ func (s *MemoryStore) ListFilesByOwner(_ context.Context, ownerID string, limit,
 	return mine[offset:end], nil
 }
 
+// SoftDeleteFile tombstones the file; the blob lives in the file store adapter.
 func (s *MemoryStore) SoftDeleteFile(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -82,6 +87,7 @@ func (s *MemoryStore) SoftDeleteFile(_ context.Context, id string) error {
 	return fmt.Errorf("%w: file not found", kernel.ErrNotFound)
 }
 
+// ListExportFilesOlderThan returns finished export files created before the cutoff.
 func (s *MemoryStore) ListExportFilesOlderThan(_ context.Context, olderThan time.Time) ([]files.File, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

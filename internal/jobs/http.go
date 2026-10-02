@@ -2,6 +2,7 @@
 // enrichment trigger and the stored enrichment trail. Listing requires the
 // jobs:read permission (and is ETag'd because browsers poll it); running
 // jobs requires jobs:execute; reading enrichments requires enrichments:read.
+
 package jobs
 
 import (

@@ -4,8 +4,6 @@
 // docker-compose to read mail in a browser UI).
 package mailer
 
-import ()
-
 import (
 	"bytes"
 	"context"
@@ -114,6 +112,7 @@ func render(msg Message) (string, error) {
 
 // Button renders a call-to-action paragraph callers embed into Body.
 func Button(url, label string) template.HTML {
+	// #nosec G203 -- url and label are HTML-escaped in the argument list below
 	return template.HTML(fmt.Sprintf(
 		`<p><a href="%s" style="display:inline-block;padding:.6rem 1rem;background:#111;color:#fff;border-radius:.5rem;text-decoration:none">%s</a></p><p style="font-size:12px;color:#888">Or paste this link: %s</p>`,
 		template.HTMLEscapeString(url), template.HTMLEscapeString(label), template.HTMLEscapeString(url),

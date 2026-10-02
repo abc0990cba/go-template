@@ -1,51 +1,60 @@
-import { http } from "@/shared/api/core";
-import type { Paged } from "@/shared/api/pagination";
+import { api, unwrap } from "@/shared/api/core";
+import type { Permission, PolicyRule, RbacResource, Role } from "./types";
 
 /** Endpoints of the admin-rbac slice: roles, their permission sets, and
- * the raw Casbin policy rules. */
-export function listRoles() {
-  return http.get<Paged<Role>>("/api/roles").then((p) => p.data);
+ * the raw Casbin policy rules. Every call goes through the typed client,
+ * so paths, bodies, and responses are checked against the OpenAPI contract
+ * at compile time. */
+
+export function listRoles(): Promise<Role[]> {
+  return unwrap(api.GET("/api/roles")).then((p) => p.data);
 }
 
-export function createRole(key: string, name: string, description: string) {
-  return http.post<Role>("/api/roles", { key, name, description });
+export function createRole(key: string, name: string, description: string): Promise<Role> {
+  return unwrap(api.POST("/api/roles", { body: { key, name, description } }));
 }
 
-export function updateRole(key: string, name: string, description: string) {
-  return http.put<void>(`/api/roles/${encodeURIComponent(key)}`, { name, description });
+export function updateRole(key: string, name: string, description: string): Promise<void> {
+  return unwrap(
+    api.PUT("/api/roles/{key}", { params: { path: { key } }, body: { name, description } }),
+  );
 }
 
-export function deleteRole(key: string) {
-  return http.del<void>(`/api/roles/${encodeURIComponent(key)}`);
+export function deleteRole(key: string): Promise<void> {
+  return unwrap(api.DELETE("/api/roles/{key}", { params: { path: { key } } }));
 }
 
-export function rolePermissions(key: string) {
-  return http
-    .get<Paged<PolicyRule>>(`/api/roles/${encodeURIComponent(key)}/permissions`)
-    .then((p) => p.data);
+export function rolePermissions(key: string): Promise<PolicyRule[]> {
+  return unwrap(api.GET("/api/roles/{key}/permissions", { params: { path: { key } } })).then(
+    (p) => p.data,
+  );
 }
 
-export function setRolePermissions(key: string, domain: string, permissions: Permission[]) {
-  return http.put<void>(`/api/roles/${encodeURIComponent(key)}/permissions`, {
-    domain,
-    permissions,
-  });
+export function setRolePermissions(
+  key: string,
+  domain: string,
+  permissions: Permission[],
+): Promise<void> {
+  return unwrap(
+    api.PUT("/api/roles/{key}/permissions", {
+      params: { path: { key } },
+      body: { domain, permissions },
+    }),
+  );
 }
 
-export function listPolicies(ptype: "p" | "g") {
-  return http.get<Paged<PolicyRule>>(`/api/policies?ptype=${ptype}`).then((p) => p.data);
+export function listPolicies(ptype: "p" | "g"): Promise<PolicyRule[]> {
+  return unwrap(api.GET("/api/policies", { params: { query: { ptype } } })).then((p) => p.data);
 }
 
-export function addPolicy(rule: PolicyRule) {
-  return http.post<void>("/api/policies", rule);
+export function addPolicy(rule: PolicyRule): Promise<void> {
+  return unwrap(api.POST("/api/policies", { body: rule }));
 }
 
-export function removePolicy(rule: PolicyRule) {
-  return http.del<void>("/api/policies", rule);
+export function removePolicy(rule: PolicyRule): Promise<void> {
+  return unwrap(api.DELETE("/api/policies", { body: rule }));
 }
 
-export function rbacCatalog() {
-  return http.get<{ resources: RbacResource[] }>("/api/rbac/catalog").then((r) => r.resources);
+export function rbacCatalog(): Promise<RbacResource[]> {
+  return unwrap(api.GET("/api/rbac/catalog")).then((r) => r.resources);
 }
-
-import type { Permission, PolicyRule, RbacResource, Role } from "./types";

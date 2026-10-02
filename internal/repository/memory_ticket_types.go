@@ -12,7 +12,7 @@ import (
 // --- Ticket types -------------------------------------------------------
 
 // CreateTicketType stores a ticket type; (org_id, key) is unique.
-func (s *MemoryStore) CreateTicketType(ctx context.Context, typ tickets.TicketType) error {
+func (s *MemoryStore) CreateTicketType(_ context.Context, typ tickets.TicketType) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, existing := range s.ticketTypes {
@@ -25,7 +25,7 @@ func (s *MemoryStore) CreateTicketType(ctx context.Context, typ tickets.TicketTy
 }
 
 // GetTicketType returns the type by id.
-func (s *MemoryStore) GetTicketType(ctx context.Context, id string) (tickets.TicketType, error) {
+func (s *MemoryStore) GetTicketType(_ context.Context, id string) (tickets.TicketType, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	typ, ok := s.ticketTypes[id]
@@ -36,7 +36,7 @@ func (s *MemoryStore) GetTicketType(ctx context.Context, id string) (tickets.Tic
 }
 
 // GetTicketTypeByKey resolves a type in one organization's namespace.
-func (s *MemoryStore) GetTicketTypeByKey(ctx context.Context, orgID, key string) (tickets.TicketType, error) {
+func (s *MemoryStore) GetTicketTypeByKey(_ context.Context, orgID, key string) (tickets.TicketType, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, typ := range s.ticketTypes {
@@ -48,7 +48,7 @@ func (s *MemoryStore) GetTicketTypeByKey(ctx context.Context, orgID, key string)
 }
 
 // UpdateTicketType overwrites the type.
-func (s *MemoryStore) UpdateTicketType(ctx context.Context, typ tickets.TicketType) error {
+func (s *MemoryStore) UpdateTicketType(_ context.Context, typ tickets.TicketType) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.ticketTypes[typ.ID]; !ok {
@@ -59,7 +59,7 @@ func (s *MemoryStore) UpdateTicketType(ctx context.Context, typ tickets.TicketTy
 }
 
 // DeleteTicketType removes the type by id.
-func (s *MemoryStore) DeleteTicketType(ctx context.Context, id string) error {
+func (s *MemoryStore) DeleteTicketType(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.ticketTypes[id]; !ok {
@@ -71,7 +71,7 @@ func (s *MemoryStore) DeleteTicketType(ctx context.Context, id string) error {
 
 // ListTicketTypes returns the platform-wide types plus the organization's
 // own, ordered by key.
-func (s *MemoryStore) ListTicketTypes(ctx context.Context, orgID string) ([]tickets.TicketType, error) {
+func (s *MemoryStore) ListTicketTypes(_ context.Context, orgID string) ([]tickets.TicketType, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := make([]tickets.TicketType, 0, len(s.ticketTypes))
@@ -87,7 +87,7 @@ func (s *MemoryStore) ListTicketTypes(ctx context.Context, orgID string) ([]tick
 // --- Comments and timeline ----------------------------------------------
 
 // AddTicketComment appends one comment.
-func (s *MemoryStore) AddTicketComment(ctx context.Context, comment tickets.TicketComment) error {
+func (s *MemoryStore) AddTicketComment(_ context.Context, comment tickets.TicketComment) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if comment.CreatedAt.IsZero() {
@@ -98,7 +98,7 @@ func (s *MemoryStore) AddTicketComment(ctx context.Context, comment tickets.Tick
 }
 
 // ListTicketComments pages the ticket's comments newest first.
-func (s *MemoryStore) ListTicketComments(ctx context.Context, ticketID string, limit, offset int) ([]tickets.TicketComment, error) {
+func (s *MemoryStore) ListTicketComments(_ context.Context, ticketID string, limit, offset int) ([]tickets.TicketComment, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var rows []tickets.TicketComment
@@ -125,7 +125,7 @@ func (s *MemoryStore) ListTicketComments(ctx context.Context, ticketID string, l
 }
 
 // AddTicketEvent appends one timeline entry.
-func (s *MemoryStore) AddTicketEvent(ctx context.Context, event tickets.TicketEvent) error {
+func (s *MemoryStore) AddTicketEvent(_ context.Context, event tickets.TicketEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if event.CreatedAt.IsZero() {
@@ -136,7 +136,7 @@ func (s *MemoryStore) AddTicketEvent(ctx context.Context, event tickets.TicketEv
 }
 
 // ListTicketEvents pages the ticket's timeline newest first.
-func (s *MemoryStore) ListTicketEvents(ctx context.Context, ticketID string, limit, offset int) ([]tickets.TicketEvent, error) {
+func (s *MemoryStore) ListTicketEvents(_ context.Context, ticketID string, limit, offset int) ([]tickets.TicketEvent, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	var rows []tickets.TicketEvent

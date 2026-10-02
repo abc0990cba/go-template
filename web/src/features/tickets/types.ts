@@ -1,90 +1,33 @@
-// --- Tickets ------------------------------------------------------------
+import type { components, operations } from "@/shared/api/schema.gen";
 
-export type TicketStatus =
-  | "draft"
-  | "in_review"
-  | "approved"
-  | "completed"
-  | "rejected"
-  | "withdrawn";
+/**
+ * Wire shapes of the tickets slice, derived from the generated API contract
+ * (schema.gen.ts ← api/openapi/openapi.yaml). To change a shape, change the
+ * spec and run `npm run gen:api` — these types are never hand-edited.
+ */
 
-export type TicketPriority = "low" | "medium" | "high" | "urgent";
+type Schemas = components["schemas"];
 
-export type TicketAction = "submit" | "approve" | "reject" | "withdraw" | "complete" | "reopen";
+export type TicketStatus = Schemas["Ticket"]["status"];
+
+export type TicketPriority = Schemas["Ticket"]["priority"];
+
+export type TicketAction =
+  operations["ticketAction"]["requestBody"]["content"]["application/json"]["action"];
 
 /** One approval step of a ticket type: the named role decides it in order. */
-export interface TicketStep {
-  name: string;
-  approver_role: string;
-}
+export type TicketStep = Schemas["TicketStep"];
 
-export interface TicketType {
-  id: string;
-  org_id?: string;
-  key: string;
-  name: string;
-  description: string;
-  steps: TicketStep[];
-  active: boolean;
-  created_by?: string;
-  created_at: string;
-  updated_at: string;
-}
+export type TicketType = Schemas["TicketType"];
 
-export interface Ticket {
-  id: string;
-  number: number;
-  org_id?: string;
-  type_id: string;
-  type_key: string;
-  title: string;
-  description: string;
-  priority: TicketPriority;
-  status: TicketStatus;
-  current_step: number;
-  created_by: string;
-  decided_by?: string;
-  decided_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type Ticket = Schemas["Ticket"];
 
-export interface TicketApproval {
-  id: string;
-  ticket_id: string;
-  step_index: number;
-  name: string;
-  approver_role: string;
-  status: "pending" | "approved" | "rejected" | "skipped";
-  decided_by?: string;
-  decided_at: string | null;
-  comment?: string;
-  created_at: string;
-}
+export type TicketApproval = Schemas["TicketApproval"];
 
-export interface TicketDetail {
-  ticket: Ticket;
-  approvals: TicketApproval[];
-}
+export type TicketDetail = Schemas["TicketDetail"];
 
-export interface TicketComment {
-  id: string;
-  ticket_id: string;
-  author_id: string;
-  body: string;
-  created_at: string;
-}
+export type TicketComment = Schemas["TicketComment"];
 
-export interface TicketEvent {
-  id: string;
-  ticket_id: string;
-  actor_id: string;
-  action: string;
-  detail?: string;
-  created_at: string;
-}
+export type TicketEvent = Schemas["TicketEvent"];
 
-export interface TicketDecision {
-  approval: TicketApproval;
-  ticket: Ticket;
-}
+export type TicketDecision = Schemas["TicketDecision"];

@@ -1,4 +1,5 @@
 // Audit trail persistence on PostgreSQL.
+
 package postgres
 
 import (

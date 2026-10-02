@@ -1,5 +1,6 @@
 // Organization administration: CRUD over the Casbin domains and their
 // memberships.
+
 package rbac
 
 import (

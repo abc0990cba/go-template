@@ -1,6 +1,7 @@
 // Token-grant HTTP surface: the OAuth-style endpoints answer on the public
 // group under the tight auth rate budget. The deployment must configure
 // APP_JWT_SECRET for them to exist functionally (otherwise 501).
+
 package tokens
 
 import (

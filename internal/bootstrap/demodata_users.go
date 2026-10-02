@@ -71,7 +71,7 @@ func seedDemoUsers(ctx context.Context, repos Repos, rng *rand.Rand, now time.Ti
 // seedDemoIdentities links OAuth identities to a slice of the population.
 // linked_at is set by the store to "now"; the backfilled oauth_linked
 // events carry the historical timestamps instead.
-func seedDemoIdentities(ctx context.Context, services *Container, rng *rand.Rand, now time.Time) error {
+func seedDemoIdentities(ctx context.Context, services *Container, _ *rand.Rand, _ time.Time) {
 	for i := 1; i <= demoUserCount; i++ {
 		id := demoIDPrefix + "u-" + pad4(i)
 		user, err := services.Users.Get(ctx, id)
@@ -91,6 +91,4 @@ func seedDemoIdentities(ctx context.Context, services *Container, rng *rand.Rand
 			})
 		}
 	}
-	_ = now
-	return nil
 }

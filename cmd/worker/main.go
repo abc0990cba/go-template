@@ -71,7 +71,7 @@ func main() {
 	bulkheads := reliability.NewBulkheads(cfg.BulkheadLimit, cfg.BulkheadAcquireTimeout)
 	bulkheads.SetObservers(observ.RecordBulkheadInFlight, observ.RecordBulkheadRejected)
 
-	blobs := bootstrap.FileStore(cfg, ctx, logger)
+	blobs := bootstrap.FileStore(ctx, cfg, logger)
 
 	services := bootstrap.NewContainer(bootstrap.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,

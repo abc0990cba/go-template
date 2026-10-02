@@ -249,7 +249,7 @@ func (s *Service) RequiredAndMissing(ctx context.Context, userID string) bool {
 		return false
 	}
 	factor, err := s.store.GetMFAFactor(ctx, userID)
-	return !(err == nil && factor.Confirmed)
+	return err != nil || !factor.Confirmed
 }
 
 func (s *Service) email(ctx context.Context, userID string) string {

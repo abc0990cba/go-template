@@ -38,6 +38,27 @@ func (e AuthIdentityProvider) Valid() bool {
 	}
 }
 
+// Defines values for DeadLetterReason.
+const (
+	Malformed   DeadLetterReason = "malformed"
+	MaxAttempts DeadLetterReason = "max_attempts"
+	UnknownUser DeadLetterReason = "unknown_user"
+)
+
+// Valid indicates whether the value is a known member of the DeadLetterReason enum.
+func (e DeadLetterReason) Valid() bool {
+	switch e {
+	case Malformed:
+		return true
+	case MaxAttempts:
+		return true
+	case UnknownUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EnrichDemoRequestSource.
 const (
 	Kafka EnrichDemoRequestSource = "kafka"
@@ -383,6 +404,27 @@ func (e ListApprovalsParamsState) Valid() bool {
 	}
 }
 
+// Defines values for ListAuditParamsMode.
+const (
+	ListAuditParamsModeCursor ListAuditParamsMode = "cursor"
+	ListAuditParamsModeKeyset ListAuditParamsMode = "keyset"
+	ListAuditParamsModeOffset ListAuditParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListAuditParamsMode enum.
+func (e ListAuditParamsMode) Valid() bool {
+	switch e {
+	case ListAuditParamsModeCursor:
+		return true
+	case ListAuditParamsModeKeyset:
+		return true
+	case ListAuditParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListEnrichmentProfilesParamsMode.
 const (
 	ListEnrichmentProfilesParamsModeCursor ListEnrichmentProfilesParamsMode = "cursor"
@@ -485,6 +527,30 @@ func (e ListOrgsParamsMode) Valid() bool {
 	}
 }
 
+// Defines values for InviteOrgMember201JSONResponseBodyStatus.
+const (
+	InviteOrgMember201JSONResponseBodyStatusAccepted InviteOrgMember201JSONResponseBodyStatus = "accepted"
+	InviteOrgMember201JSONResponseBodyStatusExpired  InviteOrgMember201JSONResponseBodyStatus = "expired"
+	InviteOrgMember201JSONResponseBodyStatusPending  InviteOrgMember201JSONResponseBodyStatus = "pending"
+	InviteOrgMember201JSONResponseBodyStatusRevoked  InviteOrgMember201JSONResponseBodyStatus = "revoked"
+)
+
+// Valid indicates whether the value is a known member of the InviteOrgMember201JSONResponseBodyStatus enum.
+func (e InviteOrgMember201JSONResponseBodyStatus) Valid() bool {
+	switch e {
+	case InviteOrgMember201JSONResponseBodyStatusAccepted:
+		return true
+	case InviteOrgMember201JSONResponseBodyStatusExpired:
+		return true
+	case InviteOrgMember201JSONResponseBodyStatusPending:
+		return true
+	case InviteOrgMember201JSONResponseBodyStatusRevoked:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListPoliciesParamsPtype.
 const (
 	ListPoliciesParamsPtypeG ListPoliciesParamsPtype = "g"
@@ -542,6 +608,81 @@ func (e ListReportsParamsMode) Valid() bool {
 	case ListReportsParamsModeKeyset:
 		return true
 	case ListReportsParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListDeadLettersParamsMode.
+const (
+	ListDeadLettersParamsModeCursor ListDeadLettersParamsMode = "cursor"
+	ListDeadLettersParamsModeKeyset ListDeadLettersParamsMode = "keyset"
+	ListDeadLettersParamsModeOffset ListDeadLettersParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListDeadLettersParamsMode enum.
+func (e ListDeadLettersParamsMode) Valid() bool {
+	switch e {
+	case ListDeadLettersParamsModeCursor:
+		return true
+	case ListDeadLettersParamsModeKeyset:
+		return true
+	case ListDeadLettersParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListDeadLettersParamsPending.
+const (
+	False ListDeadLettersParamsPending = "false"
+	True  ListDeadLettersParamsPending = "true"
+)
+
+// Valid indicates whether the value is a known member of the ListDeadLettersParamsPending enum.
+func (e ListDeadLettersParamsPending) Valid() bool {
+	switch e {
+	case False:
+		return true
+	case True:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOutboxParamsMode.
+const (
+	ListOutboxParamsModeCursor ListOutboxParamsMode = "cursor"
+	ListOutboxParamsModeKeyset ListOutboxParamsMode = "keyset"
+	ListOutboxParamsModeOffset ListOutboxParamsMode = "offset"
+)
+
+// Valid indicates whether the value is a known member of the ListOutboxParamsMode enum.
+func (e ListOutboxParamsMode) Valid() bool {
+	switch e {
+	case ListOutboxParamsModeCursor:
+		return true
+	case ListOutboxParamsModeKeyset:
+		return true
+	case ListOutboxParamsModeOffset:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOutboxParamsStatus.
+const (
+	ListOutboxParamsStatusPending ListOutboxParamsStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the ListOutboxParamsStatus enum.
+func (e ListOutboxParamsStatus) Valid() bool {
+	switch e {
+	case ListOutboxParamsStatusPending:
 		return true
 	default:
 		return false
@@ -826,7 +967,7 @@ type AuthIdentityProvider string
 
 // CreateUserRequest defines model for CreateUserRequest.
 type CreateUserRequest struct {
-	Email openapi_types.Email `json:"email"`
+	Email string `json:"email"`
 
 	// ExternalRef Correlation id for the enrichment streams.
 	ExternalRef *string `json:"external_ref,omitempty"`
@@ -837,6 +978,35 @@ type CreateUserRequest struct {
 type DayCount struct {
 	Count int64  `json:"count"`
 	Day   string `json:"day"`
+}
+
+// DeadLetter defines model for DeadLetter.
+type DeadLetter struct {
+	Attempts  int       `json:"attempts"`
+	CreatedAt time.Time `json:"created_at"`
+	Id        string    `json:"id"`
+
+	// Payload JSON-encoded message body
+	Payload string `json:"payload"`
+
+	// Reason Why the message was parked
+	Reason     DeadLetterReason `json:"reason"`
+	ReplayedAt *time.Time       `json:"replayed_at,omitempty"`
+
+	// Source Stream that parked the message (kafka or nats)
+	Source string `json:"source"`
+	Topic  string `json:"topic"`
+}
+
+// DeadLetterReason Why the message was parked
+type DeadLetterReason string
+
+// DeadLetterList defines model for DeadLetterList.
+type DeadLetterList struct {
+	Data []DeadLetter `json:"data"`
+
+	// NextCursor Empty on the last page.
+	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
 // EnrichDemoRequest defines model for EnrichDemoRequest.
@@ -922,8 +1092,8 @@ type JobList struct {
 
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
-	Email    openapi_types.Email `json:"email"`
-	Password string              `json:"password"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
 }
 
 // MFAChallengeRequest defines model for MFAChallengeRequest.
@@ -966,6 +1136,37 @@ type MFAStatus struct {
 	Required bool `json:"required"`
 }
 
+// Me defines model for Me.
+type Me struct {
+	// ActiveOrg Casbin domain of the active organization; empty is the platform scope.
+	ActiveOrg string    `json:"active_org"`
+	CreatedAt time.Time `json:"created_at"`
+	Email     string    `json:"email"`
+
+	// EnrichContact Raw JSON object of NATS-owned enrichment fields.
+	EnrichContact *string `json:"enrich_contact,omitempty"`
+
+	// EnrichProfile Raw JSON object of Kafka-owned enrichment fields.
+	EnrichProfile *string    `json:"enrich_profile,omitempty"`
+	EnrichedAt    *time.Time `json:"enriched_at,omitempty"`
+
+	// ExternalRef Correlation id used by the Kafka and NATS enrichment streams.
+	ExternalRef      *string `json:"external_ref,omitempty"`
+	Id               string  `json:"id"`
+	Impersonated     bool    `json:"impersonated"`
+	ImpersonatorId   *string `json:"impersonator_id,omitempty"`
+	ImpersonatorName *string `json:"impersonator_name,omitempty"`
+	Name             string  `json:"name"`
+
+	// Orgs Organizations the account can enter; [] keeps the SPA's reads safe.
+	Orgs []Organization `json:"orgs"`
+
+	// Permissions Expanded catalog permissions (object:action) the UI gates on.
+	Permissions []string  `json:"permissions"`
+	Roles       []string  `json:"roles"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
 // NameCount defines model for NameCount.
 type NameCount struct {
 	Count int64  `json:"count"`
@@ -995,7 +1196,7 @@ type OrgInvitation struct {
 	AcceptedAt *time.Time          `json:"accepted_at,omitempty"`
 	AcceptedBy *string             `json:"accepted_by,omitempty"`
 	CreatedAt  *time.Time          `json:"created_at,omitempty"`
-	Email      openapi_types.Email `json:"email"`
+	Email      string              `json:"email"`
 	ExpiresAt  time.Time           `json:"expires_at"`
 	Id         string              `json:"id"`
 	InvitedBy  *string             `json:"invited_by,omitempty"`
@@ -1023,6 +1224,33 @@ type Organization struct {
 	Name      string    `json:"name"`
 	Slug      string    `json:"slug"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// OutboxEvent defines model for OutboxEvent.
+type OutboxEvent struct {
+	AggregateId string     `json:"aggregate_id"`
+	Attempts    int        `json:"attempts"`
+	ClaimedAt   *time.Time `json:"claimed_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+
+	// EventType e.g. user.enriched
+	EventType string `json:"event_type"`
+
+	// Headers Relay headers propagating trace context across the hop
+	Headers *map[string]string `json:"headers,omitempty"`
+	Id      string             `json:"id"`
+
+	// Payload JSON-encoded event body
+	Payload     string     `json:"payload"`
+	ProcessedAt *time.Time `json:"processed_at,omitempty"`
+}
+
+// OutboxList defines model for OutboxList.
+type OutboxList struct {
+	Data []OutboxEvent `json:"data"`
+
+	// NextCursor Empty on the last page.
+	NextCursor *string `json:"next_cursor,omitempty"`
 }
 
 // Permission defines model for Permission.
@@ -1060,9 +1288,9 @@ type RbacResource struct {
 
 // RegisterRequest defines model for RegisterRequest.
 type RegisterRequest struct {
-	Email    openapi_types.Email `json:"email"`
-	Name     *string             `json:"name,omitempty"`
-	Password string              `json:"password"`
+	Email    string  `json:"email"`
+	Name     *string `json:"name,omitempty"`
+	Password string  `json:"password"`
 }
 
 // Report defines model for Report.
@@ -1152,7 +1380,7 @@ type Ticket struct {
 	Description string  `json:"description"`
 	Id          string  `json:"id"`
 
-	// Number Per-organization sequence
+	// Number Per-organization sequence, displayed as TCK-0001
 	Number    int            `json:"number"`
 	OrgId     *string        `json:"org_id,omitempty"`
 	Priority  TicketPriority `json:"priority"`
@@ -1302,7 +1530,7 @@ type TokenGrantRequestGrantType string
 
 // UpdateUserRequest defines model for UpdateUserRequest.
 type UpdateUserRequest struct {
-	Email openapi_types.Email `json:"email"`
+	Email string `json:"email"`
 
 	// ExternalRef Correlation id for the enrichment streams.
 	ExternalRef *string `json:"external_ref,omitempty"`
@@ -1311,8 +1539,8 @@ type UpdateUserRequest struct {
 
 // User defines model for User.
 type User struct {
-	CreatedAt time.Time           `json:"created_at"`
-	Email     openapi_types.Email `json:"email"`
+	CreatedAt time.Time `json:"created_at"`
+	Email     string    `json:"email"`
 
 	// EnrichContact Raw JSON object of NATS-owned enrichment fields.
 	EnrichContact *string `json:"enrich_contact,omitempty"`
@@ -1511,13 +1739,20 @@ type ListApprovals200JSONResponseBody struct {
 
 // ListAuditParams defines parameters for ListAudit.
 type ListAuditParams struct {
-	Limit      *Limit  `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset     *Offset `form:"offset,omitempty" json:"offset,omitempty"`
+	Mode   *ListAuditParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit               `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset              `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Last entry offset of the previous page (cursor and keyset modes)
+	After      *string `form:"after,omitempty" json:"after,omitempty"`
 	Actor      *string `form:"actor,omitempty" json:"actor,omitempty"`
 	Action     *string `form:"action,omitempty" json:"action,omitempty"`
 	Resource   *string `form:"resource,omitempty" json:"resource,omitempty"`
 	ResourceId *string `form:"resource_id,omitempty" json:"resource_id,omitempty"`
 }
+
+// ListAuditParamsMode defines parameters for ListAudit.
+type ListAuditParamsMode string
 
 // ForgotPasswordJSONBody defines parameters for ForgotPassword.
 type ForgotPasswordJSONBody struct {
@@ -1646,11 +1881,14 @@ type ListOrgInvitationsParams struct {
 
 // InviteOrgMemberJSONBody defines parameters for InviteOrgMember.
 type InviteOrgMemberJSONBody struct {
-	Email openapi_types.Email `json:"email"`
+	Email string `json:"email"`
 
 	// Role Role key granted in the org domain on acceptance
 	Role string `json:"role"`
 }
+
+// InviteOrgMember201JSONResponseBodyStatus defines parameters for InviteOrgMember.
+type InviteOrgMember201JSONResponseBodyStatus string
 
 // AddOrgMemberJSONBody defines parameters for AddOrgMember.
 type AddOrgMemberJSONBody struct {
@@ -1714,6 +1952,44 @@ type SearchParams struct {
 type UpdateSettingJSONBody struct {
 	Value string `json:"value"`
 }
+
+// ListDeadLettersParams defines parameters for ListDeadLetters.
+type ListDeadLettersParams struct {
+	Mode   *ListDeadLettersParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit                     `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset                    `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Last letter id of the previous page (cursor and keyset modes)
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Pending true limits the page to letters not replayed yet
+	Pending *ListDeadLettersParamsPending `form:"pending,omitempty" json:"pending,omitempty"`
+}
+
+// ListDeadLettersParamsMode defines parameters for ListDeadLetters.
+type ListDeadLettersParamsMode string
+
+// ListDeadLettersParamsPending defines parameters for ListDeadLetters.
+type ListDeadLettersParamsPending string
+
+// ListOutboxParams defines parameters for ListOutbox.
+type ListOutboxParams struct {
+	Mode   *ListOutboxParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
+	Limit  *Limit                `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *Offset               `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// After Last event id of the previous page (cursor and keyset modes)
+	After *string `form:"after,omitempty" json:"after,omitempty"`
+
+	// Status pending limits the page to events the relay has not published yet
+	Status *ListOutboxParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+}
+
+// ListOutboxParamsMode defines parameters for ListOutbox.
+type ListOutboxParamsMode string
+
+// ListOutboxParamsStatus defines parameters for ListOutbox.
+type ListOutboxParamsStatus string
 
 // CreateTicketTypeJSONBody defines parameters for CreateTicketType.
 type CreateTicketTypeJSONBody struct {
@@ -1975,11 +2251,11 @@ type AddTicketCommentJSONRequestBody AddTicketCommentJSONBody
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody = CreateUserRequest
 
-// TriggerEnrichDemoJSONRequestBody defines body for TriggerEnrichDemo for application/json ContentType.
-type TriggerEnrichDemoJSONRequestBody = EnrichDemoRequest
-
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest
+
+// TriggerEnrichDemoJSONRequestBody defines body for TriggerEnrichDemo for application/json ContentType.
+type TriggerEnrichDemoJSONRequestBody = EnrichDemoRequest
 
 // UnassignUserRoleJSONRequestBody defines body for UnassignUserRole for application/json ContentType.
 type UnassignUserRoleJSONRequestBody UnassignUserRoleJSONBody

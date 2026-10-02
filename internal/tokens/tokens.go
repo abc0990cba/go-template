@@ -257,7 +257,7 @@ func (s *Service) VerifyAccess(tokenString string) (string, error) {
 	if len(s.secret) == 0 {
 		return "", ErrAuthDisabled
 	}
-	parsed, err := jwt.Parse(tokenString, func(t *jwt.Token) (any, error) {
+	parsed, err := jwt.Parse(tokenString, func(_ *jwt.Token) (any, error) {
 		return s.secret, nil
 	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithIssuer(Issuer))
 	if err != nil {

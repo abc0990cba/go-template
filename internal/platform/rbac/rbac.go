@@ -104,13 +104,13 @@ func (a *Adapter) SavePolicy(m casbinmodel.Model) error {
 }
 
 // AddPolicy persists one rule the enforcer just accepted (autosave).
-func (a *Adapter) AddPolicy(sec string, ptype string, rule []string) error {
+func (a *Adapter) AddPolicy(_ string, ptype string, rule []string) error {
 	stored := ruleFromValues(ptype, rule)
 	return a.store.InsertPolicyRule(context.Background(), stored)
 }
 
 // RemovePolicy deletes the exact rule.
-func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
+func (a *Adapter) RemovePolicy(_ string, ptype string, rule []string) error {
 	return a.store.DeletePolicyRule(context.Background(), ruleFromValues(ptype, rule))
 }
 
@@ -118,7 +118,7 @@ func (a *Adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 // field values starting at fieldIndex. Only subject+domain prefix removal
 // is exercised (replacing a role's permission set); other filters remove
 // matching rules one by one.
-func (a *Adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int, fieldValues ...string) error {
+func (a *Adapter) RemoveFilteredPolicy(_ string, ptype string, fieldIndex int, fieldValues ...string) error {
 	ctx := context.Background()
 	if fieldIndex == 0 && len(fieldValues) == 2 && ptype == "p" {
 		return a.store.DeleteFilteredPolicyRules(ctx, ptype, fieldValues[0], fieldValues[1])

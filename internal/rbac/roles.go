@@ -1,5 +1,6 @@
 // Role and policy administration: the system role seed, the role metadata
 // CRUD, the permission matrix editor, and the raw policy rules.
+
 package rbac
 
 import (
@@ -228,7 +229,7 @@ func (s *Service) UnassignRole(userID, key, domain string) error {
 }
 
 // ListPolicies returns the raw rules of one ptype for the policy editor.
-func (s *Service) ListPolicies(ctx context.Context, ptype string) ([]PolicyRule, error) {
+func (s *Service) ListPolicies(_ context.Context, ptype string) ([]PolicyRule, error) {
 	if ptype != "p" && ptype != "g" {
 		return nil, kernel.Invalid("ptype must be p or g")
 	}

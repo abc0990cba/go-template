@@ -63,7 +63,7 @@ func (a *App) etag() gin.HandlerFunc {
 			etag := `"` + hex.EncodeToString(sum[:16]) + `"`
 			if matchesETag(c.GetHeader("If-None-Match"), etag) {
 				writer.Header().Del("Content-Length")
-				writer.ResponseWriter.WriteHeader(http.StatusNotModified)
+				writer.WriteHeader(http.StatusNotModified)
 				return
 			}
 			writer.Header().Set("ETag", etag)

@@ -1,5 +1,6 @@
 // Impersonation: an administrator opens a session as another user; every
 // route below the guard is flagged, and stopping restores the admin.
+
 package auth
 
 import (

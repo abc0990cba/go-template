@@ -33,7 +33,8 @@ export function APIKeysCard() {
           .filter(Boolean),
       ),
     onSuccess: ({ secret: raw }) => {
-      setSecret(raw);
+      // The spec marks the one-time secret optional; absent means nothing to show.
+      setSecret(raw ?? null);
       setName("");
       setScopes("");
       invalidate();

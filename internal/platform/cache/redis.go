@@ -19,6 +19,7 @@ func NewRedis(client *redis.Client) *Redis {
 	return &Redis{client: client}
 }
 
+// Get returns the cached value for the key, if present and fresh.
 func (r *Redis) Get(ctx context.Context, key string) ([]byte, bool) {
 	value, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
@@ -27,10 +28,12 @@ func (r *Redis) Get(ctx context.Context, key string) ([]byte, bool) {
 	return value, true
 }
 
+// Set stores the value under the key until the TTL expires.
 func (r *Redis) Set(ctx context.Context, key string, value []byte, ttl time.Duration) {
 	_ = r.client.Set(ctx, key, value, ttl).Err()
 }
 
+// Delete drops the keys from the cache.
 func (r *Redis) Delete(ctx context.Context, keys ...string) {
 	if len(keys) == 0 {
 		return
@@ -38,6 +41,7 @@ func (r *Redis) Delete(ctx context.Context, keys ...string) {
 	_ = r.client.Del(ctx, keys...).Err()
 }
 
+// DeletePrefix drops every key starting with the prefix.
 func (r *Redis) DeletePrefix(ctx context.Context, prefix string) {
 	iter := r.client.Scan(ctx, 0, prefix+"*", 100).Iterator()
 	var keys []string

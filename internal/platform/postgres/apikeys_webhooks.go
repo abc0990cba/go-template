@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -161,9 +162,11 @@ func (s *Store) UpdateWebhookDelivery(ctx context.Context, delivery webhooks.Del
 		deliveredAt = pgtype.Timestamptz{Time: *delivery.DeliveredAt, Valid: true}
 	}
 	return mapErr(s.q.UpdateWebhookDelivery(ctx, db.UpdateWebhookDeliveryParams{
-		ID: delivery.ID, Status: delivery.Status, Attempts: int32(delivery.Attempts),
-		LastResponseStatus: int32(delivery.LastResponseStatus), LastError: delivery.LastError,
-		DeliveredAt: deliveredAt,
+		ID: delivery.ID, Status: delivery.Status,
+		Attempts:           int32(min(delivery.Attempts, math.MaxInt32)),           // #nosec G115 -- clamped to int32 range
+		LastResponseStatus: int32(min(delivery.LastResponseStatus, math.MaxInt32)), // #nosec G115 -- clamped to int32 range
+		LastError:          delivery.LastError,
+		DeliveredAt:        deliveredAt,
 	}))
 }
 

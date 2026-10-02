@@ -1,6 +1,7 @@
 // Delivery execution: the in-process dispatcher used in single-process
 // mode, the queue worker's re-run entry point, and the HMAC-signed POST
 // both paths share.
+
 package webhooks
 
 import (
@@ -34,7 +35,8 @@ func NewInlineDispatcher(svc *Service) *InlineDispatcher {
 }
 
 // Deliver implements Dispatcher.
-func (d *InlineDispatcher) Deliver(ctx context.Context, endpoint Endpoint, delivery Delivery, payload []byte) {
+func (d *InlineDispatcher) Deliver(_ context.Context, endpoint Endpoint, delivery Delivery, payload []byte) {
+	// #nosec G118 -- deliveries intentionally outlive the triggering request (detached retry loop)
 	go func() {
 		bg := context.Background()
 		d.svc.deliver(bg, endpoint, delivery, payload)

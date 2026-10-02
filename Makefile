@@ -1,6 +1,14 @@
-.PHONY: helm-lint helm-template run worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
+.PHONY: helm-lint helm-template run dev hooks worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate lint-spec vulncheck hooks docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
 run:
 	go run ./cmd/api
+
+# One-terminal dev loop: hot-reloading API, contract→TS watch, and Vite.
+dev:
+	./scripts/dev.sh
+
+# Install the pre-commit hooks (lefthook must be on PATH; see lefthook.yml).
+hooks:
+	lefthook install
 
 worker:
 	go run ./cmd/worker
@@ -58,7 +66,7 @@ web-check-boundaries: ## fail if any web file breaks the slice architecture rule
 
 check-size-web: ## fail if any hand-written web file exceeds its budget (400; routes 80)
 	@oversized=$$(find web/src \( -name '*.ts' -o -name '*.tsx' \) \
-		! -name '*test*' ! -name 'routeTree.gen.ts' \
+		! -name '*test*' ! -name '*.gen.ts' \
 		! -path 'web/src/shared/components/ui/*' \
 		-exec wc -l {} + | awk '$$1 > 400 && $$2 != "total" {print $$1 "\t" $$2}'); \
 	routes=$$(find web/src/routes -name '*.tsx' -exec wc -l {} + | awk '$$1 > 80 && $$2 != "total" {print $$1 "\t" $$2}'); \
@@ -108,9 +116,27 @@ coverage-check:
 	go test -race -covermode=atomic -coverpkg=./internal/... -coverprofile=coverage.out ./internal/... ./cmd/...
 	awk -v floor="$(COVERAGE_FLOOR)" '!/api\.gen\.go|platform\/postgres\/db\// && NF == 3 && $$2 ~ /^[0-9]+$$/ { if (!seen[$$1]++) { stmts[$$1] = $$2 } if ($$3 + 0 > hit[$$1]) { hit[$$1] = $$3 + 0 } } END { for (b in stmts) { total += stmts[b]; if (hit[b] > 0) covered += stmts[b] } if (total == 0) { print "no coverage data"; exit 1 } pct = 100 * covered / total; if (pct < floor) { printf "coverage %.1f%% is below the %.0f%% floor\n", pct, floor; exit 1 } else { printf "coverage %.1f%% meets the %.0f%% floor\n", pct, floor } }' coverage.out
 
+# Codegen and lint tooling, version-pinned so every machine and CI run
+# produces byte-identical output. The module@version form is one-line so
+# Renovate's regex manager can bump each pin.
+SQLC := github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1
+OAPI_CODEGEN := github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.8.0
+VACUUM := github.com/daveshanley/vacuum@v0.30.6
+GOVULNCHECK := golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
 generate:
-	go run github.com/sqlc-dev/sqlc/cmd/sqlc@latest generate
-	go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest -config api/openapi/openapi.cfg.yaml api/openapi/openapi.yaml
+	go run $(SQLC) generate
+	go run $(OAPI_CODEGEN) -config api/openapi/openapi.cfg.yaml api/openapi/openapi.yaml
+	cd web && npm run gen:api
+
+# The contract lint: operationIds present (the TS generator keys on them),
+# every operation documents JSON responses with schemas, problem+json errors
+# declared. Runs in CI's codegen job next to the drift gate.
+lint-spec:
+	go run $(VACUUM) lint -r api/openapi/.vacuum.json api/openapi/openapi.yaml
+
+vulncheck:
+	go run $(GOVULNCHECK) ./...
 
 docker-up:
 	docker compose up --build

@@ -1,87 +1,113 @@
-import { http } from "@/shared/api/core";
-import { buildListQuery, type Paged } from "@/shared/api/pagination";
-import type { ListParams } from "@/shared/api/pagination";
-import type { Ticket, TicketComment, TicketDetail, TicketEvent, TicketType } from "./types";
+import { api, unwrap } from "@/shared/api/core";
+import type { Paged, ListParams } from "@/shared/api/pagination";
+import type { operations } from "@/shared/api/schema.gen";
+import type {
+  Ticket,
+  TicketAction,
+  TicketComment,
+  TicketDetail,
+  TicketEvent,
+  TicketPriority,
+  TicketStep,
+  TicketType,
+} from "./types";
 
 /** Endpoints of the tickets slice: the requester flow plus the type
- * catalog that defines the approval chains. */
+ * catalog that defines the approval chains. Every call goes through the
+ * typed client, so paths, bodies, and responses are checked against the
+ * OpenAPI contract at compile time. */
+
+type ListTicketsQuery = operations["listTickets"]["parameters"]["query"];
+
+/** The shared list vocabulary plus the tickets scope tab. The URL keeps
+ * status/priority as free strings; the backend 400s anything outside the
+ * spec enums, and the table filters only offer valid values. */
 export type TicketsListParams = Partial<ListParams> & {
   scope?: "my" | "all";
   priority?: string;
 };
 
 export function listTickets(params: TicketsListParams): Promise<Paged<Ticket>> {
-  const extra = new URLSearchParams();
-  if (params.scope) extra.set("scope", params.scope);
-  if (params.priority) extra.set("priority", params.priority);
-  const suffix = extra.toString();
-  const base = buildListQuery(params);
-  return http.get<Paged<Ticket>>(`/api/tickets?${suffix ? base + "&" + suffix : base}`);
+  return unwrap(api.GET("/api/tickets", { params: { query: params as ListTicketsQuery } }));
 }
 
 export function ticketCounts(scope: "my" | "all" = "my"): Promise<Record<string, number>> {
-  return http.get(`/api/tickets/counts?scope=${scope}`);
+  return unwrap(api.GET("/api/tickets/counts", { params: { query: { scope } } }));
 }
 
 export function createTicket(
   typeId: string,
   title: string,
   description: string,
-  priority: string,
+  priority: TicketPriority,
 ): Promise<Ticket> {
-  return http.post("/api/tickets", { type_id: typeId, title, description, priority });
+  return unwrap(
+    api.POST("/api/tickets", { body: { type_id: typeId, title, description, priority } }),
+  );
 }
 
 export function getTicket(id: string): Promise<TicketDetail> {
-  return http.get<TicketDetail>(`/api/tickets/${encodeURIComponent(id)}`);
+  return unwrap(api.GET("/api/tickets/{id}", { params: { path: { id } } }));
 }
 
 export function updateTicket(
   id: string,
   title: string,
   description: string,
-  priority: string,
+  priority: TicketPriority,
 ): Promise<Ticket> {
-  return http.patch(`/api/tickets/${encodeURIComponent(id)}`, { title, description, priority });
+  return unwrap(
+    api.PATCH("/api/tickets/{id}", {
+      params: { path: { id } },
+      body: { title, description, priority },
+    }),
+  );
 }
 
 export function deleteTicket(id: string): Promise<void> {
-  return http.del<void>(`/api/tickets/${encodeURIComponent(id)}`);
+  return unwrap(api.DELETE("/api/tickets/{id}", { params: { path: { id } } }));
 }
 
-export type TicketActionName = "submit" | "approve" | "reject" | "withdraw" | "complete" | "reopen";
+export type TicketActionName = TicketAction;
 
 export function ticketAction(id: string, action: TicketActionName, comment = ""): Promise<Ticket> {
-  return http.post<Ticket>(`/api/tickets/${encodeURIComponent(id)}/actions`, { action, comment });
+  return unwrap(
+    api.POST("/api/tickets/{id}/actions", {
+      params: { path: { id } },
+      body: comment ? { action, comment } : { action },
+    }),
+  );
 }
 
 export function ticketComments(id: string, limit = 25): Promise<TicketComment[]> {
-  return http
-    .get<Paged<TicketComment>>(`/api/tickets/${encodeURIComponent(id)}/comments?limit=${limit}`)
-    .then((p) => p.data);
+  return unwrap(
+    api.GET("/api/tickets/{id}/comments", { params: { path: { id }, query: { limit } } }),
+  ).then((p) => p.data);
 }
 
 export function addTicketComment(id: string, body: string): Promise<TicketComment> {
-  return http.post<TicketComment>(`/api/tickets/${encodeURIComponent(id)}/comments`, { body });
+  return unwrap(
+    api.POST("/api/tickets/{id}/comments", { params: { path: { id } }, body: { body } }),
+  );
 }
 
 export function ticketEvents(id: string, limit = 50): Promise<TicketEvent[]> {
-  return http
-    .get<Paged<TicketEvent>>(`/api/tickets/${encodeURIComponent(id)}/events?limit=${limit}`)
-    .then((p) => p.data);
+  return unwrap(
+    api.GET("/api/tickets/{id}/events", { params: { path: { id }, query: { limit } } }),
+  ).then((p) => p.data);
 }
 
 export function ticketTypes(): Promise<TicketType[]> {
-  return http.get<Paged<TicketType>>("/api/ticket-types").then((p) => p.data);
+  return unwrap(api.GET("/api/ticket-types")).then((p) => p.data);
 }
 
 export function createTicketType(
   key: string,
   name: string,
   description: string,
-  steps: { name: string; approver_role: string }[],
+  steps: TicketStep[],
 ): Promise<TicketType> {
-  return http.post<TicketType>("/api/ticket-types", { key, name, description, steps });
+  return unwrap(api.POST("/api/ticket-types", { body: { key, name, description, steps } }));
 }
 
 export function updateTicketType(
@@ -89,13 +115,13 @@ export function updateTicketType(
   patchBody: {
     name?: string;
     description?: string;
-    steps?: { name: string; approver_role: string }[];
+    steps?: TicketStep[];
     active?: boolean;
   },
 ): Promise<TicketType> {
-  return http.patch<TicketType>(`/api/ticket-types/${encodeURIComponent(id)}`, patchBody);
+  return unwrap(api.PATCH("/api/ticket-types/{id}", { params: { path: { id } }, body: patchBody }));
 }
 
 export function deleteTicketType(id: string): Promise<void> {
-  return http.del<void>(`/api/ticket-types/${encodeURIComponent(id)}`);
+  return unwrap(api.DELETE("/api/ticket-types/{id}", { params: { path: { id } } }));
 }

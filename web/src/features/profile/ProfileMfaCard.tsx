@@ -50,7 +50,8 @@ export function MFACard() {
     onSuccess: ({ recovery_codes }) => {
       setEnrollment(null);
       setCode("");
-      setRecoveryCodes(recovery_codes);
+      // The spec marks the codes optional; nothing to save when absent.
+      setRecoveryCodes(recovery_codes ?? null);
       invalidate();
     },
     onError: (error) => toast.error(error.message),

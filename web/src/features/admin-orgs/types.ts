@@ -1,30 +1,18 @@
-export type OrgInvitationStatus = "pending" | "accepted" | "revoked" | "expired";
+import type { components } from "@/shared/api/schema.gen";
 
-export interface Organization {
-  id: string;
-  name: string;
-  slug: string;
-  created_at: string;
-  updated_at: string;
-}
+/**
+ * Wire shapes of the admin-orgs slice, derived from the generated API
+ * contract (schema.gen.ts ← api/openapi/openapi.yaml). To change a shape,
+ * change the spec and run `npm run gen:api` — these types are never
+ * hand-edited.
+ */
 
-export interface OrgMember {
-  org_id: string;
-  user_id: string;
-  email: string;
-  name: string;
-  joined_at: string;
-}
+type Schemas = components["schemas"];
 
-export interface OrgInvitation {
-  id: string;
-  org_id: string;
-  email: string;
-  role: string;
-  invited_by?: string;
-  status: OrgInvitationStatus;
-  expires_at: string;
-  accepted_at?: string;
-  accepted_by?: string;
-  created_at: string;
-}
+export type OrgInvitationStatus = Schemas["OrgInvitation"]["status"];
+
+export type Organization = Schemas["Organization"];
+
+export type OrgMember = Schemas["OrgMember"];
+
+export type OrgInvitation = Schemas["OrgInvitation"];

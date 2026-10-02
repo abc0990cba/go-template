@@ -1,15 +1,14 @@
 import { http, HttpResponse } from "msw";
 import { afterEach, describe, expect, it } from "vitest";
-import { ApiError, http as transport, setActiveOrg } from "./core";
+import { ApiError, api, unwrap, setActiveOrg } from "./core";
 import { meFixture, problem } from "@/test/mocks/handlers";
 import { server } from "@/test/mocks/server";
 
-// The transport pipeline is exercised through thin api.* wrappers so the
-// tests keep asserting end-user-visible behavior of the core module.
-const api = {
-  me: () => transport.get("/api/me"),
-  logout: () => transport.post("/api/auth/logout"),
-};
+// The transport pipeline is exercised through /api/me and /api/auth/logout
+// so the tests keep asserting end-user-visible behavior of the core module.
+const me = () => unwrap(api.GET("/api/me"));
+const logout = () => unwrap(api.POST("/api/auth/logout"));
+
 describe("ApiError", () => {
   it("prefers the detail for the message and keeps the title", () => {
     const error = new ApiError(409, "conflict", "duplicate email");
@@ -24,7 +23,7 @@ describe("request pipeline", () => {
 
   it("parses problem+json errors into ApiError", async () => {
     server.use(http.get("/api/me", () => problem(403, "forbidden", "not your org")));
-    const error = await api.me().then(
+    const error = await me().then(
       () => {
         throw new Error("expected the request to fail");
       },
@@ -36,16 +35,16 @@ describe("request pipeline", () => {
 
   it("keeps non-JSON error bodies meaningful via the status", async () => {
     server.use(http.get("/api/me", () => new HttpResponse("gateway timeout", { status: 504 })));
-    await expect(api.me()).rejects.toMatchObject({ status: 504, title: "request failed" });
+    await expect(me()).rejects.toMatchObject({ status: 504, title: "request failed" });
   });
 
   it("maps network failures to ApiError with status 0", async () => {
     server.use(http.get("/api/me", () => HttpResponse.error()));
-    await expect(api.me()).rejects.toMatchObject({ status: 0 });
+    await expect(me()).rejects.toMatchObject({ status: 0 });
   });
 
   it("returns undefined for 204 responses", async () => {
-    await expect(api.logout()).resolves.toBeUndefined();
+    await expect(logout()).resolves.toBeUndefined();
   });
 
   it("sends the active org as X-Org-Id and drops the header when empty", async () => {
@@ -57,9 +56,9 @@ describe("request pipeline", () => {
       }),
     );
     setActiveOrg("org-acme");
-    await api.me();
+    await me();
     setActiveOrg("");
-    await api.me();
+    await me();
     expect(seenOrgHeaders).toEqual(["org-acme", null]);
   });
 });

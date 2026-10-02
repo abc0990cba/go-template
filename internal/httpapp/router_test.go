@@ -23,7 +23,9 @@ func newTestServer(t *testing.T) *httptest.Server {
 	logger := discardLogger()
 	store := repository.NewMemoryStore()
 	services := newTestContainer(t, store, nil, logger)
-	server := httptest.NewServer(NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub()))
+	// The contract middleware validates every request and response against
+	// api/openapi/openapi.yaml, so this suite is also the contract audit.
+	server := httptest.NewServer(contractMiddleware(t, NewRouter(cfg, services, logger, store, observ.Build{}, realtime.NewHub())))
 	t.Cleanup(server.Close)
 	return server
 }

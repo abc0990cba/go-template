@@ -1,6 +1,7 @@
 // GDPR export job support: the link between the jobs feature and the export
 // bundle builder. The builder itself still lives in the service layer; the
 // narrow Exporter interface keeps the dependency one-way and cycle-free.
+
 package jobs
 
 import (

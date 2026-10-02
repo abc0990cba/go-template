@@ -6,7 +6,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +19,7 @@ import (
 	"github.com/your-org/go-template/internal/email"
 	"github.com/your-org/go-template/internal/export"
 	"github.com/your-org/go-template/internal/files"
+	"github.com/your-org/go-template/internal/httpx"
 	"github.com/your-org/go-template/internal/invitations"
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/kernel"
@@ -261,11 +261,7 @@ func (a *App) notFound(c *gin.Context) {
 }
 
 func (a *App) problem(c *gin.Context, status int, title string, err error) {
-	detail := ""
-	if err != nil {
-		detail = err.Error()
-	}
-	c.JSON(status, gin.H{"type": "about:blank", "title": title, "status": status, "detail": detail})
+	httpx.Problem(c, status, title, err)
 }
 
 func (a *App) sessionToken(c *gin.Context) string {
@@ -345,20 +341,4 @@ func (a *App) jwtAuth(c *gin.Context, token string) {
 func (a *App) currentUser(c *gin.Context) users.User {
 	user, _ := c.Get("user")
 	return user.(users.User)
-}
-
-func intQuery(c *gin.Context, name string, fallback int) int {
-	value, err := strconv.Atoi(c.DefaultQuery(name, ""))
-	if err != nil {
-		return fallback
-	}
-	return value
-}
-
-func listOptions(c *gin.Context) kernel.ListOptions {
-	return kernel.ListOptions{
-		Query: c.Query("q"), Mode: c.DefaultQuery("mode", "offset"), Limit: intQuery(c, "limit", 25),
-		Offset: intQuery(c, "offset", 0), After: c.Query("after"),
-		Status: c.Query("status"), Type: c.Query("type"),
-	}
 }
