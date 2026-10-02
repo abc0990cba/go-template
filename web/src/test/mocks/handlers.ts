@@ -97,6 +97,8 @@ export const handlers = [
     problem(401, "invalid code", "the code is wrong or expired"),
   ),
   http.post("/api/auth/logout", () => new HttpResponse(null, { status: 204 })),
+  // The reset request always succeeds from the browser's point of view.
+  http.post("/api/auth/forgot-password", () => new HttpResponse(null, { status: 204 })),
 
   http.get("/api/settings/public", () => HttpResponse.json({ demo_mode: "false" })),
 
