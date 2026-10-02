@@ -80,6 +80,47 @@ describe("login page", () => {
     ).toBeInTheDocument();
   });
 
+  it("restores the full table state of a redirect target with search params", async () => {
+    server.use(
+      http.post("/api/auth/login", () => HttpResponse.json({ user: meFixture(), token: "tok-1" })),
+      http.get("/api/me", () => HttpResponse.json(meFixture())),
+    );
+    // The guard encodes location.href, query string included; the ticket
+    // list keeps its table state in the URL and must get it back.
+    const redirect = encodeURIComponent("/tickets?mode=cursor&view=paged&page=2");
+    const { router } = renderRoute(`/login?redirect=${redirect}`);
+    await openLoginForm();
+
+    await submitLoginForm();
+    await waitFor(() => expect(router.state.location.pathname).toBe("/tickets"), {
+      timeout: 4000,
+    });
+    expect(router.state.location.search).toMatchObject({
+      mode: "cursor",
+      view: "paged",
+      page: 2,
+    });
+  });
+
+  it.each(["https://evil.com", "//evil.com"])(
+    "falls back to the dashboard for the unsafe redirect %s",
+    async (unsafe) => {
+      server.use(
+        http.post("/api/auth/login", () =>
+          HttpResponse.json({ user: meFixture(), token: "tok-1" }),
+        ),
+        http.get("/api/me", () => HttpResponse.json(meFixture())),
+      );
+      const { router } = renderRoute(`/login?redirect=${encodeURIComponent(unsafe)}`);
+      await openLoginForm();
+
+      await submitLoginForm();
+      await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"), {
+        timeout: 4000,
+      });
+    },
+  );
+
   it("renders the demo picker when demo mode is on", async () => {
     server.use(http.get("/api/settings/public", () => HttpResponse.json({ demo_mode: "true" })));
     renderRoute("/login");

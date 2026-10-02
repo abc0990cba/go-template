@@ -38,15 +38,20 @@ test.describe("auth journey", () => {
   });
 
   test("returns to the saved location after signing in", async ({ page }) => {
-    // Heading somewhere guarded while anonymous lands on /login?redirect=…
-    // (/profile keeps no search params; list pages carry their table state
-    // in the URL, which the login card deliberately refuses to redirect to.)
-    await page.goto("/profile");
+    // Deep-link a guarded list page while anonymous: the guard encodes the
+    // full href (table state included) into /login?redirect=…, and signing
+    // in must restore exactly that view.
+    await page.goto("/tickets?mode=cursor&view=paged&page=2");
     await expect(page).toHaveURL(/\/login/);
     await page.getByPlaceholder("you@example.com").fill(admin.email);
     await page.getByPlaceholder("••••••••").fill(admin.password);
     await page.locator("form").getByRole("button", { name: "Sign in" }).click();
-    await expect(page).toHaveURL(/\/profile/, { timeout: 15_000 });
-    await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+
+    await expect(page).toHaveURL(/\/tickets/, { timeout: 15_000 });
+    const back = new URL(page.url());
+    expect(back.pathname).toBe("/tickets");
+    expect(back.searchParams.get("mode")).toBe("cursor");
+    expect(back.searchParams.get("page")).toBe("2");
+    await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
   });
 });

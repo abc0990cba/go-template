@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, useNavigate, type FileRouteTypes } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -64,9 +64,14 @@ function LoginPage() {
     // judge the new account by its actual permissions.
     queryClient.clear();
     await queryClient.fetchQuery(meQuery());
-    const fallback: FileRouteTypes["to"] = "/dashboard";
-    const target = (search.redirect ?? fallback) as FileRouteTypes["to"];
-    void navigate({ to: target.startsWith("/_") || target.includes("?") ? fallback : target });
+    // Same-origin paths only, query string intact: the client area keeps its
+    // table state in the URL, so a deep link back to
+    // /tickets?mode=cursor&view=paged&page=2 must restore exactly that view.
+    // External URLs and protocol-relative //host fall back to the dashboard.
+    const requested = search.redirect ?? "";
+    const target =
+      requested.startsWith("/") && !requested.startsWith("//") ? requested : "/dashboard";
+    void navigate({ href: target });
   };
 
   const login = useMutation({
