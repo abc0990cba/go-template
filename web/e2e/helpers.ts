@@ -16,6 +16,13 @@ export const requester = {
   name: "Rita Requester",
 };
 
+/** Holds the "approver" role: decides the final step of a chain. */
+export const approver = {
+  email: "demo-u-0005@demo.example",
+  password: "password123",
+  name: "Ari Approver",
+};
+
 /** Drives the login form and waits for the post-login landing page. */
 export async function login(page: Page, email: string, password: string) {
   await page.goto("/login");

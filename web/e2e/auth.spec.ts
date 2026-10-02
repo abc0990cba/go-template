@@ -54,4 +54,21 @@ test.describe("auth journey", () => {
     expect(back.searchParams.get("page")).toBe("2");
     await expect(page.getByRole("heading", { name: "My Tickets" })).toBeVisible();
   });
+
+  test("password reset requests always confirm without revealing accounts", async ({ page }) => {
+    await page.goto("/forgot-password");
+    await page.getByLabel("Email").fill("someone@example.com");
+    await page.getByRole("button", { name: "Send reset link" }).click();
+    await expect(
+      page.getByText("If that account exists, a reset link is on its way."),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("reset-password without a token explains itself", async ({ page }) => {
+    await page.goto("/reset-password");
+    await expect(
+      page.getByText("This page needs a token — follow the link from the email."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Update password" })).toBeDisabled();
+  });
 });
