@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { ClientShell } from "@/components/client-shell";
 import { LiveProvider } from "@/hooks/use-event-stream";
-import { ensureAuth } from "@/lib/auth";
+import { ensureAuth } from "@/shared/lib/auth";
 
 /**
  * _client is the pathless layout of the user-facing application: everything

@@ -1,6 +1,6 @@
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import type { PaginationMode } from "@/lib/types";
 
 const MODES: { value: PaginationMode; label: string; hint: string }[] = [

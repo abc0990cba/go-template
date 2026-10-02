@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { queryClient } from "@/lib/router";
+import { queryClient } from "@/shared/lib/query-client";
 
 export const Route = createFileRoute("/admin/analytics")({
   staticData: { title: "Analytics" },

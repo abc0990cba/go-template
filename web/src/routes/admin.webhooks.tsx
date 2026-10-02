@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
-import { ensurePermission } from "@/lib/auth";
+import { ensurePermission } from "@/shared/lib/auth";
 import type { WebhookDelivery, WebhookEndpoint } from "@/lib/types";
 
 export const Route = createFileRoute("/admin/webhooks")({

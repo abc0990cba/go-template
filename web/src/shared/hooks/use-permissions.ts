@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { meQuery } from "@/lib/auth";
+import { meQuery } from "@/shared/lib/auth";
 import type { Me } from "@/lib/types";
 
 /**

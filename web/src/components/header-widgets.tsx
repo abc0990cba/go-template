@@ -16,8 +16,8 @@ import { NotificationBell } from "@/components/notification-bell";
 import { ThemeMenu } from "@/components/theme-menu";
 import { UserAvatar } from "@/components/user-avatar";
 import { setActiveOrg } from "@/lib/api";
-import { meQuery } from "@/lib/auth";
-import { useI18n, type Locale } from "@/lib/i18n";
+import { meQuery } from "@/shared/lib/auth";
+import { useI18n, type Locale } from "@/shared/lib/i18n";
 
 /**
  * HeaderWidgets is the shared right-hand cluster of both shells (admin

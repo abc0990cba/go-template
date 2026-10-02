@@ -30,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/user-avatar";
 import { api } from "@/lib/api";
-import { ensurePermission } from "@/lib/auth";
+import { ensurePermission } from "@/shared/lib/auth";
 import type { Organization } from "@/lib/types";
 // Invitations share the org members dialog surface.
 

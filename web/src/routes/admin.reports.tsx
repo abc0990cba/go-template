@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { FileText, Loader2 } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
-import { useTableView } from "@/hooks/use-paged-list";
+import { useTableView } from "@/shared/hooks/use-paged-list";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { api } from "@/lib/api";
-import { listSearchSchema } from "@/lib/search";
+import { listSearchSchema } from "@/shared/lib/search";
 import type { Report } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
@@ -41,7 +41,7 @@ function ReportsPage() {
     after: search.after,
     q: search.q,
   };
-  const table = useTableView<Report>("reports", params, search.view);
+  const table = useTableView<Report>("reports", api.listReports, params, search.view);
 
   const setSearch = (patch: Partial<typeof search>) => {
     void navigate({ to: "/admin/reports", search: { ...search, ...patch } });

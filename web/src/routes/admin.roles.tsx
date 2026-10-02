@@ -26,8 +26,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { useMe } from "@/hooks/use-permissions";
-import { ensurePermission } from "@/lib/auth";
+import { useMe } from "@/shared/hooks/use-permissions";
+import { ensurePermission } from "@/shared/lib/auth";
 import type { Role, RbacResource } from "@/lib/types";
 
 export const Route = createFileRoute("/admin/roles")({

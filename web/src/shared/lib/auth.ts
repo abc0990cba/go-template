@@ -1,8 +1,9 @@
-import { queryClient } from "./router";
+import { queryClient } from "@/shared/lib/query-client";
 import { queryOptions } from "@tanstack/react-query";
 import { redirect } from "@tanstack/react-router";
-import { api } from "./api";
-import type { Me } from "./types";
+import { api } from "@/lib/api";
+import { http } from "@/shared/api/core";
+import type { Me } from "@/shared/types/core";
 
 /**
  * Session query: the SPA's single source of truth for "who is logged in".
@@ -11,7 +12,7 @@ import type { Me } from "./types";
 export function meQuery() {
   return queryOptions({
     queryKey: ["me"],
-    queryFn: api.me,
+    queryFn: () => http.get<Me>("/api/me"),
     staleTime: 60_000,
     retry: false,
   });

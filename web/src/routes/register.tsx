@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { meQuery } from "@/lib/auth";
+import { meQuery } from "@/shared/lib/auth";
 
 export const Route = createFileRoute("/register")({
   staticData: { title: "Register" },

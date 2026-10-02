@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/user-avatar";
-import { useDebounced, useTableView } from "@/hooks/use-paged-list";
-import { ensurePermission } from "@/lib/auth";
-import { listSearchSchema, type ListSearch } from "@/lib/search";
+import { useDebounced, useTableView } from "@/shared/hooks/use-paged-list";
+import { api } from "@/lib/api";
+import { ensurePermission } from "@/shared/lib/auth";
+import { listSearchSchema, type ListSearch } from "@/shared/lib/search";
 import type { AuditEntry } from "@/lib/types";
 
 export const Route = createFileRoute("/admin/audit")({
@@ -44,7 +45,7 @@ function AuditPage() {
     resource: debouncedResource || undefined,
     resource_id: debouncedResourceId || undefined,
   };
-  const table = useTableView<AuditEntry>("audit", params, search.view);
+  const table = useTableView<AuditEntry>("audit", api.listAudit, params, search.view);
 
   const setSearch = (patch: Partial<ListSearch>) => {
     void navigate({ to: "/admin/audit", search: { ...search, ...patch } });

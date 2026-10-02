@@ -8,8 +8,8 @@ import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { TicketStatusBadge, ticketLabel } from "@/components/ticket-status-badge";
 import { useLive } from "@/hooks/use-event-stream";
-import { useTableView } from "@/hooks/use-paged-list";
-import { useCan } from "@/hooks/use-permissions";
+import { useTableView } from "@/shared/hooks/use-paged-list";
+import { useCan } from "@/shared/hooks/use-permissions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
-import { listSearchSchema, type ListSearch } from "@/lib/search";
+import { listSearchSchema, type ListSearch } from "@/shared/lib/search";
 import type { Ticket } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { z } from "zod";
@@ -66,7 +66,7 @@ function TicketsPage() {
     status: search.status,
     scope,
   };
-  const table = useTableView<Ticket>("tickets", params, search.view);
+  const table = useTableView<Ticket>("tickets", api.listTickets, params, search.view);
   const counts = useQuery({
     queryKey: ["tickets", "counts", scope],
     queryFn: () => api.ticketCounts(scope),

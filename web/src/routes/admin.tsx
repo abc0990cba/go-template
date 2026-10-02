@@ -1,7 +1,7 @@
 import { Outlet, createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { LiveProvider } from "@/hooks/use-event-stream";
-import { ensurePermission } from "@/lib/auth";
+import { ensurePermission } from "@/shared/lib/auth";
 
 /**
  * /admin is the back-office namespace. The layout guard checks the

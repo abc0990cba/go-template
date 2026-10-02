@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ensurePermission } from "@/lib/auth";
+import { ensurePermission } from "@/shared/lib/auth";
 import { api } from "@/lib/api";
 import type { DeadLetter, OutboxEvent } from "@/lib/types";
 

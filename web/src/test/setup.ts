@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, vi } from "vitest";
-import { queryClient } from "@/lib/router";
+import { queryClient } from "@/shared/lib/query-client";
 import { MockEventSource } from "./event-source";
 import { server } from "./mocks/server";
 

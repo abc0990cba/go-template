@@ -39,7 +39,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { useCan } from "@/hooks/use-permissions";
+import { useCan } from "@/shared/hooks/use-permissions";
 import type { User } from "@/lib/types";
 
 export const Route = createFileRoute("/admin/users_/$userId")({

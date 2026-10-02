@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { meQuery } from "@/lib/auth";
+import { meQuery } from "@/shared/lib/auth";
 import { DemoAccountPicker } from "@/components/demo-account-picker";
-import { I18nProvider } from "@/lib/i18n";
+import { I18nProvider } from "@/shared/lib/i18n";
 
 const searchSchema = z.object({
   redirect: z.string().optional(),

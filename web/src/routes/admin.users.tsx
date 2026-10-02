@@ -3,7 +3,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useTableView } from "@/hooks/use-paged-list";
+import { useTableView } from "@/shared/hooks/use-paged-list";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { listSearchSchema, type ListSearch } from "@/lib/search";
+import { listSearchSchema, type ListSearch } from "@/shared/lib/search";
 import type { User } from "@/lib/types";
 import {
   Form,
@@ -81,7 +81,7 @@ function UsersPage() {
     q: search.q,
   };
 
-  const table = useTableView<User>("users", params, search.view);
+  const table = useTableView<User>("users", api.listUsers, params, search.view);
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["users"] });

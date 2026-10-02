@@ -19,9 +19,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useTableView } from "@/hooks/use-paged-list";
+import { useTableView } from "@/shared/hooks/use-paged-list";
 import { api } from "@/lib/api";
-import { listSearchSchema, type ListSearch } from "@/lib/search";
+import { listSearchSchema, type ListSearch } from "@/shared/lib/search";
 import type { Ticket, TicketDecision } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 
@@ -51,7 +51,7 @@ function ApprovalsPage() {
     after: search.after,
     q: search.q,
   };
-  const inbox = useTableView<Ticket>("approvals", params, search.view);
+  const inbox = useTableView<Ticket>("approvals", api.approvals, params, search.view);
   const decided = useQuery({
     queryKey: ["approvals", "decided"],
     queryFn: () => api.decidedApprovals(50),

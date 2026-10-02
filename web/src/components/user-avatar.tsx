@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 
 /**
  * Deterministic gradient pairs (Tailwind v4 linear-gradient utilities). The

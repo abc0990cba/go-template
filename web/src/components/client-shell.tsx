@@ -28,9 +28,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AccountAvatar, HeaderWidgets } from "@/components/header-widgets";
 import { DemoAccountPicker } from "@/components/demo-account-picker";
-import { useCan, useMe } from "@/hooks/use-permissions";
+import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import { api } from "@/lib/api";
-import { I18nProvider, useI18n } from "@/lib/i18n";
+import { I18nProvider, useI18n } from "@/shared/lib/i18n";
 
 // Header chrome shared with the admin shell.
 import { ImpersonationBanner } from "@/components/app-shell";

@@ -5,12 +5,12 @@ import { toast } from "sonner";
 import { CloudDownload, Loader2 } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
-import { useTableView } from "@/hooks/use-paged-list";
+import { useTableView } from "@/shared/hooks/use-paged-list";
 import { useLive } from "@/hooks/use-event-stream";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { listSearchSchema } from "@/lib/search";
+import { listSearchSchema } from "@/shared/lib/search";
 import type { EnrichmentProfile } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useState } from "react";
@@ -35,7 +35,12 @@ function EnrichmentPage() {
     offset: search.mode === "offset" ? (search.page - 1) * limit : 0,
     after: search.after,
   };
-  const table = useTableView<EnrichmentProfile>("enrichment-profiles", params, search.view);
+  const table = useTableView<EnrichmentProfile>(
+    "enrichment-profiles",
+    api.listEnrichmentProfiles,
+    params,
+    search.view,
+  );
 
   const setSearch = (patch: Partial<typeof search>) => {
     void navigate({ to: "/admin/enrichment", search: { ...search, ...patch } });

@@ -1,8 +1,8 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { UserAvatar } from "@/components/user-avatar";
-import { meQuery } from "@/lib/auth";
-import { useI18n } from "@/lib/i18n";
+import { meQuery } from "@/shared/lib/auth";
+import { useI18n } from "@/shared/lib/i18n";
 
 /**
  * IdentityChip answers "on whose behalf am I looking at the service":

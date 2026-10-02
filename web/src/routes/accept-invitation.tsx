@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { meQuery } from "@/lib/auth";
+import { meQuery } from "@/shared/lib/auth";
 
 interface AcceptSearch {
   token?: string;

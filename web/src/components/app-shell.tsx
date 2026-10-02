@@ -65,9 +65,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { HeaderWidgets, AccountAvatar } from "@/components/header-widgets";
 import { api } from "@/lib/api";
-import { meQuery } from "@/lib/auth";
-import { useCan } from "@/hooks/use-permissions";
-import { I18nProvider, useI18n } from "@/lib/i18n";
+import { meQuery } from "@/shared/lib/auth";
+import { useCan } from "@/shared/hooks/use-permissions";
+import { I18nProvider, useI18n } from "@/shared/lib/i18n";
 
 interface NavItem {
   to: string;
@@ -77,7 +77,7 @@ interface NavItem {
   /** Catalog permission gating the item; hidden when the caller lacks it. */
   permission?: [string, string];
   /** i18n key; falls back to the English title. */
-  key?: import("@/lib/i18n").TKey;
+  key?: import("@/shared/lib/i18n").TKey;
 }
 
 const NAV_MAIN: NavItem[] = [

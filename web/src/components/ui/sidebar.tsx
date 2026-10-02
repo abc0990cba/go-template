@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { PanelLeftIcon } from "lucide-react";
 import { Slot } from "radix-ui";
 
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/shared/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";

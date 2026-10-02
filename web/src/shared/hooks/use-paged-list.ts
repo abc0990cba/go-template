@@ -1,7 +1,6 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { api } from "@/lib/api";
-import type { ListParams, Paged } from "@/lib/types";
+import type { ListParams, Paged } from "@/shared/api/pagination";
 
 /** ListParams plus the ticket listing's scope/priority extras. */
 export type PagedListParams = Partial<ListParams> & {
@@ -13,16 +12,6 @@ export type PagedListParams = Partial<ListParams> & {
   resource_id?: string;
 };
 
-/** Resources whose endpoints speak the shared offset/cursor/keyset vocabulary. */
-export type PagedListResource =
-  | "users"
-  | "jobs"
-  | "reports"
-  | "enrichment-profiles"
-  | "tickets"
-  | "approvals"
-  | "audit";
-
 interface ListOptions {
   /** Gate the query: only the view currently on screen should hit the network. */
   enabled?: boolean;
@@ -30,18 +19,20 @@ interface ListOptions {
 
 /**
  * usePagedList wraps any paginated collection endpoint in a TanStack Query.
- * The query key embeds the full parameter set, so switching pagination mode,
- * page, or filters dedupes and caches independently — the dedupe
- * requirement lives here, in one place.
+ * The caller names the list (query key) and hands in its feature's fetch
+ * function — this hook stays transport-agnostic, shared knows no features.
+ * The key embeds the full parameter set, so switching pagination mode,
+ * page, or filters dedupes and caches independently.
  */
 export function usePagedList<T>(
-  resource: PagedListResource,
+  key: string,
+  fetchPage: (params: PagedListParams) => Promise<Paged<T>>,
   params: PagedListParams,
   options?: ListOptions,
 ) {
   return useQuery({
-    queryKey: [resource, params],
-    queryFn: () => fetchPage<T>(resource, params),
+    queryKey: [key, params],
+    queryFn: () => fetchPage(params),
     placeholderData: keepPreviousData,
     enabled: options?.enabled,
   });
@@ -60,15 +51,16 @@ export type InfinitePageParam = number | string;
  * cursor/keyset modes chain next_cursor.
  */
 export function useInfiniteList<T>(
-  resource: PagedListResource,
+  key: string,
+  fetchPage: (params: PagedListParams) => Promise<Paged<T>>,
   params: PagedListParams,
   options?: ListOptions,
 ) {
   const mode = params.mode ?? "offset";
   return useInfiniteQuery({
-    queryKey: [resource, "infinite", params],
+    queryKey: [key, "infinite", params],
     queryFn: ({ pageParam }) =>
-      fetchPage<T>(resource, {
+      fetchPage({
         ...params,
         offset: mode === "offset" ? Number(pageParam) : 0,
         after: mode === "offset" ? "" : String(pageParam),
@@ -105,15 +97,17 @@ export function infiniteRows<T>(result: { data?: { pages: Paged<T>[] } }): T[] {
  * the top.
  */
 export function useTableView<T>(
-  resource: PagedListResource,
+  key: string,
+  fetchPage: (params: PagedListParams) => Promise<Paged<T>>,
   params: PagedListParams,
   view: "paged" | "infinite",
 ) {
   const isInfinite = view === "infinite";
-  const paged = usePagedList<T>(resource, params, { enabled: !isInfinite });
+  const paged = usePagedList<T>(key, fetchPage, params, { enabled: !isInfinite });
   // The feed ignores the URL's page/after position: offset 0 / no cursor.
   const infinite = useInfiniteList<T>(
-    resource,
+    key,
+    fetchPage,
     { ...params, offset: 0, after: "" },
     {
       enabled: isInfinite,
@@ -142,25 +136,6 @@ export function useTableView<T>(
     isFetchingMore: false,
     loadMore: () => {},
   };
-}
-
-function fetchPage<T>(resource: PagedListResource, params: PagedListParams): Promise<Paged<T>> {
-  switch (resource) {
-    case "users":
-      return api.listUsers(params) as Promise<Paged<T>>;
-    case "jobs":
-      return api.listJobs(params) as Promise<Paged<T>>;
-    case "reports":
-      return api.listReports(params) as Promise<Paged<T>>;
-    case "tickets":
-      return api.listTickets(params) as Promise<Paged<T>>;
-    case "approvals":
-      return api.approvals(params) as Promise<Paged<T>>;
-    case "audit":
-      return api.listAudit(params) as Promise<Paged<T>>;
-    default:
-      return api.listEnrichmentProfiles(params) as Promise<Paged<T>>;
-  }
 }
 
 /** useDebounced delays a rapidly changing value (e.g. search input). */

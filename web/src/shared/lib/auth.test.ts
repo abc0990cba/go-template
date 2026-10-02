@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { ensureAuth, ensurePermission } from "./auth";
-import { queryClient } from "./router";
+import { queryClient } from "@/shared/lib/query-client";
 import { meFixture } from "@/test/mocks/handlers";
 
 // These guards run through the shared query client (lib/router); MSW's

@@ -27,7 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { meQuery, oauthProvidersQuery } from "@/lib/auth";
+import { meQuery, oauthProvidersQuery } from "@/shared/lib/auth";
 import type { AuthIdentity } from "@/lib/types";
 import { z } from "zod";
 

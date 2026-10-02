@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { ArrowRight, CheckCheck, FileText, ShieldCheck } from "lucide-react";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { TicketStatusBadge, ticketLabel } from "@/components/ticket-status-badge";
-import { useCan, useMe } from "@/hooks/use-permissions";
+import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";

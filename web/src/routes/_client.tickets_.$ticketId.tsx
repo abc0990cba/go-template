@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { TicketStatusBadge, ticketLabel } from "@/components/ticket-status-badge";
-import { useCan, useMe } from "@/hooks/use-permissions";
+import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import {
   AlertDialog,
   AlertDialogAction,

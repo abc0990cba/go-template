@@ -14,8 +14,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { api } from "@/lib/api";
-import { meQuery } from "@/lib/auth";
-import { useI18n } from "@/lib/i18n";
+import { meQuery } from "@/shared/lib/auth";
+import { useI18n } from "@/shared/lib/i18n";
 import { demoAccounts, type DemoAccount } from "@/lib/demo-accounts";
 import { UserAvatar } from "@/components/user-avatar";
 

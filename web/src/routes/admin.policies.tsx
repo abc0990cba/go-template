@@ -16,8 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
-import { useMe } from "@/hooks/use-permissions";
-import { ensurePermission } from "@/lib/auth";
+import { useMe } from "@/shared/hooks/use-permissions";
+import { ensurePermission } from "@/shared/lib/auth";
 import type { PolicyRule } from "@/lib/types";
 
 export const Route = createFileRoute("/admin/policies")({

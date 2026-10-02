@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import type { AuditEntry } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn } from "@/shared/lib/utils";
 import { UserAvatar } from "@/components/user-avatar";
 
 /** How the timeline presents one audit action. */

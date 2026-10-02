@@ -1,17 +1,12 @@
 // Domain types mirroring the JSON contract in api/openapi/openapi.yaml.
 // All timestamps arrive as ISO-8601 strings.
 
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  external_ref?: string;
-  enrich_profile?: string;
-  enrich_contact?: string;
-  enriched_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
+export type { User, Me, SessionInfo } from "@/shared/types/core";
+export type { Paged, ListParams, PaginationMode, ViewMode } from "@/shared/api/pagination";
+
+// Re-exported for one release of the migration; import from the owning
+// feature (or @/shared/types/core) instead.
+export type { User as UserLegacy } from "@/shared/types/core";
 
 export interface OutboxEvent {
   id: string;
@@ -43,13 +38,6 @@ export interface AuthIdentity {
   avatar_url: string;
   linked_at: string;
   last_login_at: string;
-}
-
-export interface SessionInfo {
-  id: string;
-  created_at: string;
-  expires_at: string;
-  current: boolean;
 }
 
 export type JobStatus = "queued" | "running" | "done" | "failed";
@@ -175,44 +163,6 @@ export interface RbacResource {
 export interface Permission {
   object: string;
   action: string;
-}
-
-/** GET /api/me: the account plus the RBAC context the UI gates on. */
-export interface Me extends User {
-  orgs: Organization[];
-  active_org: string;
-  roles: string[];
-  permissions: string[];
-  impersonated: boolean;
-  impersonator_id?: string;
-  impersonator_name?: string;
-}
-
-/** One page of a server-paginated collection. */
-export interface Paged<T> {
-  data: T[];
-  next_cursor: string;
-}
-
-/** The shared pagination vocabulary of every list endpoint. */
-export type PaginationMode = "offset" | "cursor" | "keyset";
-
-/**
- * How a table presents pages: classic controls (Prev/Next) or a continuous
- * feed that appends rows as the user scrolls. Independent of the strategy —
- * infinite scroll works over offset, cursor, and keyset alike.
- */
-export type ViewMode = "paged" | "infinite";
-
-export interface ListParams {
-  mode: PaginationMode;
-  limit: number;
-  offset: number;
-  after: string;
-  q: string;
-  status: string;
-  type: string;
-  user_id: string;
 }
 
 export interface AuditEntry {

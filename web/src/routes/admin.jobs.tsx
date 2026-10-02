@@ -6,7 +6,7 @@ import { Play, RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/data-table/data-table";
 import { ExplainerBanner } from "@/components/explainer-banner";
 import { useLive } from "@/hooks/use-event-stream";
-import { useTableView } from "@/hooks/use-paged-list";
+import { useTableView } from "@/shared/hooks/use-paged-list";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
-import { listSearchSchema, type ListSearch } from "@/lib/search";
+import { listSearchSchema, type ListSearch } from "@/shared/lib/search";
 import type { Job } from "@/lib/types";
 import type { ColumnDef } from "@tanstack/react-table";
 import { StatusBadge } from "@/components/status-badge";
@@ -42,7 +42,7 @@ function JobsPage() {
     q: search.q,
     status: search.status,
   };
-  const table = useTableView<Job>("jobs", params, search.view);
+  const table = useTableView<Job>("jobs", api.listJobs, params, search.view);
 
   const setSearch = (patch: Partial<ListSearch>) => {
     void navigate({ to: "/admin/jobs", search: { ...search, ...patch } });
