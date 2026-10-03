@@ -1,0 +1,45 @@
+---
+# `make vps-deploy` — the one command. Idempotent full converge:
+#   1. base system (hardening, docker, nomad + TLS + ACLs)
+#   2. data services, application, CI, caddy TLS, monitoring, backups
+#   3. smoke check through the public URL + summary
+- name: Base system
+  hosts: vps
+  become: true
+  roles:
+    - common
+    - docker
+    - nomad
+
+- name: Stack
+  hosts: vps
+  become: true
+  roles:
+    - nomad_jobs
+    - backup
+
+- name: Smoke check + summary
+  hosts: vps
+  become: true
+  tasks:
+    - name: Wait for https://{{ app_domain }}/health/ready through caddy
+      ansible.builtin.uri:
+        url: "https://{{ app_domain }}/health/ready"
+        validate_certs: "{{ not (acme_staging | bool) }}"   # staging certs are untrusted on purpose
+        status_code: 200
+      register: smoke
+      retries: 30
+      delay: 10
+      until: smoke.status == 200
+
+    - name: Deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "App:         https://{{ app_domain }}"
+          - "CI:          {{ 'https://' ~ ci_domain if (ci_enabled | bool and ci_domain) else 'disabled' }}"
+          - "Grafana:     {{ 'https://' ~ grafana_domain if (monitoring_enabled | bool and grafana_domain) else 'disabled' }} (admin password in secrets.yml)"
+          - "Grafana local tunnel: make vps-ui"
+          - "Nomad UI tunnel:      make vps-ui"
+          - "Deploy a new version: push a v* tag (CI builds + deploys) or: make vps-app-deploy TAG=..."
+          - "Rollback:             make vps-rollback"
+          - "Backups:              nightly at {{ backup_at }} UTC-local, restore: make vps-restore FILE=..."

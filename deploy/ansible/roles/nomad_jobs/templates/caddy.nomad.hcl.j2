@@ -1,0 +1,75 @@
+// Caddy — automatic HTTPS (Let's Encrypt obtain + renew + hot reload is fully
+// built in), HTTP->HTTPS redirect, and the public front door for every site.
+// The Caddyfile is rendered by Ansible at /opt/go-template/configs/caddy/.
+// If Phase 2 ever needs Nomad service discovery, Traefik replaces exactly this
+// one job file.
+job "caddy" {
+  type = "service"
+
+  group "proxy" {
+    count = 1
+
+    volume "caddydata" {
+      type   = "host"
+      source = "caddydata"
+    }
+
+    volume "configs" {
+      type      = "host"
+      source    = "configs"
+      read_only = true
+    }
+
+    update {
+      max_parallel     = 1
+      min_healthy_time = "10s"
+      healthy_deadline = "3m"
+      auto_revert      = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    service {
+      name     = "caddy"
+      port     = "443"
+      provider = "nomad"
+
+      check {
+        type     = "tcp"
+        interval = "15s"
+        timeout  = "3s"
+      }
+    }
+
+    task "caddy" {
+      driver = "docker"
+
+      config {
+        image        = "{{ caddy_image }}"
+        network_mode = "host"
+        args         = ["run", "--config", "/conf/caddy/Caddyfile", "--adapter", "caddyfile"]
+      }
+
+      volume_mount {
+        volume      = "caddydata"
+        destination = "/data"
+      }
+
+      volume_mount {
+        volume      = "configs"
+        destination = "/conf"
+        read_only   = true
+      }
+
+      resources {
+        cpu    = 200
+        memory = 128
+      }
+    }
+  }
+}

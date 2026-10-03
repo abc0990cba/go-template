@@ -1,0 +1,48 @@
+# =============================================================================
+# Dev VPS knobs (Phase-2 scaffold). Same schema as prod's main.yml; only the
+# recommended deltas are spelled out — add more keys to override prod
+# defaults. Secrets live in secrets.yml (VPS_SITE=dev make vps-setup).
+# =============================================================================
+
+vps_deploy_user: deploy
+
+# Dev profile: build on prod CI and deploy the same tag here — the small dev
+# box skips its own CI. Set app_image_tag to a tag CI produced on prod.
+ci_enabled: false
+monitoring_enabled: true
+alert_receiver: none
+prometheus_retention: 7d
+
+app_image: 127.0.0.1:5000/go-template
+app_image_tag: v0.1.0        # pin a tag built by prod CI; the bootstrap build can also produce one
+bootstrap_repo_url: https://github.com/your-org/go-template.git
+
+api_replicas: 1
+app_report_cron: "0 3 * * *"
+
+app_smtp_host: ""
+app_smtp_port: "587"
+app_smtp_username: ""
+app_smtp_from: "no-reply@{{ app_domain }}"
+
+# Keep versions in lockstep with prod unless you are testing an upgrade.
+nomad_version: "1.10"
+docker_apt_version: "5:28"
+caddy_image: "caddy:2.10.2"
+postgres_image: "postgres:16.9"
+redis_image: "redis:7.4.5-alpine"
+registry_image: "registry:2.8.3"
+woodpecker_image: "woodpeckerci/woodpecker-server:v3"
+woodpecker_agent_image: "woodpeckerci/woodpecker-agent:v3"
+prometheus_image: "prom/prometheus:v3.4.1"
+alertmanager_image: "prom/alertmanager:v0.28.1"
+grafana_image: "grafana/grafana:11.6.0"
+node_exporter_image: "prom/node-exporter:v1.9.1"
+blackbox_exporter_image: "prom/blackbox-exporter:v0.26.0"
+trivy_image: "aquasec/trivy:0.63.0"
+pipeline_nomad_version: "1.10.4"
+
+backup_local_retention_days: 3
+backup_at: "03:15"
+
+vps_base_dir: /opt/go-template

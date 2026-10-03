@@ -1,0 +1,46 @@
+---
+# Nightly Postgres dumps (the only stateful source of truth) + a secrets/TLS
+# archive, with local retention and optional off-site rclone push. Plus a
+# weekly registry garbage-collect to keep the image store from growing.
+- name: Backup script
+  ansible.builtin.template:
+    src: go-template-backup.sh.j2
+    dest: /usr/local/sbin/go-template-backup
+    owner: root
+    mode: "0700"
+
+- name: Registry garbage-collect script
+  ansible.builtin.copy:
+    content: |
+      #!/bin/sh
+      # Weekly registry GC. Runs while the registry is up; delete-mode races are
+      # theoretically possible but tolerable on a single-node VPS (docs/vps/runbook.md).
+      docker run --rm \
+        -v /opt/go-template/data/registry:/var/lib/registry \
+        -e REGISTRY_STORAGE_DELETE_ENABLED=true \
+        {{ registry_image }} garbage-collect /etc/docker/registry/config.yml
+    dest: /usr/local/sbin/go-template-registry-gc
+    owner: root
+    mode: "0700"
+
+- name: Backup systemd units
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: go-template-backup.service.j2, dest: go-template-backup.service }
+    - { src: go-template-backup.timer.j2, dest: go-template-backup.timer }
+    - { src: go-template-registry-gc.service.j2, dest: go-template-registry-gc.service }
+    - { src: go-template-registry-gc.timer.j2, dest: go-template-registry-gc.timer }
+  notify: Reload systemd
+
+- name: Enable and start backup timers
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - go-template-backup.timer
+    - go-template-registry-gc.timer

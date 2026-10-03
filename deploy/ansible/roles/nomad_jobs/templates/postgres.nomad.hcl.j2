@@ -1,0 +1,73 @@
+// Postgres 16 — the only stateful source of truth (see docs/architecture/13).
+// Loopback-only listener; UFW keeps it unreachable from outside the host.
+job "postgres" {
+  type = "service"
+
+  group "db" {
+    count = 1
+
+    volume "pgdata" {
+      type   = "host"
+      source = "pgdata"
+    }
+
+    volume "secrets" {
+      type      = "host"
+      source    = "secrets"
+      read_only = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    service {
+      name     = "postgres"
+      port     = "5432"
+      provider = "nomad"
+
+      check {
+        type     = "tcp"
+        interval = "10s"
+        timeout  = "3s"
+      }
+    }
+
+    task "postgres" {
+      driver = "docker"
+
+      config {
+        image        = "{{ postgres_image }}"
+        network_mode = "host"
+        command      = "postgres"
+        args         = ["-c", "listen_addresses=127.0.0.1"]
+      }
+
+      volume_mount {
+        volume      = "pgdata"
+        destination = "/var/lib/postgresql/data"
+      }
+
+      volume_mount {
+        volume      = "secrets"
+        destination = "/secrets"
+        read_only   = true
+      }
+
+      env {
+        POSTGRES_USER         = "go_template"
+        POSTGRES_DB           = "go_template"
+        POSTGRES_PASSWORD_FILE = "/secrets/pg_password"
+        PGDATA                = "/var/lib/postgresql/data/pgdata"
+      }
+
+      resources {
+        cpu    = 500
+        memory = 512
+      }
+    }
+  }
+}

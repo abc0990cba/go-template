@@ -1,0 +1,45 @@
+#!/bin/bash
+# Managed by Ansible — deploy/ansible/roles/backup
+# Nightly: pg_dump every application database + archive secrets/TLS.
+# Off-site push via rclone when backup_rclone_remote is configured.
+set -euo pipefail
+
+BASE=/opt/go-template/backups
+TS=$(date +%Y%m%d-%H%M%S)
+mkdir -p "$BASE"
+
+PG_CONTAINER=$(docker ps -q --filter name=postgres | head -1)
+if [ -z "$PG_CONTAINER" ]; then
+  echo "postgres container not running; skipping db dump" >&2
+  exit 1
+fi
+
+export PGPASSWORD="$(cat /opt/go-template/secrets/pg_password)"
+
+for db in go_template woodpecker; do
+  if docker exec -e PGPASSWORD="$PGPASSWORD" "$PG_CONTAINER" \
+      psql -U go_template -tAc "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
+    docker run --rm --network host \
+      -v /opt/go-template/backups:/backups \
+      -e PGPASSWORD="$PGPASSWORD" \
+      {{ postgres_image }} \
+      pg_dump -h 127.0.0.1 -U go_template -Fc "$db" -f "/backups/${db}-${TS}.dump"
+    echo "dumped $db -> ${db}-${TS}.dump"
+  fi
+done
+
+tar czf "$BASE/secrets-and-tls-${TS}.tgz" \
+  -C / opt/go-template/secrets etc/nomad.d/tls etc/nomad.d/tokens
+chmod 600 "$BASE"/*
+echo "archived secrets+tls -> secrets-and-tls-${TS}.tgz"
+
+find "$BASE" -type f -mtime +{{ backup_local_retention_days }} -delete
+echo "retention: kept last {{ backup_local_retention_days }} days"
+
+{% if secrets.backup_rclone_remote | default('') %}
+# Off-site copy (restore drills still work from the local dir).
+rclone copy "$BASE" "{{ secrets.backup_rclone_remote }}" --min-age 2m
+echo "pushed to {{ secrets.backup_rclone_remote }}"
+{% endif %}
+
+echo "backup finished at $(date -Is)"

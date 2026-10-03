@@ -1,0 +1,122 @@
+// Woodpecker CI (rendered by Ansible; contains CI secrets, so the rendered
+// file is root-only on the VPS at {{ vps_base_dir }}/jobs/).
+// Server: UI + API, Postgres-backed, behind Caddy at https://{{ ci_domain }}.
+// Agent:  runs pipeline containers via the host docker daemon; a fixed
+//         WOODPECKER_MAX_WORKFLOWS=1 keeps builds from starving a small VPS.
+job "woodpecker" {
+  type = "service"
+
+  group "server" {
+    count = 1
+
+    update {
+      max_parallel     = 1
+      min_healthy_time = "10s"
+      healthy_deadline = "3m"
+      auto_revert      = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    service {
+      name     = "woodpecker"
+      port     = "8000"
+      provider = "nomad"
+
+      check {
+        type     = "http"
+        path     = "/healthz"
+        interval = "15s"
+        timeout  = "3s"
+      }
+    }
+
+    task "server" {
+      driver = "docker"
+
+      config {
+        image        = "{{ woodpecker_image }}"
+        network_mode = "host"
+      }
+
+      env {
+        WOODPECKER_HOST                  = "https://{{ ci_domain }}"
+        WOODPECKER_SERVER_ADDR           = "127.0.0.1:8000"
+        WOODPECKER_GRPC_ADDR             = "127.0.0.1:9000"
+        WOODPECKER_ADMIN                 = "{{ woodpecker_admin_user }}"
+        WOODPECKER_DATABASE_DRIVER       = "postgres"
+        WOODPECKER_DATABASE_DATASOURCE   = "postgres://woodpecker:{{ secrets.postgres_password }}@127.0.0.1:5432/woodpecker?sslmode=disable"
+        WOODPECKER_AGENT_SECRET          = "{{ secrets.woodpecker_agent_secret }}"
+        WOODPECKER_GITHUB                = "true"
+        WOODPECKER_GITHUB_CLIENT_ID      = "{{ secrets.woodpecker_github_client_id }}"
+        WOODPECKER_GITHUB_CLIENT_SECRET  = "{{ secrets.woodpecker_github_client_secret }}"
+        WOODPECKER_LOG_LEVEL             = "info"
+        WOODPECKER_EXPERT                = "true"
+      }
+
+      resources {
+        cpu    = 300
+        memory = 384
+      }
+    }
+  }
+
+  group "agent" {
+    count = 1
+
+    update {
+      max_parallel     = 1
+      min_healthy_time = "10s"
+      healthy_deadline = "3m"
+      auto_revert      = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    service {
+      name     = "woodpecker-agent"
+      port     = "3008"
+      provider = "nomad"
+
+      check {
+        type     = "http"
+        path     = "/healthz"
+        interval = "15s"
+        timeout  = "3s"
+      }
+    }
+
+    task "agent" {
+      driver = "docker"
+
+      config {
+        image        = "{{ woodpecker_agent_image }}"
+        network_mode = "host"
+        volumes      = ["/var/run/docker.sock:/var/run/docker.sock"]
+      }
+
+      env {
+        WOODPECKER_SERVER         = "127.0.0.1:9000"
+        WOODPECKER_AGENT_SECRET   = "{{ secrets.woodpecker_agent_secret }}"
+        WOODPECKER_MAX_WORKFLOWS  = "1"
+        WOODPECKER_HEALTHCHECK    = "true"
+        WOODPECKER_HEALTHCHECK_ADDR = "127.0.0.1:3008"
+      }
+
+      resources {
+        cpu    = 250
+        memory = 256
+      }
+    }
+  }
+}

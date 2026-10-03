@@ -1,0 +1,58 @@
+// OCI registry (distribution) — the primary image store on the VPS.
+// Loopback-only: only the docker daemon on this host pushes/pulls.
+job "registry" {
+  type = "service"
+
+  group "registry" {
+    count = 1
+
+    volume "registrydata" {
+      type   = "host"
+      source = "registrydata"
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    service {
+      name     = "registry"
+      port     = "5000"
+      provider = "nomad"
+
+      check {
+        type     = "tcp"
+        interval = "15s"
+        timeout  = "3s"
+      }
+    }
+
+    task "registry" {
+      driver = "docker"
+
+      config {
+        image        = "{{ registry_image }}"
+        network_mode = "host"
+      }
+
+      volume_mount {
+        volume      = "registrydata"
+        destination = "/var/lib/registry"
+      }
+
+      env {
+        REGISTRY_HTTP_ADDR                    = "127.0.0.1:5000"
+        REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY = "/var/lib/registry"
+        REGISTRY_STORAGE_DELETE_ENABLED       = "true"
+      }
+
+      resources {
+        cpu    = 150
+        memory = 128
+      }
+    }
+  }
+}

@@ -1,0 +1,196 @@
+---
+# Base system hardening for a single-tenant VPS (Ubuntu 22.04/24.04).
+# Ordering matters: the deploy user + SSH keys are in place BEFORE sshd is
+# hardened, so a first bootstrap can never lock its operator out.
+- name: Gather facts
+  ansible.builtin.setup:
+
+- name: Ensure base packages are present
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+      - git
+      - gnupg
+      - unzip
+      - jq
+      - dnsutils
+      - ufw
+      - fail2ban
+      - unattended-upgrades
+      - apt-transport-https
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Apply pending security/regular upgrades
+  ansible.builtin.apt:
+    upgrade: safe
+  # Safe upgrades can take a while on a fresh box; that is expected once.
+
+- name: Create the deploy user
+  ansible.builtin.user:
+    name: "{{ vps_deploy_user }}"
+    shell: /bin/bash
+    groups: []
+    append: true
+
+- name: Allow the deploy user passwordless sudo (automation account)
+  ansible.builtin.copy:
+    content: "{{ vps_deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    dest: "/etc/sudoers.d/90-{{ vps_deploy_user }}"
+    mode: "0440"
+    validate: "visudo -cf %s"
+
+- name: Read the bootstrap user's authorized keys
+  ansible.builtin.slurp:
+    src: "{{ '/root/.ssh/authorized_keys' if ansible_user == 'root' else '/home/' ~ ansible_user ~ '/.ssh/authorized_keys' }}"
+  register: bootstrap_keys_raw
+  failed_when: false
+
+- name: Give the deploy user the bootstrap user's SSH keys
+  ansible.builtin.copy:
+    content: "{{ bootstrap_keys_raw.content | b64decode }}"
+    dest: "/home/{{ vps_deploy_user }}/.ssh/authorized_keys"
+    owner: "{{ vps_deploy_user }}"
+    group: "{{ vps_deploy_user }}"
+    mode: "0600"
+  when: not bootstrap_keys_raw.failed
+  no_log: true
+
+- name: Prepare the deploy user's .ssh directory
+  ansible.builtin.file:
+    path: "/home/{{ vps_deploy_user }}/.ssh"
+    state: directory
+    owner: "{{ vps_deploy_user }}"
+    group: "{{ vps_deploy_user }}"
+    mode: "0700"
+
+- name: Harden sshd (key-only, no root login, explicit allowlist)
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible — deploy/ansible/roles/common
+      PermitRootLogin no
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      X11Forwarding no
+      MaxAuthTries 3
+      # The bootstrap user stays allowed until its next interactive review;
+      # deploy is the automation/operator account.
+      AllowUsers {{ vps_deploy_user }}{{ ' ' ~ ansible_user if ansible_user != vps_deploy_user else '' }}
+    dest: /etc/ssh/sshd_config.d/99-hardening.conf
+    mode: "0644"
+    validate: "sshd -t -f %s"
+  notify: Reload sshd
+
+- name: fail2ban — protect sshd (systemd journal backend)
+  ansible.builtin.copy:
+    content: |
+      # Managed by Ansible — deploy/ansible/roles/common
+      [DEFAULT]
+      backend = systemd
+      bantime = 1h
+      findtime = 10m
+      maxretry = 5
+
+      [sshd]
+      enabled = true
+    dest: /etc/fail2ban/jail.d/99-sshd.local
+    mode: "0644"
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Automatic security upgrades (no automatic reboots)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - src: 20auto-upgrades.j2
+      dest: /etc/apt/apt.conf.d/20auto-upgrades
+    - src: 50unattended-upgrades.j2
+      dest: /etc/apt/apt.conf.d/50unattended-upgrades
+
+- name: UFW — default deny incoming, allow outgoing
+  # ufw prints "Skipping..." on re-runs and always exits 0; treat as unchanged.
+  ansible.builtin.command: "ufw default {{ item }}"
+  changed_when: false
+  loop:
+    - deny incoming
+    - allow outgoing
+
+- name: UFW — allow public service ports
+  ansible.builtin.command: "ufw allow {{ item }}"
+  changed_when: false
+  loop:
+    - 22/tcp comment 'ssh'
+    - 80/tcp comment 'http (caddy acme + redirect)'
+    - 443/tcp comment 'https (caddy)'
+
+- name: UFW — allow Nomad HTTP from loopback and docker networks only
+  # CI pipeline containers (woodpecker) reach the Nomad API over the docker
+  # bridge gateway. TLS + ACL tokens still guard the API; UFW only narrows
+  # which source ranges may even try.
+  ansible.builtin.command: >
+    ufw allow from 172.16.0.0/12 to any port 4646 proto tcp
+    comment 'nomad api from docker networks'
+  changed_when: false
+
+- name: UFW — enable firewall
+  ansible.builtin.command: ufw --force enable
+  # "ufw --force enable" prints the same message whether it just enabled or
+  # was already active, so there is no reliable changed signal — treat as
+  # unchanged and verify with `ufw status` when debugging.
+  changed_when: false
+
+- name: Directory layout under {{ vps_base_dir }}
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('root') }}"
+    group: "{{ item.group | default('root') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: "{{ vps_base_dir }}" }
+    - { path: "{{ vps_base_dir }}/data" }
+    # Per-service data dirs, owned by the uid the container image runs as.
+    - { path: "{{ vps_base_dir }}/data/postgres", owner: 999,  group: 999 }
+    - { path: "{{ vps_base_dir }}/data/redis",    owner: 999,  group: 999 }
+    - { path: "{{ vps_base_dir }}/data/caddy" }
+    - { path: "{{ vps_base_dir }}/data/registry", owner: 100,  group: 101 }
+    - { path: "{{ vps_base_dir }}/data/prometheus", owner: 65534, group: 65534 }
+    - { path: "{{ vps_base_dir }}/data/alertmanager", owner: 65534, group: 65534 }
+    - { path: "{{ vps_base_dir }}/data/grafana", owner: 472,  group: 472 }
+    # Rendered secrets — the app image runs as distroless nonroot (65532).
+    - { path: "{{ vps_base_dir }}/secrets", owner: 65532, group: 65532, mode: "0700" }
+    # Rendered nomad jobs + var files (contain no secrets except woodpecker's job).
+    - { path: "{{ vps_base_dir }}/jobs", mode: "0750" }
+    # Rendered service configs (caddy/prometheus/alertmanager/grafana), ro-mounted.
+    - { path: "{{ vps_base_dir }}/configs" }
+    - { path: "{{ vps_base_dir }}/configs/caddy" }
+    - { path: "{{ vps_base_dir }}/configs/prometheus/rules" }
+    - { path: "{{ vps_base_dir }}/configs/alertmanager" }
+    - { path: "{{ vps_base_dir }}/configs/grafana/provisioning/datasources" }
+    - { path: "{{ vps_base_dir }}/configs/grafana/provisioning/dashboards" }
+    - { path: "{{ vps_base_dir }}/configs/grafana/dashboards" }
+    # Nightly dumps.
+    - { path: "{{ vps_base_dir }}/backups", mode: "0700" }
+
+- name: rclone config for off-site backups (when configured)
+  ansible.builtin.copy:
+    content: "{{ secrets.backup_rclone_config }}\n"
+    dest: /root/.config/rclone/rclone.conf
+    mode: "0600"
+  when: (secrets.backup_rclone_config | default('')) | length > 0
+  no_log: true
+
+- name: rclone present for off-site backups (when configured)
+  ansible.builtin.apt:
+    name: rclone
+    state: present
+  when: (secrets.backup_rclone_remote | default('')) | length > 0

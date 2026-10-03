@@ -1,0 +1,19 @@
+# Dev VPS inventory scaffold (Phase 2).
+#
+# The dev environment is the same playbooks against a second (smaller) VPS.
+# To bring it up:
+#   1. cp hosts.yml.example hosts.yml            # fill in the dev VPS IP
+#   2. VPS_SITE=dev make vps-setup               # its own domains + secrets + vault
+#   3. VPS_SITE=dev make vps-doctor && VPS_SITE=dev make vps-deploy
+#
+# Recommended dev profile (edit group_vars/vps/main.yml):
+#   ci_enabled: false            # build on prod CI, deploy the same tag here
+#   app_image_tag: <tag>         # pin the tag CI produced on prod
+#   monitoring_enabled: true     # cheap enough; keep the dashboards
+all:
+  children:
+    vps:
+      hosts:
+        go-template-dev:
+          ansible_host: REPLACE_WITH_DEV_VPS_IP
+          ansible_user: root

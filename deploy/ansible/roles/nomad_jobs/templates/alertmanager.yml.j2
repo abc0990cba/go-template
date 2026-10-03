@@ -1,0 +1,46 @@
+# Managed by Ansible — deploy/ansible/roles/nomad_jobs (rendered from
+# alertmanager.yml.j2). Firing alerts are always visible in the Alertmanager
+# UI (SSH tunnel: make vps-ui). The configured receiver (alert_receiver in
+# main.yml) decides where they ALSO go; "none" keeps alerts UI-only.
+global:
+  resolve_timeout: 5m
+{% if alert_receiver == 'email' %}
+  smtp_from: "{{ secrets.alerting_smtp_from }}"
+  smtp_smarthost: "{{ secrets.alerting_smtp_host }}:{{ secrets.alerting_smtp_port }}"
+  smtp_auth_username: "{{ secrets.alerting_smtp_username }}"
+  smtp_auth_password: "{{ secrets.alerting_smtp_password }}"
+{% endif %}
+
+route:
+  receiver: {{ 'null-sink' if alert_receiver == 'none' else alert_receiver + '-sink' }}
+  group_by: ["alertname", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts page; warnings ticket.
+    - matchers: [severity="critical"]
+      receiver: {{ 'null-sink' if alert_receiver == 'none' else alert_receiver + '-sink' }}
+      group_wait: 10s
+      repeat_interval: 2h
+
+receivers:
+  - name: null-sink
+{% if alert_receiver == 'telegram' %}
+  - name: telegram-sink
+    telegram_configs:
+      - bot_token: "{{ secrets.telegram_bot_token }}"
+        chat_id: {{ secrets.telegram_chat_id }}
+        send_resolved: true
+{% elif alert_receiver == 'slack' %}
+  - name: slack-sink
+    slack_configs:
+      - api_url: "{{ secrets.slack_webhook_url }}"
+        channel: "#alerts"
+        send_resolved: true
+{% elif alert_receiver == 'email' %}
+  - name: email-sink
+    email_configs:
+      - to: "{{ secrets.alerting_smtp_to }}"
+        send_resolved: true
+{% endif %}

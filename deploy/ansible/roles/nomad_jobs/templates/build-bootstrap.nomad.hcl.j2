@@ -1,0 +1,55 @@
+// One-shot bootstrap build (rendered by Ansible). Used exactly once, by the
+// first `make vps-deploy`, before Woodpecker CI exists: clones the repo on the
+// VPS, builds the production image, and pushes it to the local registry so
+// the app job has something to pull. Later images come from CI, never from
+// this job.
+job "build-bootstrap" {
+  type = "batch"
+
+  group "build" {
+    count = 1
+
+    # Fail visibly instead of silently retrying a broken build.
+    restart {
+      attempts = 0
+      mode     = "fail"
+    }
+
+    task "build" {
+      driver = "docker"
+
+      config {
+        image        = "docker:28"
+        network_mode = "host"
+        command      = "sh"
+        volumes      = ["/var/run/docker.sock:/var/run/docker.sock"]
+        args = [
+          "-c",
+          "set -e; apk add --no-cache git ca-certificates >/dev/null; (git clone --depth 1 --branch $IMAGE_TAG $REPO_URL /src || git clone --depth 1 $REPO_URL /src); cd /src; docker build --build-arg VERSION=$IMAGE_TAG --build-arg COMMIT=$COMMIT_SHA --build-arg DATE=$BUILD_DATE -t 127.0.0.1:5000/go-template:$IMAGE_TAG .; docker push 127.0.0.1:5000/go-template:$IMAGE_TAG",
+        ]
+      }
+
+      env {
+        REPO_URL   = "{{ bootstrap_repo_url }}"
+        IMAGE_TAG  = "{{ app_image_tag }}"
+        COMMIT_SHA = "bootstrap"
+        BUILD_DATE = "{{ ansible_date_time.iso8601 }}"
+      }
+
+      resources {
+        cpu    = 1500
+        memory = 1536
+      }
+
+      logs {
+        max_files     = 3
+        max_file_size = 10
+      }
+    }
+  }
+
+  reschedule {
+    attempts  = 0
+    unlimited = false
+  }
+}

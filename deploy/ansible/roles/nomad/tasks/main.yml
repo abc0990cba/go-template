@@ -1,0 +1,256 @@
+---
+# Nomad single-node (server + client on one VPS): pinned apt install,
+# Ansible-managed internal CA for mTLS, ACLs on with Ansible-managed tokens.
+- name: HashiCorp apt keyring
+  ansible.builtin.get_url:
+    url: https://apt.releases.hashicorp.com/gpg
+    dest: /etc/apt/keyrings/hashicorp.asc
+    mode: "0644"
+
+- name: HashiCorp apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }} signed-by=/etc/apt/keyrings/hashicorp.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
+    filename: hashicorp
+    state: present
+
+- name: Install Nomad (version-pinned)
+  ansible.builtin.apt:
+    name: "nomad={{ nomad_version }}*"
+    state: present
+    update_cache: true
+
+- name: TLS directory
+  ansible.builtin.file:
+    path: /etc/nomad.d/tls
+    state: directory
+    owner: root
+    mode: "0700"
+
+- name: Internal CA private key
+  ansible.builtin.command:
+    argv: [openssl, genrsa, -out, /etc/nomad.d/tls/ca-key.pem, "4096"]
+  args:
+    creates: /etc/nomad.d/tls/ca-key.pem
+
+- name: Internal CA certificate (10y)
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -new
+      - -key
+      - /etc/nomad.d/tls/ca-key.pem
+      - -sha256
+      - -days
+      - "3650"
+      - -out
+      - /etc/nomad.d/tls/ca.pem
+      - -subj
+      - "/CN=Go Template VPS Nomad CA"
+  args:
+    creates: /etc/nomad.d/tls/ca.pem
+
+- name: Nomad node key + CSR
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -new
+      - -newkey
+      - rsa:2048
+      - -nodes
+      - -keyout
+      - /etc/nomad.d/tls/nomad-key.pem
+      - -out
+      - /etc/nomad.d/tls/nomad.csr
+      - -subj
+      - "/CN=client.dc1"
+  args:
+    creates: /etc/nomad.d/tls/nomad.csr
+
+- name: SAN extension file (loopback, docker gateways, public IP)
+  # IP SANs cover every address a nomad CLI may dial: the host loopback, the
+  # public IP, and the docker bridge gateways CI pipeline containers use.
+  ansible.builtin.copy:
+    content: |
+      basicConstraints = CA:FALSE
+      keyUsage = digitalSignature, keyEncipherment
+      extendedKeyUsage = serverAuth, clientAuth
+      subjectAltName = DNS:localhost, DNS:{{ ansible_hostname }}, IP:127.0.0.1, IP:{{ ansible_host }}, IP:172.17.0.1, IP:172.31.100.1, IP:::1
+    dest: /etc/nomad.d/tls/nomad.ext
+    mode: "0600"
+
+- name: Sign the node certificate (825 days, re-signed when near expiry)
+  ansible.builtin.shell: |
+    set -o pipefail
+    if openssl x509 -checkend $((90*24*3600)) -in /etc/nomad.d/tls/nomad.pem 2>/dev/null; then
+      echo "certificate still valid"
+      exit 2
+    fi
+    openssl x509 -req \
+      -in /etc/nomad.d/tls/nomad.csr \
+      -CA /etc/nomad.d/tls/ca.pem -CAkey /etc/nomad.d/tls/ca-key.pem -CAcreateserial \
+      -out /etc/nomad.d/tls/nomad.pem -days 825 -sha256 \
+      -extfile /etc/nomad.d/tls/nomad.ext
+  args:
+    executable: /bin/bash
+  register: nomad_cert
+  changed_when: nomad_cert.rc == 0
+  failed_when: nomad_cert.rc not in [0, 2]
+
+- name: Restrict TLS file permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    owner: root
+    mode: "0600"
+  loop:
+    - /etc/nomad.d/tls/ca-key.pem
+    - /etc/nomad.d/tls/nomad-key.pem
+    - /etc/nomad.d/tls/nomad.ext
+
+- name: Nomad agent configuration
+  ansible.builtin.template:
+    src: nomad.hcl.j2
+    dest: /etc/nomad.d/nomad.hcl
+    owner: root
+    mode: "0640"
+  notify: Restart nomad
+
+- name: Nomad systemd unit
+  ansible.builtin.template:
+    src: nomad.service.j2
+    dest: /etc/systemd/system/nomad.service
+    mode: "0644"
+  notify: Restart nomad
+
+- name: Enable and start Nomad
+  ansible.builtin.systemd:
+    name: nomad
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Flush handlers so a changed config is live before we talk to the API
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the Nomad HTTP API (TLS listener)
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 4646
+    timeout: 120
+
+- name: Tokens directory
+  ansible.builtin.file:
+    path: /etc/nomad.d/tokens
+    state: directory
+    owner: root
+    mode: "0700"
+
+- name: Check for an existing ACL bootstrap token
+  ansible.builtin.stat:
+    path: /etc/nomad.d/tokens/bootstrap.token
+  register: bootstrap_token_file
+
+- name: Bootstrap ACLs (one-time; retrieves the management token)
+  ansible.builtin.command:
+    argv: [nomad, acl, bootstrap, -json]
+    environment:
+      NOMAD_ADDR: https://127.0.0.1:4646
+      NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
+  register: acl_bootstrap
+  until: acl_bootstrap.rc == 0
+  retries: 12
+  delay: 5
+  when: not bootstrap_token_file.stat.exists
+  # If this fails with "ACL bootstrap already done", the token file was lost:
+  # follow docs/vps/runbook.md "recover a lost management token" (nomad acl reset).
+  failed_when: acl_bootstrap.rc != 0
+  no_log: true
+
+- name: Persist the management token (0600)
+  ansible.builtin.copy:
+    content: "{{ acl_bootstrap.stdout | from_json | dict2items | selectattr('key', 'equalto', 'SecretID') | map(attribute='value') | join }}"
+    dest: /etc/nomad.d/tokens/bootstrap.token
+    owner: root
+    mode: "0600"
+  when: acl_bootstrap is changed
+  no_log: true
+
+- name: Read back the management token for subsequent tasks
+  ansible.builtin.slurp:
+    src: /etc/nomad.d/tokens/bootstrap.token
+  register: mgmt_token_raw
+  no_log: true
+
+- name: Export the CLI environment for later roles
+  ansible.builtin.set_fact:
+    nomad_cli_env:
+      NOMAD_ADDR: https://127.0.0.1:4646
+      NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
+      NOMAD_TOKEN: "{{ mgmt_token_raw.content | b64decode }}"
+  no_log: true
+
+- name: ACL policy directory
+  ansible.builtin.file:
+    path: /etc/nomad.d/policies
+    state: directory
+    owner: root
+    mode: "0750"
+
+- name: Render the CI deploy policy
+  ansible.builtin.template:
+    src: policies/deploy.hcl.j2
+    dest: /etc/nomad.d/policies/deploy.hcl
+    owner: root
+    mode: "0640"
+
+- name: Apply the CI deploy policy (upsert)
+  ansible.builtin.command:
+    argv: [nomad, acl, policy, apply, deploy, /etc/nomad.d/policies/deploy.hcl]
+    environment: "{{ nomad_cli_env }}"
+  register: policy_apply
+  changed_when: "'successfully wrote' in policy_apply.stdout | lower"
+
+- name: Check for an existing CI deploy token
+  ansible.builtin.stat:
+    path: /etc/nomad.d/tokens/deploy.token
+  register: deploy_token_file
+
+- name: Create the CI deploy token
+  ansible.builtin.command:
+    argv: [nomad, acl, token, create, -name, ci-deploy, -policy, deploy, -json]
+    environment: "{{ nomad_cli_env }}"
+  register: deploy_token_create
+  when: not deploy_token_file.stat.exists
+  no_log: true
+
+- name: Persist the CI deploy token (0600)
+  ansible.builtin.copy:
+    content: "{{ deploy_token_create.stdout | from_json | dict2items | selectattr('key', 'equalto', 'SecretID') | map(attribute='value') | join }}"
+    dest: /etc/nomad.d/tokens/deploy.token
+    owner: root
+    mode: "0600"
+  when: deploy_token_create is changed
+  no_log: true
+
+- name: nomad-admin wrapper (root-only CLI with TLS + token prewired)
+  ansible.builtin.copy:
+    content: |
+      #!/bin/sh
+      # Root-only prewired Nomad CLI: TLS CA + management token included.
+      # Usage: sudo nomad-admin <subcommand>   e.g. sudo nomad-admin job status
+      export NOMAD_ADDR=https://127.0.0.1:4646
+      export NOMAD_CACERT=/etc/nomad.d/tls/ca.pem
+      export NOMAD_TOKEN="$(cat /etc/nomad.d/tokens/bootstrap.token)"
+      exec /usr/bin/nomad "$@"
+    dest: /usr/local/bin/nomad-admin
+    owner: root
+    mode: "0700"
+
+- name: Print where the CI deploy token lives (copy it into Woodpecker secrets)
+  ansible.builtin.debug:
+    msg: >-
+      CI deploy token: /etc/nomad.d/tokens/deploy.token (root-only).
+      CA certificate: /etc/nomad.d/tls/ca.pem.
+      Both go into Woodpecker secrets after CI is up — see docs/vps/deployment.md.

@@ -105,7 +105,7 @@ Captured from the seeded demo dataset with the English UI.
 - **Resilience toolkit** — circuit breakers around every outbound call (`app_cb_state` metrics), Redis-backed distributed rate limiting with in-memory fallback, and `Idempotency-Key` middleware that turns client retries into replays
 - **Transport hardening** — inbound server spans, pgx pool tuning, chunked-safe body caps, HSTS, `_FILE` secrets, per-identity rate limits, maintenance mode — [docs/reliability.md](docs/reliability.md)
 - **Observability** — structured logs with trace↔log correlation, Prometheus metrics (RED, pool stats, resilience machinery), OpenTelemetry traces across every boundary (HTTP, asynq, Kafka/NATS, pgx, Redis, ClickHouse, outbound HTTP), configurable sampling, continuous profiling (Pyroscope), dashboards + alert rules + SLO burn-rate alerts + Alertmanager shipped as code, blackbox synthetic checks — [docs/observability.md](docs/observability.md), [docs/slo.md](docs/slo.md)
-- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) with an SLO-gated canary option (Argo Rollouts, auto-rollback), GitOps manifests, a Nomad alternative, and a signed, scanned, SBOM'd, SLSA-attested release pipeline — [docs/deployment.md](docs/deployment.md), [docs/orchestrators.md](docs/orchestrators.md), [docs/gitops.md](docs/gitops.md)
+- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) with an SLO-gated canary option (Argo Rollouts, auto-rollback), GitOps manifests, a Nomad alternative, a one-command self-hosted **VPS stack** (Ansible + Nomad + Caddy + own CI/registry + monitoring + backups), and a signed, scanned, SBOM'd, SLSA-attested release pipeline — [docs/vps/QUICKSTART.md](docs/vps/QUICKSTART.md), [docs/deployment.md](docs/deployment.md), [docs/orchestrators.md](docs/orchestrators.md), [docs/gitops.md](docs/gitops.md)
 - **Reliability rules throughout** — graceful shutdown, context propagation, bounded concurrency, retry limits, and health checks
 
 ### Frontend & developer experience
@@ -147,6 +147,17 @@ Then open:
 Sign in with the demo credentials, then explore: the admin dashboard (KPIs, 30-day charts, live event feed), users with switchable offset/cursor/keyset pagination, the jobs queue with live status updates over SSE, enrichment, reports, analytics, and the in-app Getting Started tour. Each page explains itself via the banner on top. Frontend details: [docs/frontend.md](docs/frontend.md).
 
 The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` and `APP_REDIS_ADDR` (see [.env.example](.env.example)) — or run `make docker-up` — for PostgreSQL (pgx + sqlc + startup migrations) and the Redis/asynq queue with a real worker process. Add `--profile observability` for Jaeger, Prometheus, and Grafana; see [docs/observability.md](docs/observability.md). ClickHouse analytics power the event charts when `APP_CLICKHOUSE_ADDR` is set; without it the app degrades to the in-memory event trail. For the enrichment streams, `make demo-up` adds Redpanda (Kafka API) and NATS with JetStream; the workers start consuming and the outbox relay starts publishing automatically.
+
+## 🌍 Deploy to a VPS (one command)
+
+A production-shaped, single-VPS stack — hardened base system, Nomad with mTLS+ACLs, automatic HTTPS (Caddy), Postgres/Redis, **your own CI + registry** (Woodpecker, tag-push builds and deploys), Prometheus/Grafana monitoring with the repo's alerts, and nightly backups:
+
+```bash
+make vps-setup     # once: guided questions -> generated secrets -> encrypted vault
+make vps-deploy    # zero to https://your-domain in ~20 minutes (idempotent forever after)
+```
+
+Details: [docs/vps/QUICKSTART.md](docs/vps/QUICKSTART.md) · reference: [docs/vps/deployment.md](docs/vps/deployment.md) · ops: [docs/vps/runbook.md](docs/vps/runbook.md).
 
 ## 👤 Demo accounts
 

@@ -44,3 +44,14 @@ web/dist/*
 
 # Build artifact of cmd/worker (go build ./cmd/worker)
 /worker
+
+# --- VPS deployment secrets (deploy/ansible) ---
+# Ansible Vault password + encrypted secrets are machine-local, never committed.
+deploy/ansible/.vault-pass
+deploy/ansible/.vps-state/
+deploy/ansible/inventories/*/group_vars/vps/secrets.yml
+# Machine-specific (non-secret) site values written by vps-setup
+deploy/ansible/inventories/prod/group_vars/vps/site.yml
+deploy/ansible/inventories/prod/hosts.yml
+deploy/ansible/inventories/dev/hosts.yml
+

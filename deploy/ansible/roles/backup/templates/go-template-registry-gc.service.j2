@@ -1,0 +1,9 @@
+[Unit]
+Description=go-template weekly registry garbage-collect
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/go-template-registry-gc
+Nice=10
+IOSchedulingClass=idle

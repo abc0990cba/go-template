@@ -1,0 +1,10 @@
+---
+# Default execution order. deploy-app.yml overrides this with a subset.
+nomad_jobs_selected:
+  - postgres
+  - redis
+  - registry
+  - app
+  - woodpecker
+  - caddy
+  - monitoring

@@ -1,0 +1,53 @@
+---
+# Docker CE from the official repository, pinned to a major version, with
+# safe log defaults. Nomad's docker driver runs every container.
+- name: Docker apt repository keyring
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    dest: /etc/apt/keyrings/docker.asc
+    mode: "0644"
+  become: true
+
+- name: Docker apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    filename: docker
+    state: present
+
+- name: Install Docker engine (version-pinned)
+  ansible.builtin.apt:
+    name:
+      - "docker-ce={{ docker_apt_version }}*"
+      - "docker-ce-cli={{ docker_apt_version }}*"
+      - containerd.io
+    state: present
+    update_cache: true
+
+- name: daemon.json — json-file log rotation + live-restore
+  # Without rotation, container stdout (json logs) eats the VPS disk over
+  # months. live-restore keeps containers running across docker daemon restarts.
+  ansible.builtin.copy:
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": { "max-size": "10m", "max-file": "3" },
+        "live-restore": true
+      }
+    dest: /etc/docker/daemon.json
+    mode: "0644"
+  notify: Restart docker
+
+- name: Enable and start docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started
+
+- name: Dedicated docker network for CI pipeline containers (fixed subnet)
+  # A fixed subnet makes the bridge gateway IP predictable (172.31.100.1), which
+  # is what CI uses to reach the Nomad API (UFW + cert SANs allow it).
+  ansible.builtin.command: >
+    docker network create wpnet --subnet 172.31.100.0/24
+  register: wpnet_create
+  changed_when: wpnet_create.rc == 0
+  failed_when: wpnet_create.rc != 0 and 'already exists' not in wpnet_create.stderr

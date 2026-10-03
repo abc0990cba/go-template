@@ -1,0 +1,63 @@
+// Redis 7 — asynq queue, cache, rate limits, SSE bridge.
+// The app's Redis client has no password support (internal/platform/realtime),
+// so this instance is loopback-only and protected-mode; UFW keeps it private.
+job "redis" {
+  type = "service"
+
+  group "cache" {
+    count = 1
+
+    volume "redisdata" {
+      type   = "host"
+      source = "redisdata"
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    service {
+      name     = "redis"
+      port     = "6379"
+      provider = "nomad"
+
+      check {
+        type     = "tcp"
+        interval = "10s"
+        timeout  = "3s"
+      }
+    }
+
+    task "redis" {
+      driver = "docker"
+
+      config {
+        image        = "{{ redis_image }}"
+        network_mode = "host"
+        command      = "redis-server"
+        args = [
+          "--bind", "127.0.0.1",
+          "--protected-mode", "yes",
+          "--appendonly", "yes",
+          "--appendfsync", "everysec",
+          "--dir", "/data",
+          "--maxmemory", "192mb",
+          "--maxmemory-policy", "noeviction",
+        ]
+      }
+
+      volume_mount {
+        volume      = "redisdata"
+        destination = "/data"
+      }
+
+      resources {
+        cpu    = 250
+        memory = 256
+      }
+    }
+  }
+}

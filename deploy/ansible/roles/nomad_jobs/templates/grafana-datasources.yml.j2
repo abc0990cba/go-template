@@ -1,0 +1,12 @@
+# Managed by Ansible — rendered from grafana-datasources.yml.j2.
+# uid is referenced by the provisioned dashboards (deploy/grafana/dashboards)
+# — keep it stable. Prometheus runs on this host's loopback.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://127.0.0.1:9091
+    isDefault: true

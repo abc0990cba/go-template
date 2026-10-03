@@ -1,4 +1,4 @@
-.PHONY: helm-lint helm-template run dev hooks worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate lint-spec vulncheck hooks docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate
+.PHONY: helm-lint helm-template run dev hooks worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate lint-spec vulncheck hooks docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate vps-setup vps-doctor vps-deploy vps-check vps-app-deploy vps-update vps-rollback vps-status vps-logs vps-ui vps-backup vps-restore vps-acme-production
 run:
 	go run ./cmd/api
 
@@ -259,3 +259,54 @@ nomad-stop:
 
 openspec-validate:
 	@command -v openspec >/dev/null 2>&1 && openspec validate || echo "openspec CLI is not installed; see docs/openspec.md"
+
+# --- VPS deployment (Ansible + Nomad; docs/vps/QUICKSTART.md) -----------------
+# One VPS, one command: `make vps-setup` once, then `make vps-deploy` forever.
+# Add SITE=dev to any target to operate on the dev VPS instead of prod.
+
+VPS_SITE ?= prod
+VPS = deploy/ansible
+
+vps-setup: ## Guided first-time setup: questions -> secrets -> vault -> inventory
+	@$(VPS)/scripts/vps-setup.sh
+
+vps-doctor: ## Verify prerequisites, SSH, DNS records, VPS size (read-only)
+	@$(VPS)/scripts/vps-doctor.sh
+
+vps-deploy: ## THE one command: full stack converge on the VPS (idempotent)
+	@$(VPS)/scripts/run-playbook.sh site.yml
+
+vps-check: ## Dry-run the full deploy (no changes made)
+	@$(VPS)/scripts/run-playbook.sh site.yml --check --diff
+
+vps-app-deploy: ## Deploy an app image tag: make vps-app-deploy TAG=v1.2.3
+	@test -n "$(TAG)" || { echo "usage: make vps-app-deploy TAG=v1.2.3"; exit 1; }
+	@$(VPS)/scripts/run-playbook.sh deploy-app.yml -e app_image_tag=$(TAG)
+
+vps-update: ## Re-render + redeploy jobs: make vps-update JOBS="woodpecker"
+	@test -n "$(JOBS)" || { echo 'usage: make vps-update JOBS="caddy monitoring"'; exit 1; }
+	@$(VPS)/scripts/run-playbook.sh deploy-app.yml -e jobs="$(JOBS)"
+
+vps-rollback: ## Revert the app to the previous successful deployment
+	@$(VPS)/scripts/vps-rollback.sh
+
+vps-status: ## Nomad node + job status on the VPS
+	@$(VPS)/scripts/vps-remote.sh 'nomad-admin node status && echo && nomad-admin job status'
+
+vps-logs: ## Follow logs: make vps-logs S=api|worker|postgres|caddy|woodpecker
+	@$(VPS)/scripts/vps-remote.sh 'docker logs --tail 200 -f $$(docker ps --format "{{.Names}}" | grep -i "$(S)" | head -1)'
+
+vps-ui: ## SSH tunnels: Nomad UI (127.0.0.1:4646) + Grafana (127.0.0.1:3001)
+	@$(VPS)/scripts/vps-ui.sh
+
+vps-backup: ## Run a backup now and list recent archives
+	@$(VPS)/scripts/vps-remote.sh 'systemctl start go-template-backup.service && ls -lht /opt/go-template/backups | head -8'
+
+vps-restore: ## Restore a dump: make vps-restore FILE=go_template-YYYYMMDD-HHMMSS.dump
+	@test -n "$(FILE)" || { echo "usage: make vps-restore FILE=go_template-YYYYMMDD-HHMMSS.dump"; exit 1; }
+	@$(VPS)/scripts/vps-restore.sh $(FILE)
+
+vps-acme-production: ## Switch Let's Encrypt staging -> production, redeploy Caddy
+	@sed -i.bak 's/^acme_staging: true/acme_staging: false/' $(VPS)/inventories/$(VPS_SITE)/group_vars/vps/main.yml && rm -f $(VPS)/inventories/$(VPS_SITE)/group_vars/vps/main.yml.bak
+	@$(VPS)/scripts/run-playbook.sh deploy-app.yml -e jobs=caddy
+	@echo "Caddy reloaded against the production LE CA. Certificates are re-issued automatically."

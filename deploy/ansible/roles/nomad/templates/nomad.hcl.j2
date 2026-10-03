@@ -1,0 +1,106 @@
+# Managed by Ansible — deploy/ansible/roles/nomad
+# Single-node Nomad: one agent acts as both server and client.
+#
+# Exposure model:
+#   - RPC/gossip/serf: bound to 127.0.0.1 (single node, nothing remote joins).
+#   - HTTP API (4646): all interfaces BUT guarded by mTLS (internal CA) + ACL
+#     tokens, and UFW only admits loopback + docker bridge ranges. The docker
+#     reachability exists so Woodpecker pipeline containers can deploy.
+
+datacenter = "dc1"
+name       = "{{ inventory_hostname }}"
+data_dir   = "/opt/nomad/data"
+
+bind_addr = "127.0.0.1"
+
+addresses {
+  http = "0.0.0.0"
+}
+
+advertise {
+  http = "127.0.0.1"
+  rpc  = "127.0.0.1"
+  serf = "127.0.0.1"
+}
+
+server {
+  enabled          = true
+  bootstrap_expect = 1
+}
+
+client {
+  enabled = true
+
+  host_volume "pgdata" {
+    path = "{{ vps_base_dir }}/data/postgres"
+  }
+  host_volume "redisdata" {
+    path = "{{ vps_base_dir }}/data/redis"
+  }
+  host_volume "caddydata" {
+    path = "{{ vps_base_dir }}/data/caddy"
+  }
+  host_volume "registrydata" {
+    path = "{{ vps_base_dir }}/data/registry"
+  }
+  host_volume "prometheusdata" {
+    path = "{{ vps_base_dir }}/data/prometheus"
+  }
+  host_volume "alertmanagerdata" {
+    path = "{{ vps_base_dir }}/data/alertmanager"
+  }
+  host_volume "grafanadata" {
+    path = "{{ vps_base_dir }}/data/grafana"
+  }
+  # App secret files — written by Ansible, mounted read-only into tasks.
+  host_volume "secrets" {
+    path      = "{{ vps_base_dir }}/secrets"
+    read_only = true
+  }
+  # Rendered service configs (Caddyfile, prometheus.yml, ...).
+  host_volume "configs" {
+    path      = "{{ vps_base_dir }}/configs"
+    read_only = true
+  }
+  # Node-level metrics sources for node-exporter.
+  host_volume "rootfs" {
+    path      = "/"
+    read_only = true
+  }
+  host_volume "procfs" {
+    path      = "/proc"
+    read_only = true
+  }
+  host_volume "sysfs" {
+    path      = "/sys"
+    read_only = true
+  }
+}
+
+plugin "docker" {
+  config {
+    # Required: the Woodpecker agent mounts /var/run/docker.sock and the
+    # bootstrap build job bind-mounts it too. Single-tenant VPS: acceptable.
+    volumes = true
+  }
+}
+
+tls {
+  http = true
+  rpc  = true
+  ca_file   = "/etc/nomad.d/tls/ca.pem"
+  cert_file = "/etc/nomad.d/tls/nomad.pem"
+  key_file  = "/etc/nomad.d/tls/nomad-key.pem"
+  # Single node: certificates are CA-verified, hostname pinning is off.
+  verify_server_hostname = false
+}
+
+acl {
+  enabled = true
+}
+
+telemetry {
+  prometheus_metrics         = true
+  publish_allocation_metrics = true
+  publish_node_metrics       = true
+}

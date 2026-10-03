@@ -1,0 +1,82 @@
+# Woodpecker CI — the PRIMARY build+deploy path (runs on your own VPS).
+#
+# Flow (on a v* tag): build image -> Trivy security gate -> push to the local
+# registry -> deploy via the Nomad API -> post-deploy smoke check.
+# The app job spec (deploy/nomad/app.nomad.hcl) is the same file Ansible uses;
+# CI only passes different -var values.
+#
+# One-time setup (docs/vps/deployment.md#ci-setup):
+#   1. GitHub OAuth app -> put client id/secret into secrets.yml (make vps-update JOBS=woodpecker)
+#   2. Activate the repo in the Woodpecker UI
+#   3. Add Woodpecker secrets: nomad_token (/etc/nomad.d/tokens/deploy.token),
+#      nomad_ca_cert (/etc/nomad.d/tls/ca.pem), app_domain — all enabled for the tag event.
+#
+# The GitHub Actions release.yml (GHCR) stays untouched as the fallback path.
+
+when:
+  - event: tag
+    ref: refs/tags/v*
+
+steps:
+  - name: build
+    image: docker:28
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - docker build
+          --build-arg VERSION="$CI_COMMIT_TAG"
+          --build-arg COMMIT="${CI_COMMIT_SHA:0:8}"
+          --build-arg DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          -t 127.0.0.1:5000/go-template:"$CI_COMMIT_TAG"
+          -t 127.0.0.1:5000/go-template:"${CI_COMMIT_SHA:0:8}"
+          .
+
+  - name: scan (security gate)
+    image: aquasec/trivy:0.63.0
+    commands:
+      - trivy image --exit-code 1 --ignore-unfixed --severity CRITICAL,HIGH
+          127.0.0.1:5000/go-template:"$CI_COMMIT_TAG"
+
+  - name: push
+    image: docker:28
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    commands:
+      - docker push 127.0.0.1:5000/go-template:"$CI_COMMIT_TAG"
+      - docker push 127.0.0.1:5000/go-template:"${CI_COMMIT_SHA:0:8}"
+
+  - name: deploy
+    image: alpine:3.21
+    environment:
+      NOMAD_ADDR: https://172.17.0.1:4646
+    secrets: [nomad_token, nomad_ca_cert, app_domain]
+    commands:
+      - apk add --no-cache unzip curl >/dev/null
+      # Pinned nomad CLI matching the server major.
+      - wget -q "https://releases.hashicorp.com/nomad/${NOMAD_VERSION:-1.10.4}/nomad_${NOMAD_VERSION:-1.10.4}_linux_amd64.zip"
+      - unzip -o "nomad_${NOMAD_VERSION:-1.10.4}_linux_amd64.zip" >/dev/null
+      - echo "$NOMAD_CA_CERT" > ca.pem
+      - export NOMAD_CACERT=ca.pem NOMAD_TOKEN="$NOMAD_TOKEN"
+      # Blocking run: exits non-zero unless the canary passed /health/ready
+      # and was promoted; auto_revert has already rolled back otherwise.
+      - ./nomad job run
+          -var "image_tag=$CI_COMMIT_TAG"
+          -var "app_domain=$APP_DOMAIN"
+          deploy/nomad/app.nomad.hcl
+
+  - name: smoke
+    image: curlimages/curl:8.12.1
+    secrets: [app_domain]
+    commands:
+      - |
+        for i in $(seq 1 30); do
+          if curl -fsS "https://$APP_DOMAIN/health/ready" > /dev/null; then
+            echo "smoke check passed: https://$APP_DOMAIN is healthy"
+            curl -fsS "https://$APP_DOMAIN/version" || true
+            exit 0
+          fi
+          echo "waiting for https://$APP_DOMAIN/health/ready ($i/30)..."
+          sleep 10
+        done
+        echo "smoke check FAILED" >&2
+        exit 1

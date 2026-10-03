@@ -1,0 +1,276 @@
+// Monitoring stack (rendered by Ansible): Prometheus + Alertmanager + Grafana
+// + node-exporter + blackbox-exporter, all loopback-only.
+// Reuses the repo's alert rules (deploy/prometheus/rules) and Grafana
+// dashboards (deploy/grafana) — copied to /opt/go-template/configs and
+// mounted read-only; dashboards and alerts stay versioned with the app.
+job "monitoring" {
+  type = "service"
+
+  # ---------------------------------------------------------- prometheus ---
+  group "prometheus" {
+    count = 1
+
+    volume "promdata" {
+      type   = "host"
+      source = "prometheusdata"
+    }
+
+    volume "configs" {
+      type      = "host"
+      source    = "configs"
+      read_only = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "prometheus" {
+      driver = "docker"
+
+      config {
+        image        = "{{ prometheus_image }}"
+        network_mode = "host"
+        args = [
+          "--config.file=/conf/prometheus/prometheus.yml",
+          "--storage.tsdb.path=/prometheus",
+          "--storage.tsdb.retention.time={{ prometheus_retention }}",
+          "--web.listen-address=127.0.0.1:9091",
+        ]
+      }
+
+      volume_mount {
+        volume      = "promdata"
+        destination = "/prometheus"
+      }
+
+      volume_mount {
+        volume      = "configs"
+        destination = "/conf"
+        read_only   = true
+      }
+
+      resources {
+        cpu    = 300
+        memory = 512
+      }
+    }
+  }
+
+  # --------------------------------------------------------- alertmanager ---
+  group "alertmanager" {
+    count = 1
+
+    volume "amdata" {
+      type   = "host"
+      source = "alertmanagerdata"
+    }
+
+    volume "configs" {
+      type      = "host"
+      source    = "configs"
+      read_only = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "alertmanager" {
+      driver = "docker"
+
+      config {
+        image        = "{{ alertmanager_image }}"
+        network_mode = "host"
+        args = [
+          "--config.file=/conf/alertmanager/alertmanager.yml",
+          "--storage.path=/alertmanager",
+          "--web.listen-address=127.0.0.1:9093",
+        ]
+      }
+
+      volume_mount {
+        volume      = "amdata"
+        destination = "/alertmanager"
+      }
+
+      volume_mount {
+        volume      = "configs"
+        destination = "/conf"
+        read_only   = true
+      }
+
+      resources {
+        cpu    = 100
+        memory = 128
+      }
+    }
+  }
+
+  # -------------------------------------------------------------- grafana ---
+  group "grafana" {
+    count = 1
+
+    volume "grafanadata" {
+      type   = "host"
+      source = "grafanadata"
+    }
+
+    volume "configs" {
+      type      = "host"
+      source    = "configs"
+      read_only = true
+    }
+
+    volume "secrets" {
+      type      = "host"
+      source    = "secrets"
+      read_only = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "grafana" {
+      driver = "docker"
+
+      config {
+        image        = "{{ grafana_image }}"
+        network_mode = "host"
+      }
+
+      volume_mount {
+        volume      = "grafanadata"
+        destination = "/var/lib/grafana"
+      }
+
+      volume_mount {
+        volume      = "configs"
+        destination = "/conf"
+        read_only   = true
+      }
+
+      volume_mount {
+        volume      = "secrets"
+        destination = "/secrets"
+        read_only   = true
+      }
+
+      env {
+        GF_SECURITY_ADMIN_USER             = "admin"
+        GF_SECURITY_ADMIN_PASSWORD__FILE   = "/secrets/grafana_admin_password"        GF_USERS_ALLOW_SIGN_UP            = "false"
+        GF_ANALYTICS_REPORTING_ENABLED    = "false"
+        GF_ANALYTICS_CHECK_FOR_UPDATES    = "false"
+        GF_SERVER_HTTP_ADDR               = "127.0.0.1"
+        GF_SERVER_HTTP_PORT               = "3000"
+        GF_SERVER_ROOT_URL                = "{{ 'https://' ~ grafana_domain if grafana_domain else 'http://127.0.0.1:3000' }}"
+        GF_PATHS_PROVISIONING             = "/conf/grafana/provisioning"
+      }
+
+      resources {
+        cpu    = 200
+        memory = 384
+      }
+    }
+  }
+
+  # -------------------------------------------------------- node-exporter ---
+  group "node-exporter" {
+    count = 1
+
+    volume "rootfs" {
+      type      = "host"
+      source    = "rootfs"
+      read_only = true
+    }
+
+    volume "procfs" {
+      type      = "host"
+      source    = "procfs"
+      read_only = true
+    }
+
+    volume "sysfs" {
+      type      = "host"
+      source    = "sysfs"
+      read_only = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "node-exporter" {
+      driver = "docker"
+
+      config {
+        image        = "{{ node_exporter_image }}"
+        network_mode = "host"
+        args         = ["--web.listen-address=127.0.0.1:9100", "--path.rootfs=/host"]
+      }
+
+      volume_mount {
+        volume      = "rootfs"
+        destination = "/host"
+        read_only   = true
+      }
+
+      volume_mount {
+        volume      = "procfs"
+        destination = "/proc"
+        read_only   = true
+      }
+
+      volume_mount {
+        volume      = "sysfs"
+        destination = "/sys"
+        read_only   = true
+      }
+
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+  }
+
+  # ------------------------------------------------------------- blackbox ---
+  group "blackbox" {
+    count = 1
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "blackbox" {
+      driver = "docker"
+
+      config {
+        image        = "{{ blackbox_exporter_image }}"
+        network_mode = "host"
+        args         = ["--web.listen-address=127.0.0.1:9115"]
+      }
+
+      resources {
+        cpu    = 100
+        memory = 64
+      }
+    }
+  }
+}

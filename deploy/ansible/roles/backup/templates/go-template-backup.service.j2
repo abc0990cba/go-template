@@ -1,0 +1,11 @@
+[Unit]
+Description=go-template nightly backup (pg_dump + secrets/TLS archive)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/go-template-backup
+# Failure should be loud: the timer re-fires, and alerting rules catch a
+# missing host node-exporter, but check `systemctl status` when in doubt.
+Nice=10
+IOSchedulingClass=idle

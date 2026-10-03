@@ -1,0 +1,17 @@
+# Managed by Ansible — rendered from grafana-dashboards-provider.yml.j2.
+# Provisioning for deploy/grafana/dashboards/*.json — dashboards are code,
+# versioned with the app, and reload without touching the UI. Mounted
+# read-only from /opt/go-template/configs/grafana/dashboards.
+apiVersion: 1
+
+providers:
+  - name: go-template
+    orgId: 1
+    folder: "Go Template"
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /conf/grafana/dashboards
+      foldersFromFilesStructure: false

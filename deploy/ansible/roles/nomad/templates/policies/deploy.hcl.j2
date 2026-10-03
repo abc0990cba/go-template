@@ -1,0 +1,24 @@
+# CI deploy policy: everything needed to run the app job from a pipeline,
+# nothing else. Used by the "deploy.token" (see docs/vps/deployment.md).
+namespace "*" {
+  capabilities = [
+    "submit-job",
+    "dispatch-job",
+    "read-job",
+    "read-jobs",
+    "list-jobs",
+    "scale-job",
+    "read-deployment",
+    "read-job-summary",
+    "read-allocations",
+    "read-logs",
+  ]
+}
+
+node {
+  policy = "read"
+}
+
+agent {
+  policy = "read"
+}

@@ -1,0 +1,284 @@
+---
+# Renders secrets + service configs + Nomad jobs onto the host, then runs the
+# full stack through Nomad with validate -> run -> health-gated deployment for
+# every job. `nomad_jobs_selected` (set by deploy-app.yml) narrows the run to
+# a subset, e.g. ["app"] or ["caddy"].
+- name: Fail early if secrets are not loaded
+  ansible.builtin.assert:
+    that:
+      - secrets.postgres_password is defined and secrets.postgres_password | length > 0
+      - secrets.jwt_secret is defined and secrets.jwt_secret | length > 0
+    fail_msg: >-
+      secrets.yml missing or empty. Run `make vps-setup`, or decrypt/adjust with
+      `ansible-vault edit deploy/ansible/inventories/{{ VPS_SITE | default('prod') }}/group_vars/vps/secrets.yml`.
+
+- name: Read the Nomad management token for CLI calls
+  ansible.builtin.slurp:
+    src: /etc/nomad.d/tokens/bootstrap.token
+  register: mgmt_token_raw
+  no_log: true
+
+- name: Nomad CLI environment (TLS + token)
+  ansible.builtin.set_fact:
+    nomad_cli_env:
+      NOMAD_ADDR: https://127.0.0.1:4646
+      NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
+      NOMAD_TOKEN: "{{ mgmt_token_raw.content | b64decode }}"
+  no_log: true
+
+# --- secret files (mounted read-only into tasks; app reads APP_*_FILE) -------
+- name: Render app secret files
+  ansible.builtin.copy:
+    content: "{{ item.content }}"
+    dest: "{{ vps_base_dir }}/secrets/{{ item.name }}"
+    owner: "{{ item.owner }}"
+    mode: "0400"
+  loop:
+    - name: database_url
+      content: "postgres://go_template:{{ secrets.postgres_password }}@127.0.0.1:5432/go_template?sslmode=disable"
+      owner: "65532"          # distroless nonroot — the api/worker uid
+    - name: jwt_secret
+      content: "{{ secrets.jwt_secret }}"
+      owner: "65532"
+    - name: smtp_password
+      content: "{{ secrets.app_smtp_password | default('') }}"
+      owner: "65532"
+    - name: pg_password
+      content: "{{ secrets.postgres_password }}"
+      owner: "0"              # the postgres image entrypoint starts as root
+    - name: grafana_admin_password
+      content: "{{ secrets.grafana_admin_password }}"
+      owner: "472"            # grafana image uid
+  no_log: true
+
+# --- service configs (ro-mounted; rendered from this repo's templates) -------
+- name: Render service configs
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ vps_base_dir }}/configs/{{ item.dest }}"
+    mode: "0644"
+  loop:
+    - { src: Caddyfile.j2, dest: caddy/Caddyfile }
+    - { src: prometheus.yml.j2, dest: prometheus/prometheus.yml }
+    - { src: alertmanager.yml.j2, dest: alertmanager/alertmanager.yml }
+    - { src: grafana-datasources.yml.j2, dest: grafana/provisioning/datasources/datasources.yml }
+    - { src: grafana-dashboards-provider.yml.j2, dest: grafana/provisioning/dashboards/provider.yml }
+
+- name: Copy the repo's alert rules (versioned with the app)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../prometheus/rules/"
+    dest: "{{ vps_base_dir }}/configs/prometheus/rules/"
+    mode: "0644"
+
+- name: Copy the repo's Grafana dashboards (versioned with the app)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../grafana/dashboards/"
+    dest: "{{ vps_base_dir }}/configs/grafana/dashboards/"
+    mode: "0644"
+
+# --- job files ---------------------------------------------------------------
+- name: Render infra job files
+  ansible.builtin.template:
+    src: "{{ item }}.nomad.hcl.j2"
+    dest: "{{ vps_base_dir }}/jobs/{{ item }}.nomad.hcl"
+    mode: "0644"
+  loop:
+    - postgres
+    - redis
+    - registry
+    - caddy
+    - monitoring
+    - build-bootstrap
+
+- name: Render the Woodpecker CI job (contains CI secrets)
+  ansible.builtin.template:
+    src: woodpecker.nomad.hcl.j2
+    dest: "{{ vps_base_dir }}/jobs/woodpecker.nomad.hcl"
+    mode: "0600"
+  no_log: true
+  when: ci_enabled | bool
+
+- name: Copy the shared app job spec (same file the CI pipeline runs)
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../nomad/app.nomad.hcl"
+    dest: "{{ vps_base_dir }}/jobs/app.nomad.hcl"
+    mode: "0644"
+
+# --- data services ------------------------------------------------------------
+- name: Run postgres
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: postgres
+    job_timeout: 600
+
+- name: Run redis
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: redis
+    job_timeout: 300
+
+- name: Run registry
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: registry
+    job_timeout: 300
+
+- name: Ensure the woodpecker database exists
+  when: ci_enabled | bool and ('woodpecker' in nomad_jobs_selected)
+  block:
+    - name: Find the postgres container
+      ansible.builtin.shell: docker ps -q --filter name=postgres | head -1
+      register: pg_container
+      changed_when: false
+
+    - name: Check for the woodpecker database
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ pg_container.stdout }}"
+          - psql
+          - -U
+          - go_template
+          - -d
+          - go_template
+          - -tAc
+          - "SELECT 1 FROM pg_database WHERE datname='woodpecker'"
+      register: wp_db_exists
+      changed_when: false
+
+    - name: Create the woodpecker database
+      ansible.builtin.command:
+        argv:
+          - docker
+          - exec
+          - "{{ pg_container.stdout }}"
+          - psql
+          - -U
+          - go_template
+          - -d
+          - go_template
+          - -c
+          - "CREATE DATABASE woodpecker OWNER go_template"
+      when: wp_db_exists.stdout | trim != "1"
+
+# --- application ---------------------------------------------------------------
+- name: Check whether the app image already exists in the local registry
+  ansible.builtin.command:
+    argv: ["docker", "pull", "{{ app_image }}:{{ app_image_tag }}"]
+  register: app_image_pull
+  failed_when: false
+  changed_when: false
+  when: "'app' in nomad_jobs_selected"
+
+- name: First deploy — build the image on the VPS (bootstrap build job)
+  when: "'app' in nomad_jobs_selected and app_image_pull.rc != 0"
+  block:
+    - name: Submit the bootstrap build (clone -> docker build -> local registry)
+      ansible.builtin.command:
+        argv: ["nomad", "job", "run", "-detach", "{{ vps_base_dir }}/jobs/build-bootstrap.nomad.hcl"]
+        environment: "{{ nomad_cli_env }}"
+      no_log: true
+
+    - name: Wait for the bootstrap build to finish (up to ~25 min on 2 vCPU)
+      ansible.builtin.command:
+        argv: ["nomad", "job", "status", "build-bootstrap"]
+        environment: "{{ nomad_cli_env }}"
+      register: build_status
+      until: "'Complete' in build_status.stdout or 'Failed' in build_status.stdout"
+      retries: 50
+      delay: 30
+      changed_when: false
+
+    - name: Fail if the bootstrap build failed
+      ansible.builtin.assert:
+        that: "'Complete' in build_status.stdout"
+        fail_msg: >-
+          The bootstrap image build failed. Inspect logs:
+          ssh <vps> 'sudo nomad-admin alloc status -short -job build-bootstrap'
+          then re-run make vps-deploy.
+
+    - name: Clean up the finished bootstrap job
+      ansible.builtin.command:
+        argv: ["nomad", "job", "stop", "-purge", "build-bootstrap"]
+        environment: "{{ nomad_cli_env }}"
+      failed_when: false
+      no_log: true
+
+- name: Run the app (canary + auto_revert gated on /health/ready)
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: app
+    job_file: "{{ vps_base_dir }}/jobs/app.nomad.hcl"
+    job_timeout: 900
+    job_vars:
+      - -var
+      - "image_tag={{ app_image_tag }}"
+      - -var
+      - "app_domain={{ app_domain }}"
+      - -var
+      - "api_replicas={{ api_replicas }}"
+      - -var
+      - "report_cron={{ app_report_cron }}"
+      - -var
+      - "smtp_host={{ app_smtp_host }}"
+      - -var
+      - "smtp_port={{ app_smtp_port }}"
+      - -var
+      - "smtp_username={{ app_smtp_username }}"
+      - -var
+      - "smtp_from={{ app_smtp_from }}"
+  when: "'app' in nomad_jobs_selected"
+
+- name: Save the app deploy command for manual re-runs / restore
+  ansible.builtin.copy:
+    content: >-
+      nomad job run
+      {{ job_vars | map('quote') | join(' ') }}
+      {{ vps_base_dir }}/jobs/app.nomad.hcl
+    dest: "{{ vps_base_dir }}/jobs/app.vars"
+    mode: "0640"
+  vars:
+    job_vars:
+      - -var
+      - "image_tag={{ app_image_tag }}"
+      - -var
+      - "app_domain={{ app_domain }}"
+      - -var
+      - "api_replicas={{ api_replicas }}"
+      - -var
+      - "report_cron={{ app_report_cron }}"
+      - -var
+      - "smtp_host={{ app_smtp_host }}"
+      - -var
+      - "smtp_port={{ app_smtp_port }}"
+      - -var
+      - "smtp_username={{ app_smtp_username }}"
+      - -var
+      - "smtp_from={{ app_smtp_from }}"
+  when: "'app' in nomad_jobs_selected"
+
+# --- CI --------------------------------------------------------------------------
+- name: Run woodpecker
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: woodpecker
+    job_file: "{{ vps_base_dir }}/jobs/woodpecker.nomad.hcl"
+    job_timeout: 600
+  when: ci_enabled | bool and ('woodpecker' in nomad_jobs_selected)
+
+# --- front door + observability ----------------------------------------------------
+- name: Run caddy (automatic HTTPS)
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: caddy
+    job_timeout: 300
+  when: "'caddy' in nomad_jobs_selected"
+
+- name: Run monitoring (prometheus, alertmanager, grafana, exporters)
+  ansible.builtin.include_tasks: run-nomad-job.yml
+  vars:
+    job_name: monitoring
+    job_file: "{{ vps_base_dir }}/jobs/monitoring.nomad.hcl"
+    job_timeout: 900
+  when: monitoring_enabled | bool and ('monitoring' in nomad_jobs_selected)
