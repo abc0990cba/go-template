@@ -27,3 +27,28 @@ test.describe("serving split", () => {
     await expect(page).toHaveTitle(/Go Template/i);
   });
 });
+
+test.describe("landing interactions", () => {
+  test("opens a feature dialog and closes it with Escape", async ({ page }) => {
+    await page.goto("/");
+    // The native <dialog> ships in the static HTML (closed); the button
+    // upgrade opens it with showModal().
+    await page.getByRole("button", { name: "Authentication & MFA" }).click();
+    const dialog = page.getByRole("dialog", { name: "Authentication & MFA" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("mfa.required");
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+  });
+
+  test("switches the interface language and remembers it", async ({ page }) => {
+    await page.goto("/");
+    // The switcher appears in the header and the footer; use the header one.
+    await page.getByRole("banner").getByRole("button", { name: "Русский" }).click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("один бинарник");
+    // The stored choice survives a reload.
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", "ru");
+  });
+});

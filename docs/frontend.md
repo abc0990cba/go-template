@@ -17,7 +17,7 @@ The UI is a React single-page admin console in `web/`, embedded into the Go bina
 ```
 web/
   src/routes/          file-based routes; _client.tsx (workspace at /dashboard) and admin.tsx (/admin console) are the two authenticated layouts
-  landing/             the marketing landing: index.html (SEO head), LandingPage.tsx, entry-client/server.tsx, its own landing.css
+  landing/             the marketing landing: index.html (SEO head), LandingPage.tsx, sections.tsx, features.tsx, i18n.tsx + locales/ (en/ru/fr/de), entry-client/server.tsx, its own landing.css
   scripts/             prerender.mjs (SSR injection, robots/sitemap, brotli+gzip), og-image source
   src/components/ui/   shadcn components (generated; do not hand-edit)
   src/components/      app shell, explainer banner, KPI card, data-table kit
@@ -38,6 +38,19 @@ its URLs derive from `VITE_SITE_URL` (set it in CI to the production
 domain; the FAQ answers are mirrored in the FAQPage JSON-LD — keep them in
 sync). In `make web-dev` the landing renders at `/` client-side via a dev
 middleware; the prerendered file is what production serves.
+
+The landing ships in **four languages** (English, Russian, French, German)
+via its own small i18n layer (`landing/i18n.tsx` + `landing/locales/`).
+The prerender — and therefore everything a crawler sees — is English by
+construction: the provider mounts as `en`, and only a post-hydration
+effect adopts the visitor's language (stored choice in
+`localStorage["landing.locale"]`, then `navigator.languages`). The switch
+also updates `<html lang>` and `document.title`; the dictionaries are
+type-checked against the English one, and `landing/i18n.test.ts` guards
+key parity. Feature cards open native `<dialog>` modals (opened with
+`showModal()`) whose full copy is prerendered into the static HTML, so
+the descriptions stay crawlable; scroll-reveal and hero animations are
+CSS-first and disabled under `prefers-reduced-motion`.
 
 ## Server contract
 

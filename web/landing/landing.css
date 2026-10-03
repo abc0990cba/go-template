@@ -68,3 +68,160 @@
     -webkit-font-smoothing: antialiased;
   }
 }
+
+/* --- Hero backdrop ------------------------------------------------------- */
+
+/* Faint dot grid, faded out toward the edges so it never fights the copy. */
+.hero-grid {
+  background-image: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, black 25%, transparent 75%);
+}
+
+/* --- Feature dialog ------------------------------------------------------ */
+
+/* Native <dialog> opened with showModal(): focus trapping, Esc, and an
+   inert background come from the platform. Pure CSS scroll lock while any
+   feature dialog is open. */
+html:has(dialog.feature-dialog[open]) {
+  overflow: hidden;
+}
+dialog.feature-dialog {
+  /* margin: auto re-centers the dialog — Tailwind preflight's universal
+     margin reset removes the UA default that normally does this. */
+  margin: auto;
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  color: var(--foreground);
+  padding: 0;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(85dvh, 100%);
+}
+dialog.feature-dialog::backdrop {
+  background: oklch(0 0 0 / 0.5);
+  backdrop-filter: blur(4px);
+}
+
+/* --- Animations (all disabled for prefers-reduced-motion) ---------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Hero entrance: pure CSS, plays once on load — no JS required. */
+  .hero-in {
+    opacity: 0;
+    animation: hero-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+  .hero-in-1 {
+    animation-delay: 0.05s;
+  }
+  .hero-in-2 {
+    animation-delay: 0.12s;
+  }
+  .hero-in-3 {
+    animation-delay: 0.2s;
+  }
+  .hero-in-4 {
+    animation-delay: 0.28s;
+  }
+  .hero-in-5 {
+    animation-delay: 0.32s;
+  }
+
+  /* Ambient gradient orbs behind the hero. */
+  .orb {
+    animation: orb-float 18s ease-in-out infinite alternate;
+  }
+  .orb-alt {
+    animation-duration: 24s;
+    animation-delay: -8s;
+  }
+
+  /* Scroll reveal: .reveal-armed is attached by motion.ts (below the fold,
+     after hydration, motion allowed only); the observer swaps it for
+     .reveal-in as the element scrolls into view. */
+  .reveal-armed {
+    opacity: 0;
+    transform: translateY(14px);
+    transition:
+      opacity 0.55s ease,
+      transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .reveal-armed.reveal-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  .terminal-cursor {
+    animation: cursor-blink 1.1s steps(2, start) infinite;
+  }
+
+  dialog.feature-dialog[open] {
+    animation: dialog-pop 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  dialog.feature-dialog[open]::backdrop {
+    animation: backdrop-in 0.24s ease-out;
+  }
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes orb-float {
+  to {
+    transform: translate(5%, -7%) scale(1.07);
+  }
+}
+
+@keyframes cursor-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@keyframes dialog-pop {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* FAQ smooth open/close where the platform supports animating <details>
+   (interpolate-size + ::details-content); elsewhere it just snaps. */
+@supports (interpolate-size: allow-keywords) {
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      interpolate-size: allow-keywords;
+    }
+    details.faq-item::details-content {
+      block-size: 0;
+      overflow: clip;
+      transition:
+        block-size 0.3s ease,
+        content-visibility 0.3s allow-discrete;
+    }
+    details.faq-item[open]::details-content {
+      block-size: auto;
+    }
+  }
+}
