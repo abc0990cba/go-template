@@ -50,7 +50,7 @@ Postgres/Redis/ClickHouse come from your platform.
 | Concern | Default |
 |---|---|
 | api replicas | 2 → HPA (CPU 70%) up to 10; rollout `maxUnavailable: 0, maxSurge: 1` |
-| worker | 1 replica (add more — outbox lease and asynq are multi-worker safe) |
+| worker | 1 replica (add more — outbox lease, asynq task distribution, and the cron dedup slot ids are multi-worker safe; each worker also runs its own prune loops, which duplicate only idempotent deletes) |
 | probes | startup `/health/startup` (2 s × 30), liveness `/health/live`, readiness `/health/ready` |
 | PDB | `minAvailable: 1` (api) |
 | resources | api 100m/128Mi → 1 CPU/512Mi; worker 50m/64Mi → 500m/256Mi |

@@ -138,3 +138,19 @@ func (s *S3) Presign(ctx context.Context, key string, ttl time.Duration) (string
 	}
 	return parsed.String(), nil
 }
+
+// Size reports the object's byte count (multipart completion derives the
+// authoritative size from storage, not client claims).
+func (s *S3) Size(ctx context.Context, key string) (int64, error) {
+	head, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		if isS3NotFound(err) {
+			return 0, ErrNotFound
+		}
+		return 0, fmt.Errorf("s3 head %s: %w", key, err)
+	}
+	return aws.ToInt64(head.ContentLength), nil
+}

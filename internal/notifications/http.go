@@ -35,7 +35,10 @@ func (h *HTTP) list(c *gin.Context) {
 		httpx.Fail(c, nil, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": httpx.ListOrEmpty(notifications), "next_cursor": ""})
+	c.JSON(http.StatusOK, gin.H{
+		"data":        httpx.ListOrEmpty(notifications),
+		"next_cursor": httpx.NextOffsetCursor(offset, len(notifications)),
+	})
 }
 
 func (h *HTTP) unreadCount(c *gin.Context) {

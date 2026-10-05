@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/your-org/go-template/internal/audit"
@@ -61,4 +62,21 @@ func (s *MemoryStore) ListAudit(_ context.Context, opts kernel.AuditOptions) ([]
 	}
 	end := min(start+limit, len(rows))
 	return rows[start:end], nil
+}
+
+// PruneAuditLog implements retention for the in-memory trail.
+func (s *MemoryStore) PruneAuditLog(_ context.Context, cutoff time.Time) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	kept := s.auditLog[:0]
+	var pruned int64
+	for _, entry := range s.auditLog {
+		if entry.CreatedAt.Before(cutoff) && !strings.HasPrefix(entry.ActorID, "demo-") {
+			pruned++
+			continue
+		}
+		kept = append(kept, entry)
+	}
+	s.auditLog = kept
+	return pruned, nil
 }

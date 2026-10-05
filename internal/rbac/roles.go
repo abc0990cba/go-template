@@ -42,6 +42,7 @@ var systemPolicies = [][]string{
 	{"admin", PlatformDomain, "tickets", "*"},
 	{"admin", PlatformDomain, "ticket_types", "*"},
 	{"admin", PlatformDomain, "streams", "*"},
+	{"admin", PlatformDomain, "emails", "*"},
 	{"admin", PlatformDomain, "admin_console", "access"},
 
 	{"manager", PlatformDomain, "users", ActionRead},

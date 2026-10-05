@@ -73,9 +73,11 @@ func (s *MemoryStore) SetPasswordCredential(_ context.Context, userID, passwordH
 	}
 	if passwordHash == "" {
 		delete(s.passwords, user.Email)
+		delete(s.loginGuards, userID)
 		return nil
 	}
 	s.passwords[user.Email] = passwordHash
+	delete(s.loginGuards, userID)
 	return nil
 }
 
@@ -184,4 +186,40 @@ func (s *MemoryStore) ConsumeOAuthState(_ context.Context, state string, now tim
 		return auth.OAuthState{}, kernel.ErrNotFound
 	}
 	return parsed, nil
+}
+
+// GetLoginGuard returns the failure counter and lockout deadline.
+func (s *MemoryStore) GetLoginGuard(_ context.Context, userID string) (int, time.Time, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	guard, ok := s.loginGuards[userID]
+	if !ok {
+		return 0, time.Time{}, nil
+	}
+	return guard.attempts, guard.lockedUntil, nil
+}
+
+// RecordLoginFailure bumps the counter and pins the lockout deadline.
+func (s *MemoryStore) RecordLoginFailure(_ context.Context, userID string, _ time.Time, lockedUntil time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	guard := s.loginGuards[userID]
+	guard.attempts++
+	guard.lockedUntil = lockedUntil
+	s.loginGuards[userID] = guard
+	return guard.attempts, nil
+}
+
+// ResetLoginGuard clears the counter and any lockout.
+func (s *MemoryStore) ResetLoginGuard(_ context.Context, userID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.loginGuards, userID)
+	return nil
+}
+
+// loginGuard is the in-memory lockout row.
+type loginGuard struct {
+	attempts    int
+	lockedUntil time.Time
 }

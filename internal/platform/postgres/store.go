@@ -152,6 +152,56 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.pool.Ping(pingCtx)
 }
 
+// RunMigrations applies the embedded migrations to the database at url.
+// The pgx5 driver takes a Postgres advisory lock for its duration, so
+// concurrent callers (boot-time auto-migrate on N replicas, or cmd/migrate
+// racing a deploy) serialize instead of racing.
+func RunMigrations(url string, fsys fs.FS) error { return migrateUp(url, fsys) }
+
+// MigrationVersion reports the schema version the database sits on and its
+// dirty flag (a dirty version means a migration failed mid-flight and needs
+// `migrate force` + human attention).
+func MigrationVersion(url string, fsys fs.FS) (int, bool, error) {
+	source, err := iofs.New(fsys, ".")
+	if err != nil {
+		return 0, false, fmt.Errorf("migrations source: %w", err)
+	}
+	driverURL := "pgx5://" + strings.TrimPrefix(url, "postgres://")
+	m, err := migrate.NewWithSourceInstance("iofs", source, driverURL)
+	if err != nil {
+		return 0, false, fmt.Errorf("migrate: %w", err)
+	}
+	defer func() { _, _ = m.Close() }()
+	version, dirty, err := m.Version()
+	if errors.Is(err, migrate.ErrNilVersion) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("migrate version: %w", err)
+	}
+	return int(version), dirty, nil
+}
+
+// ForceVersion pins the schema version without running migrations — the
+// recovery path for a dirty state after a failed mid-flight migration.
+// Version -1 clears the version entirely.
+func ForceVersion(url string, fsys fs.FS, version int) error {
+	source, err := iofs.New(fsys, ".")
+	if err != nil {
+		return fmt.Errorf("migrations source: %w", err)
+	}
+	driverURL := "pgx5://" + strings.TrimPrefix(url, "postgres://")
+	m, err := migrate.NewWithSourceInstance("iofs", source, driverURL)
+	if err != nil {
+		return fmt.Errorf("migrate: %w", err)
+	}
+	defer func() { _, _ = m.Close() }()
+	if err := m.Force(version); err != nil {
+		return fmt.Errorf("migrate force: %w", err)
+	}
+	return nil
+}
+
 func migrateUp(url string, fsys fs.FS) error {
 	source, err := iofs.New(fsys, ".")
 	if err != nil {

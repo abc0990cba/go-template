@@ -10,7 +10,9 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/email"
 	"github.com/your-org/go-template/internal/export"
+	"github.com/your-org/go-template/internal/files"
 	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/mfa"
 	"github.com/your-org/go-template/internal/observ"
@@ -157,6 +159,79 @@ func serveMetrics(addr string, logger *slog.Logger) func() {
 		case err := <-serveErr:
 			logger.Debug("metrics server stopped with error", "err", err)
 		default:
+		}
+	}
+}
+
+// emailPruneLoop drops delivery-log rows past the retention window.
+func emailPruneLoop(ctx context.Context, svc *email.Service, retention time.Duration, logger *slog.Logger) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := svc.PruneMessages(ctx, time.Now().Add(-retention))
+			if err != nil {
+				logger.Debug("email message prune failed", "err", err)
+			} else if n > 0 {
+				observ.PrunedRows.WithLabelValues("email_messages").Add(float64(n))
+				logger.Debug("email messages pruned", "count", n)
+			}
+		}
+	}
+}
+
+// auditPruner is the retention surface of the audit store.
+type auditPruner interface {
+	PruneAuditLog(ctx context.Context, cutoff time.Time) (int64, error)
+}
+
+// auditPruneLoop trims the audit trail to APP_AUDIT_RETENTION through the
+// audit_prune function (the only sanctioned delete path); 0 keeps entries
+// forever.
+func auditPruneLoop(ctx context.Context, repo auditPruner, retention time.Duration, logger *slog.Logger) {
+	if retention <= 0 {
+		logger.Info("audit retention disabled; entries are kept forever")
+		return
+	}
+	ticker := time.NewTicker(6 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := repo.PruneAuditLog(ctx, time.Now().Add(-retention))
+			if err != nil {
+				logger.Debug("audit prune failed", "err", err)
+			} else if n > 0 {
+				observ.PrunedRows.WithLabelValues("audit_log").Add(float64(n))
+				logger.Info("audit entries pruned", "count", n)
+			}
+		}
+	}
+}
+
+// multipartPruneLoop aborts resumable-upload sessions abandoned past the
+// 24h budget; storage bills their uploaded parts until they complete or
+// abort, so this loop is cost control.
+func multipartPruneLoop(ctx context.Context, files *files.Service, logger *slog.Logger) {
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			n, err := files.AbortStaleMultiparts(ctx)
+			if err != nil {
+				logger.Debug("multipart sweep failed", "err", err)
+			} else if n > 0 {
+				observ.PrunedRows.WithLabelValues("multipart_uploads").Add(float64(n))
+				logger.Info("stale multipart uploads aborted", "count", n)
+			}
 		}
 	}
 }

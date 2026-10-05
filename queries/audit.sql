@@ -24,8 +24,10 @@ ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg('lim')
 OFFSET sqlc.arg('off');
 
--- name: DeleteAuditOlderThan :execrows
-DELETE FROM audit_log WHERE created_at < sqlc.arg('cutoff');
+-- name: PruneAuditLog :one
+-- Retention runs through the SECURITY DEFINER function (migration 000022):
+-- direct DELETE on audit_log is trigger-blocked for the application role.
+SELECT audit_prune(sqlc.arg('cutoff')::timestamptz) AS pruned;
 
 -- name: DeleteDemoAudit :execrows
 DELETE FROM audit_log WHERE actor_id LIKE 'demo-%';

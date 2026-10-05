@@ -1,0 +1,11 @@
+# Local "VPS" — an OrbStack Ubuntu machine on this Mac (docs/vps/LOCAL-REHEARSAL.md).
+# Created automatically by `make vps-local`:
+#   orb create ubuntu:24.04 go-template-vps   # default user: developer
+# This file is gitignored; vps-local.sh writes it. Shown here for reference.
+all:
+  children:
+    vps:
+      hosts:
+        go-template-vps:
+          ansible_host: go-template-vps.orb.local
+          ansible_user: developer

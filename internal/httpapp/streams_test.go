@@ -117,16 +117,26 @@ func TestStreamsAdminEndpoints(t *testing.T) {
 func TestIdempotentTicketCreation(t *testing.T) {
 	store := repository.NewMemoryStore()
 	server := newStreamTestServer(t, store, nil)
-	token := registerAndLogin(t, server, "idem@example.com")
+	token := registerAndLogin(t, server, "idem@example.com") // first account: superadmin
+
+	// The runtime contract gate rejects schema-invalid creates before the
+	// idempotency middleware runs, so the bodies below stay on contract.
+	status, typeBody := callJSON(t, server, http.MethodPost, "/api/ticket-types",
+		`{"key":"idem","name":"Idem","steps":[{"name":"Review","approver_role":"approver"}]}`, token)
+	if status != http.StatusCreated {
+		t.Fatalf("create ticket type: want 201, got %d (%v)", status, typeBody)
+	}
+	typeID, _ := typeBody["id"].(string)
+	if typeID == "" {
+		t.Fatal("create ticket type: want non-empty id")
+	}
 
 	key := "test-key-1"
-	body := `{"title":"One ticket only","description":"retry me","priority":"normal"}`
+	body := `{"type_id":"` + typeID + `","title":"One ticket only","description":"retry me","priority":"medium"}`
 	headers := map[string]string{"Idempotency-Key": key}
 
 	status1, _, raw1 := rawRequest(t, server, http.MethodPost, "/api/tickets", body, token, headers)
-	if status1 != http.StatusCreated && status1 != http.StatusBadRequest {
-		// Tickets may require a ticket type; both outcomes still exercise the
-		// reservation — what matters is the replay below matching.
+	if status1 != http.StatusCreated {
 		t.Fatalf("first POST: unexpected status %d (%s)", status1, raw1)
 	}
 	status2, h2, raw2 := rawRequest(t, server, http.MethodPost, "/api/tickets", body, token, headers)
@@ -141,7 +151,8 @@ func TestIdempotentTicketCreation(t *testing.T) {
 	}
 
 	// Same key, different body: rejected as a key reuse.
-	status3, _, _ := rawRequest(t, server, http.MethodPost, "/api/tickets", `{"title":"Different"}`, token, headers)
+	status3, _, _ := rawRequest(t, server, http.MethodPost, "/api/tickets",
+		`{"type_id":"`+typeID+`","title":"Different"}`, token, headers)
 	if status3 != http.StatusUnprocessableEntity {
 		t.Fatalf("key reuse status = %d, want 422", status3)
 	}

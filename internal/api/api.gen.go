@@ -59,6 +59,30 @@ func (e DeadLetterReason) Valid() bool {
 	}
 }
 
+// Defines values for EmailMessageStatus.
+const (
+	EmailMessageStatusDead   EmailMessageStatus = "dead"
+	EmailMessageStatusFailed EmailMessageStatus = "failed"
+	EmailMessageStatusQueued EmailMessageStatus = "queued"
+	EmailMessageStatusSent   EmailMessageStatus = "sent"
+)
+
+// Valid indicates whether the value is a known member of the EmailMessageStatus enum.
+func (e EmailMessageStatus) Valid() bool {
+	switch e {
+	case EmailMessageStatusDead:
+		return true
+	case EmailMessageStatusFailed:
+		return true
+	case EmailMessageStatusQueued:
+		return true
+	case EmailMessageStatusSent:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for EnrichDemoRequestSource.
 const (
 	Kafka EnrichDemoRequestSource = "kafka"
@@ -425,6 +449,30 @@ func (e ListAuditParamsMode) Valid() bool {
 	}
 }
 
+// Defines values for ListEmailMessagesParamsStatus.
+const (
+	ListEmailMessagesParamsStatusDead   ListEmailMessagesParamsStatus = "dead"
+	ListEmailMessagesParamsStatusFailed ListEmailMessagesParamsStatus = "failed"
+	ListEmailMessagesParamsStatusQueued ListEmailMessagesParamsStatus = "queued"
+	ListEmailMessagesParamsStatusSent   ListEmailMessagesParamsStatus = "sent"
+)
+
+// Valid indicates whether the value is a known member of the ListEmailMessagesParamsStatus enum.
+func (e ListEmailMessagesParamsStatus) Valid() bool {
+	switch e {
+	case ListEmailMessagesParamsStatusDead:
+		return true
+	case ListEmailMessagesParamsStatusFailed:
+		return true
+	case ListEmailMessagesParamsStatusQueued:
+		return true
+	case ListEmailMessagesParamsStatusSent:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListEnrichmentProfilesParamsMode.
 const (
 	ListEnrichmentProfilesParamsModeCursor ListEnrichmentProfilesParamsMode = "cursor"
@@ -455,6 +503,36 @@ const (
 func (e UploadFileMultipartBodyRefType) Valid() bool {
 	switch e {
 	case UploadFileMultipartBodyRefTypeTicket:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InitiateMultipartJSONBodyRefType.
+const (
+	InitiateMultipartJSONBodyRefTypeTicket InitiateMultipartJSONBodyRefType = "ticket"
+)
+
+// Valid indicates whether the value is a known member of the InitiateMultipartJSONBodyRefType enum.
+func (e InitiateMultipartJSONBodyRefType) Valid() bool {
+	switch e {
+	case InitiateMultipartJSONBodyRefTypeTicket:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CompleteMultipartJSONBodyRefType.
+const (
+	CompleteMultipartJSONBodyRefTypeTicket CompleteMultipartJSONBodyRefType = "ticket"
+)
+
+// Valid indicates whether the value is a known member of the CompleteMultipartJSONBodyRefType enum.
+func (e CompleteMultipartJSONBodyRefType) Valid() bool {
+	switch e {
+	case CompleteMultipartJSONBodyRefTypeTicket:
 		return true
 	default:
 		return false
@@ -1008,6 +1086,22 @@ type DeadLetterList struct {
 	// NextCursor Empty on the last page.
 	NextCursor *string `json:"next_cursor,omitempty"`
 }
+
+// EmailMessage defines model for EmailMessage.
+type EmailMessage struct {
+	Attempts  int                `json:"attempts"`
+	CreatedAt time.Time          `json:"created_at"`
+	Id        string             `json:"id"`
+	Kind      string             `json:"kind"`
+	LastError *string            `json:"last_error,omitempty"`
+	SentAt    *time.Time         `json:"sent_at,omitempty"`
+	Status    EmailMessageStatus `json:"status"`
+	Subject   string             `json:"subject"`
+	To        string             `json:"to"`
+}
+
+// EmailMessageStatus defines model for EmailMessage.Status.
+type EmailMessageStatus string
 
 // EnrichDemoRequest defines model for EnrichDemoRequest.
 type EnrichDemoRequest struct {
@@ -1767,13 +1861,24 @@ type ResetPasswordJSONBody struct {
 
 // RevokeTokenJSONBody defines parameters for RevokeToken.
 type RevokeTokenJSONBody struct {
-	RefreshToken string `json:"refresh_token"`
+	AccessToken  *string `json:"access_token,omitempty"`
+	RefreshToken *string `json:"refresh_token,omitempty"`
 }
 
 // VerifyEmailJSONBody defines parameters for VerifyEmail.
 type VerifyEmailJSONBody struct {
 	Token string `json:"token"`
 }
+
+// ListEmailMessagesParams defines parameters for ListEmailMessages.
+type ListEmailMessagesParams struct {
+	Status *ListEmailMessagesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
+	Limit  *int                           `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int                           `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListEmailMessagesParamsStatus defines parameters for ListEmailMessages.
+type ListEmailMessagesParamsStatus string
 
 // ListEnrichmentProfilesParams defines parameters for ListEnrichmentProfiles.
 type ListEnrichmentProfilesParams struct {
@@ -1803,6 +1908,47 @@ type UploadFileMultipartBody struct {
 
 // UploadFileMultipartBodyRefType defines parameters for UploadFile.
 type UploadFileMultipartBodyRefType string
+
+// InitiateMultipartJSONBody defines parameters for InitiateMultipart.
+type InitiateMultipartJSONBody struct {
+	ContentType *string                           `json:"content_type,omitempty"`
+	Filename    string                            `json:"filename"`
+	Parts       int                               `json:"parts"`
+	RefId       *string                           `json:"ref_id,omitempty"`
+	RefType     *InitiateMultipartJSONBodyRefType `json:"ref_type,omitempty"`
+}
+
+// InitiateMultipartJSONBodyRefType defines parameters for InitiateMultipart.
+type InitiateMultipartJSONBodyRefType string
+
+// AbortMultipartJSONBody defines parameters for AbortMultipart.
+type AbortMultipartJSONBody struct {
+	Key      string `json:"key"`
+	UploadId string `json:"upload_id"`
+}
+
+// CompleteMultipartJSONBody defines parameters for CompleteMultipart.
+type CompleteMultipartJSONBody struct {
+	ContentType *string `json:"content_type,omitempty"`
+	Filename    string  `json:"filename"`
+	Key         string  `json:"key"`
+	Parts       []struct {
+		Etag       string `json:"etag"`
+		PartNumber int    `json:"part_number"`
+	} `json:"parts"`
+	RefId    *string                           `json:"ref_id,omitempty"`
+	RefType  *CompleteMultipartJSONBodyRefType `json:"ref_type,omitempty"`
+	UploadId string                            `json:"upload_id"`
+}
+
+// CompleteMultipartJSONBodyRefType defines parameters for CompleteMultipart.
+type CompleteMultipartJSONBodyRefType string
+
+// PutMultipartPartParams defines parameters for PutMultipartPart.
+type PutMultipartPartParams struct {
+	UploadId   string `form:"upload_id" json:"upload_id"`
+	PartNumber int    `form:"part_number" json:"part_number"`
+}
 
 // StartImpersonationJSONBody defines parameters for StartImpersonation.
 type StartImpersonationJSONBody struct {
@@ -2069,6 +2215,12 @@ type UpdateTicketJSONBody struct {
 	Title       *string                       `json:"title,omitempty"`
 }
 
+// UpdateTicketParams defines parameters for UpdateTicket.
+type UpdateTicketParams struct {
+	// IfMatch Optimistic locking: the ETag returned by a prior GET of this ticket. A stale tag answers 412 without applying the edit; an absent header keeps last-write-wins.
+	IfMatch *string `json:"If-Match,omitempty"`
+}
+
 // UpdateTicketJSONBodyPriority defines parameters for UpdateTicket.
 type UpdateTicketJSONBodyPriority string
 
@@ -2115,6 +2267,12 @@ type ListUsersParams struct {
 
 // ListUsersParamsMode defines parameters for ListUsers.
 type ListUsersParamsMode string
+
+// UpdateUserParams defines parameters for UpdateUser.
+type UpdateUserParams struct {
+	// IfMatch Optimistic locking: the ETag returned by a prior GET of this user. A stale tag answers 412 without applying the change; an absent header keeps last-write-wins.
+	IfMatch *string `json:"If-Match,omitempty"`
+}
 
 // GetUserActivityParams defines parameters for GetUserActivity.
 type GetUserActivityParams struct {
@@ -2190,6 +2348,15 @@ type VerifyEmailJSONRequestBody VerifyEmailJSONBody
 
 // UploadFileMultipartRequestBody defines body for UploadFile for multipart/form-data ContentType.
 type UploadFileMultipartRequestBody UploadFileMultipartBody
+
+// InitiateMultipartJSONRequestBody defines body for InitiateMultipart for application/json ContentType.
+type InitiateMultipartJSONRequestBody InitiateMultipartJSONBody
+
+// AbortMultipartJSONRequestBody defines body for AbortMultipart for application/json ContentType.
+type AbortMultipartJSONRequestBody AbortMultipartJSONBody
+
+// CompleteMultipartJSONRequestBody defines body for CompleteMultipart for application/json ContentType.
+type CompleteMultipartJSONRequestBody CompleteMultipartJSONBody
 
 // StartImpersonationJSONRequestBody defines body for StartImpersonation for application/json ContentType.
 type StartImpersonationJSONRequestBody StartImpersonationJSONBody

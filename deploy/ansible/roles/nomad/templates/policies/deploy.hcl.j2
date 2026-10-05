@@ -1,17 +1,12 @@
-# CI deploy policy: everything needed to run the app job from a pipeline,
-# nothing else. Used by the "deploy.token" (see docs/vps/deployment.md).
+# CI deploy policy: everything the Woodpecker pipeline needs — submit the app
+# job (blocking `nomad job run` gates on the deployment health), read status —
+# nothing else. Capability names validated against Nomad 2.0.7.
+# Used by the "deploy.token" (see docs/vps/deployment.md).
 namespace "*" {
   capabilities = [
     "submit-job",
-    "dispatch-job",
     "read-job",
-    "read-jobs",
     "list-jobs",
-    "scale-job",
-    "read-deployment",
-    "read-job-summary",
-    "read-allocations",
-    "read-logs",
   ]
 }
 

@@ -13,6 +13,8 @@ import (
 
 	"github.com/casbin/casbin/v2"
 
+	"golang.org/x/sync/singleflight"
+
 	"github.com/your-org/go-template/internal/cache"
 )
 
@@ -58,6 +60,7 @@ var Resources = []Resource{
 	{Key: "tickets", Description: "Tickets and approvals", Actions: []string{ActionRead, "read_all", ActionCreate, ActionUpdate, ActionDelete, "approve"}},
 	{Key: "ticket_types", Description: "Ticket types and approval chains", Actions: []string{ActionRead, ActionCreate, ActionUpdate, ActionDelete}},
 	{Key: "streams", Description: "Event streams: outbox and dead letters", Actions: []string{ActionRead, "replay"}},
+	{Key: "emails", Description: "Outbound email delivery log", Actions: []string{ActionRead, ActionExecute}},
 	{Key: "admin_console", Description: "Access to the /admin console", Actions: []string{"access"}},
 }
 
@@ -69,10 +72,12 @@ type Service struct {
 		cache cache.Cache
 		ttl   time.Duration
 	}
-	enforcer *casbin.SyncedEnforcer
-	roles    RolesStore
-	orgs     OrgsStore
-	logger   *slog.Logger
+	// orgsGroup collapses concurrent membership lookups (singleflight).
+	orgsGroup singleflight.Group
+	enforcer  *casbin.SyncedEnforcer
+	roles     RolesStore
+	orgs      OrgsStore
+	logger    *slog.Logger
 }
 
 // NewService wires the policy engine against its stores. The enforcer may

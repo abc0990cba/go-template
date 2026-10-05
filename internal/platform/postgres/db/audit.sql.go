@@ -10,18 +10,6 @@ import (
 	"time"
 )
 
-const deleteAuditOlderThan = `-- name: DeleteAuditOlderThan :execrows
-DELETE FROM audit_log WHERE created_at < $1
-`
-
-func (q *Queries) DeleteAuditOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteAuditOlderThan, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const deleteDemoAudit = `-- name: DeleteDemoAudit :execrows
 DELETE FROM audit_log WHERE actor_id LIKE 'demo-%'
 `
@@ -176,4 +164,17 @@ func (q *Queries) ListAuditSubject(ctx context.Context, arg ListAuditSubjectPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const pruneAuditLog = `-- name: PruneAuditLog :one
+SELECT audit_prune($1::timestamptz) AS pruned
+`
+
+// Retention runs through the SECURITY DEFINER function (migration 000022):
+// direct DELETE on audit_log is trigger-blocked for the application role.
+func (q *Queries) PruneAuditLog(ctx context.Context, cutoff time.Time) (int64, error) {
+	row := q.db.QueryRow(ctx, pruneAuditLog, cutoff)
+	var pruned int64
+	err := row.Scan(&pruned)
+	return pruned, err
 }

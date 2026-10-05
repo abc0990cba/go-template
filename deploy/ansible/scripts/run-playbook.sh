@@ -18,7 +18,8 @@ fi
 
 # Refresh the working SSH user if the stored one stopped working (first run
 # bootstraps as root, every later run uses the hardened deploy user).
-if ! ssh -o BatchMode=yes -o ConnectTimeout=8 "${vps_ssh_user:-root}@${vps_host}" true 2>/dev/null; then
+build_ssh_opts
+if ! ssh "${SSH_OPTS[@]}" "${vps_ssh_user:-root}@${vps_host}" true 2>/dev/null; then
   if NEW_USER=$(detect_ssh_user); then
     info "SSH user '${vps_ssh_user:-root}' no longer works; switching inventory to '${NEW_USER}'"
     persist_ssh_user "$NEW_USER"

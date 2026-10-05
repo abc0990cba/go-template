@@ -21,6 +21,10 @@ sql:
       - migrations/postgres/000017_org_invitations.up.sql
       - migrations/postgres/000018_files.up.sql
       - migrations/postgres/000019_oauth_state_verifier.up.sql
+      - migrations/postgres/000020_email_messages.up.sql
+      - migrations/postgres/000021_login_guards.up.sql
+      - migrations/postgres/000022_audit_immutability.up.sql
+      - migrations/postgres/000023_identity_email_verified.up.sql
     queries: queries
     gen:
       go:

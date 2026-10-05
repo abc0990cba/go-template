@@ -52,6 +52,9 @@ job "caddy" {
       config {
         image        = "{{ caddy_image }}"
         network_mode = "host"
+        # Explicit binary: the Nomad 2.x docker driver does not keep the
+        # image entrypoint when args are set.
+        command      = ["/usr/bin/caddy"]
         args         = ["run", "--config", "/conf/caddy/Caddyfile", "--adapter", "caddyfile"]
       }
 

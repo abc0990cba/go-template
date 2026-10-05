@@ -1,0 +1,3 @@
+---
+# Full path: ansible's non-interactive PATH may not include /usr/local/bin.
+nomad_bin: /usr/local/bin/nomad

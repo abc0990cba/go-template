@@ -118,6 +118,21 @@ func main() {
 		go refreshTokenPruneLoop(ctx, services.Tokens, logger)
 	}
 
+	// The email delivery log ages out on APP_EMAIL_RETENTION.
+	if services.Email != nil {
+		go emailPruneLoop(ctx, services.Email, cfg.EmailRetention, logger)
+	}
+
+	// Resumable uploads left unfinished past 24h abort here (their parts
+	// cost storage money until they do).
+	if services.Files != nil {
+		go multipartPruneLoop(ctx, services.Files, logger)
+	}
+
+	// The audit trail ages out on APP_AUDIT_RETENTION (0 = forever) via the
+	// audit_prune function — the only sanctioned delete path.
+	go auditPruneLoop(ctx, repos.Audit, cfg.AuditRetention, logger)
+
 	// Stream and relay metrics live in this process; expose them for
 	// Prometheus when a metrics address is configured.
 	closeMetrics := serveMetrics(cfg.MetricsAddr, logger)
@@ -129,7 +144,7 @@ func main() {
 		bridge := realtime.NewRedisBridge(cfg.RedisAddr, realtime.NewHub(), logger)
 		defer func() { _ = bridge.Close() }()
 		services.Jobs.WithJobNotifier(func(job jobs.Job) {
-			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+			bridge.Publish(realtime.NewOrgEvent(realtime.TypeJobUpdated, job, job.OrgID))
 		})
 	}
 
@@ -235,26 +250,16 @@ func runAsynq(ctx context.Context, services *bootstrap.Container, cfg config.Con
 		Concurrency:    cfg.MaxConcurrency,
 		RetryDelayFunc: asynq.DefaultRetryDelayFunc,
 	})
-	mux := queue.NewMux(services.Jobs, logger, services.Webhooks)
+	mux := queue.NewMux(services.Jobs, logger, services.Webhooks, services.Email)
 
-	scheduler := asynq.NewScheduler(opt, nil)
+	// The periodic report cron runs on every worker; slot-bucketed task ids
+	// make concurrent enqueues deduplicate (see cmd/worker/cron.go).
 	if cfg.ReportCron != "" {
-		payload, err := jobs.Encode(jobs.ReportGenerate{PayloadVersion: 1})
-		if err != nil {
-			logger.Error("encode scheduled payload", "err", err)
-			os.Exit(1)
-		}
-		if _, err := scheduler.Register(cfg.ReportCron, asynq.NewTask(jobs.TypeReportGenerate, payload)); err != nil {
-			logger.Error("register periodic task", "cron", cfg.ReportCron, "err", err)
-			os.Exit(1)
-		}
+		cronClient := asynq.NewClient(opt)
+		defer func() { _ = cronClient.Close() }()
+		go runReportCron(ctx, cronClient, cfg.ReportCron, logger)
 		logger.Info("periodic report scheduled", "cron", cfg.ReportCron)
 	}
-	if err := scheduler.Start(); err != nil {
-		logger.Error("start scheduler", "err", err)
-		os.Exit(1)
-	}
-	defer scheduler.Shutdown()
 
 	logger.Info("worker started", "mode", "asynq", "redis", cfg.RedisAddr, "concurrency", cfg.MaxConcurrency, "store", kind)
 	serveErr := make(chan error, 1)

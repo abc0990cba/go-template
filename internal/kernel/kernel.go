@@ -38,6 +38,12 @@ func (e *ValidationError) Error() string { return e.Msg }
 // Invalid returns a client-fixable validation error.
 func Invalid(msg string) error { return &ValidationError{Msg: msg} }
 
+// PwnedChecker reports whether a password appears in known breach corpora;
+// wired optionally into every flow that accepts a new password. A false
+// negative (check unavailable) must return false with a nil error when the
+// deployment chose fail-open behavior.
+type PwnedChecker func(ctx context.Context, password string) (compromised bool, err error)
+
 // IsValidationError reports whether err or anything it wraps is a ValidationError.
 func IsValidationError(err error) bool {
 	var ve *ValidationError

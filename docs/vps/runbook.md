@@ -5,7 +5,8 @@ Day-2 operations for the single-VPS deployment. Setup is the
 [deployment reference](deployment.md).
 
 Every command below runs from the repo root. Add `VPS_SITE=dev` to operate on
-the dev VPS instead of prod.
+the dev VPS instead of prod, `VPS_SITE=local` for the local OrbStack rehearsal
+machine ([LOCAL-REHEARSAL.md](LOCAL-REHEARSAL.md)).
 
 ---
 
@@ -150,6 +151,43 @@ Migrate to a bigger VPS: provision it → `vps-setup` (reuse old
 `vps-restore` with the latest dump. Data lives in `/opt/go-template/data`
 (Postgres is the only stateful component that matters; rsync it for a
 zero-dump migration while the old node is stopped).
+
+## Schema migrations
+
+Migrations are embedded and run at boot (golang-migrate takes a Postgres
+advisory lock, so concurrent api/worker boots and `migrate` runs serialize
+instead of racing). For a pre-deploy check or a manual step:
+
+```
+make migrate-version DATABASE_URL='postgres://...from secrets.yml...'
+make migrate        DATABASE_URL='postgres://...'   # apply pending
+make migrate-force N=23 DATABASE_URL='postgres://...' # recover a dirty version
+```
+
+A **dirty** version means a migration failed mid-flight: fix the cause,
+restore from the nightly backup if needed, `migrate-force` to the last
+good version, and re-run `migrate`. Boot-time auto-migrate stays the
+deployment path (advisory-locked, so it serializes against this CLI);
+there is no separate staging-database step in CI yet.
+
+## Log queries (Loki)
+
+```
+ssh -J vps curl -s http://127.0.0.1:3100/loki/api/v1/labels          # label names
+# or tunnel: make vps-ui → http://127.0.0.1:3100
+# Grafana Explore: {container="api"} | json            app logs (JSON lines)
+#                  {container="caddy"}                 access log
+```
+
+Retention is 7 days (`configs/loki/loki-config.yml`); the volume is
+`/opt/go-template/data/loki`.
+
+## Uptime Kuma
+
+`https://uptime.example.com` (or tunnel `http://127.0.0.1:3002`). First
+visit asks for the admin account — set it before exposing the domain. It
+probes from this host: keep one off-node probe for real outside-in
+monitoring, and treat Kuma as the convenient dashboard.
 
 ## Troubleshooting
 

@@ -11,6 +11,7 @@ import (
 	"github.com/your-org/go-template/internal/analytics"
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/kernel"
+	"github.com/your-org/go-template/internal/rbac"
 	"github.com/your-org/go-template/internal/realtime"
 )
 
@@ -30,9 +31,33 @@ type snapshot struct {
 	Jobs    []jobs.Job        `json:"jobs"`
 }
 
+// realtimeSubscriber resolves the connection's identity once: org
+// memberships, platform-admin flag, and the jobs permission that gates the
+// periodic snapshot — everything Publish needs to scope delivery.
+func (a *App) realtimeSubscriber(c *gin.Context) realtime.Subscriber {
+	user := a.currentUser(c)
+	domain := a.requestDomain(c)
+	memberships, err := a.services.RBAC.OrgsForUser(c.Request.Context(), user.ID)
+	orgs := make([]string, 0, len(memberships))
+	for _, org := range memberships {
+		orgs = append(orgs, org.ID)
+	}
+	if err != nil {
+		orgs = nil
+	}
+	sub := realtime.Subscriber{
+		UserID:      user.ID,
+		Orgs:        orgs,
+		Admin:       a.services.RBAC.Enforce(user.ID, rbac.PlatformDomain, "*", "*"),
+		CanReadJobs: a.services.RBAC.Enforce(user.ID, domain, "jobs", "read"),
+	}
+	return sub
+}
+
 // sseStream pushes analytics events, job transitions, and periodic
 // snapshots to the browser. Auth happens in the apiAuth middleware; the
-// stream itself is anonymous bytes on an authenticated connection.
+// stream itself is anonymous bytes on an authenticated connection, scoped
+// to the subscriber's orgs (or personal events only).
 func (a *App) sseStream(c *gin.Context) {
 	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
@@ -44,7 +69,8 @@ func (a *App) sseStream(c *gin.Context) {
 	c.Header("Connection", "keep-alive")
 	c.Header("X-Accel-Buffering", "no")
 
-	events, cancel := a.hub.Subscribe()
+	sub := a.realtimeSubscriber(c)
+	events, cancel := a.hub.Subscribe(sub)
 	defer cancel()
 
 	writeSSE(c, flusher, realtime.NewEvent(realtime.TypeConnected, gin.H{"at": time.Now().UTC()}))
@@ -70,7 +96,12 @@ func (a *App) sseStream(c *gin.Context) {
 			}
 			flusher.Flush()
 		case <-snapshots.C:
-			writeSSE(c, flusher, a.buildSnapshot(ctx))
+			// The snapshot carries job records and platform aggregates —
+			// exactly what the jobs list REST permission guards, so the
+			// stream honors the same gate.
+			if sub.CanReadJobs {
+				writeSSE(c, flusher, a.buildSnapshot(ctx))
+			}
 		}
 	}
 }
@@ -91,7 +122,8 @@ func (a *App) buildSnapshot(ctx context.Context) realtime.Event {
 
 // writeSSE emits one event in text/event-stream framing.
 func writeSSE(c *gin.Context, flusher http.Flusher, ev realtime.Event) {
-	payload, err := json.Marshal(ev)
+	// The wire view strips the routing scope; clients never see it.
+	payload, err := json.Marshal(ev.Wire())
 	if err != nil {
 		return
 	}

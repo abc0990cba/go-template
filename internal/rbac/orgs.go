@@ -8,15 +8,32 @@ import (
 	"strings"
 	"time"
 
+	"github.com/your-org/go-template/internal/cache"
 	"github.com/your-org/go-template/internal/kernel"
 )
 
-// OrgsForUser lists the organizations the user belongs to.
+// OrgsForUser lists the organizations the user belongs to. Memberships
+// change rarely and the list is read on every permission-guarded request
+// (and per realtime connection), so it rides the 30s cache; every
+// membership mutation invalidates the user's key.
 func (s *Service) OrgsForUser(ctx context.Context, userID string) ([]Organization, error) {
 	if s.orgs == nil {
 		return nil, kernel.ErrNotFound
 	}
+	if s.permsCache.cache != nil {
+		return cache.CachedGetOrLoad(ctx, s.permsCache.cache, s.logger, &s.orgsGroup,
+			cache.OrgsCacheKey(userID), cache.CacheTTLUser, func(ctx context.Context) ([]Organization, error) {
+				return s.orgs.ListOrgsForUser(ctx, userID)
+			})
+	}
 	return s.orgs.ListOrgsForUser(ctx, userID)
+}
+
+// invalidateOrgs drops the user's cached membership list.
+func (s *Service) invalidateOrgs(userID string) {
+	if s.permsCache.cache != nil {
+		s.permsCache.cache.Delete(context.Background(), cache.OrgsCacheKey(userID))
+	}
 }
 
 // OrgMember reports membership of the user in the organization.
@@ -77,9 +94,16 @@ func (s *Service) UpdateOrg(ctx context.Context, id, name, slug string) error {
 	return s.orgs.UpdateOrg(ctx, org)
 }
 
-// DeleteOrg removes the organization.
+// DeleteOrg removes the organization and drops every cached membership
+// list (all members' lists change at once).
 func (s *Service) DeleteOrg(ctx context.Context, id string) error {
-	return s.orgs.DeleteOrg(ctx, id)
+	if err := s.orgs.DeleteOrg(ctx, id); err != nil {
+		return err
+	}
+	if s.permsCache.cache != nil {
+		s.permsCache.cache.DeletePrefix(ctx, cache.CacheKeyOrgs)
+	}
+	return nil
 }
 
 // OrgMembers lists an organization's members with their user snapshot.
@@ -89,12 +113,17 @@ func (s *Service) OrgMembers(ctx context.Context, orgID string) ([]OrgMember, er
 
 // AddOrgMember attaches the user to the organization.
 func (s *Service) AddOrgMember(ctx context.Context, orgID, userID string) error {
-	return s.orgs.AddOrgMember(ctx, OrgMember{OrgID: orgID, UserID: userID, JoinedAt: time.Now()})
+	if err := s.orgs.AddOrgMember(ctx, OrgMember{OrgID: orgID, UserID: userID, JoinedAt: time.Now()}); err != nil {
+		return err
+	}
+	s.invalidateOrgs(userID)
+	return nil
 }
 
 // RemoveOrgMember detaches the user from the organization; their role
 // assignments in the domain are revoked too.
 func (s *Service) RemoveOrgMember(ctx context.Context, orgID, userID string) error {
+	s.invalidateOrgs(userID)
 	for _, role := range s.enforcer.GetRolesForUserInDomain(userID, orgID) {
 		_, _ = s.enforcer.DeleteRoleForUserInDomain(userID, role, orgID)
 	}

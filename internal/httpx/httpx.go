@@ -7,6 +7,7 @@
 package httpx
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -46,6 +47,10 @@ func HTTPError(err error) (int, string) {
 		return http.StatusForbidden, "forbidden"
 	case kernel.IsValidationError(err):
 		return http.StatusBadRequest, "validation failed"
+	case errors.Is(err, context.DeadlineExceeded):
+		// The request-timeout middleware's deadline reached a dependency;
+		// the client should retry (idempotency keys make that safe).
+		return http.StatusGatewayTimeout, "deadline exceeded"
 	default:
 		return http.StatusInternalServerError, "internal error"
 	}
@@ -92,6 +97,16 @@ func Bind(c *gin.Context, dst any) bool {
 		return false
 	}
 	return true
+}
+
+// NextOffsetCursor renders the continuation cursor for offset-paged lists:
+// a full page carries the next offset, a short page means the end (empty
+// cursor). The convention every list endpoint shares.
+func NextOffsetCursor(offset, batchLen int) string {
+	if batchLen == 0 {
+		return ""
+	}
+	return strconv.Itoa(offset + batchLen)
 }
 
 // ListOrEmpty keeps nil slices off the wire: a nil slice marshals to JSON

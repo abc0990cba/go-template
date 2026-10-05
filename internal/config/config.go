@@ -70,6 +70,19 @@ type Config struct {
 	SMTPPassword     string
 	SMTPFrom         string
 
+	// EmailMode selects the transport for transactional mail: "sync" sends
+	// inline before the triggering request returns; "queue" records the
+	// message and hands delivery to the worker via asynq (requires Redis).
+	// Both modes record the delivery log.
+	EmailMode string
+	// EmailRetention bounds the email delivery log; the worker sweeps older
+	// rows on a schedule.
+	EmailRetention time.Duration
+	// AuditRetention bounds the audit trail; the worker prunes through the
+	// audit_prune SECURITY DEFINER function (the only sanctioned delete
+	// path). 0 keeps audit entries forever.
+	AuditRetention time.Duration
+
 	// Streams — user enrichment from two external systems. Empty
 	// KafkaBrokers or NatsURL disables that consumer, matching the
 	// optional-infrastructure rule used for ClickHouse and Redis.
@@ -104,10 +117,39 @@ type Config struct {
 	APIRateBurst   int
 	IdempotencyTTL time.Duration
 
+	// OpenAPIValidation controls the runtime contract validator on /api:
+	// "off", "requests" (reject non-conforming requests with 400), or "all"
+	// (additionally validate responses, logging mismatches without altering
+	// them). The embedded contract is what /openapi.yaml serves.
+	OpenAPIValidation string
+
+	// LoadShedMaxInflight caps concurrent /api requests; 0 disables. Bulk
+	// surfaces (reports, analytics, exports) are shed earlier than
+	// interactive traffic, keeping a reserve lane for the latter.
+	LoadShedMaxInflight int
+
+	// RequestTimeout bounds each /api request's context; 0 disables. The
+	// deadline propagates to the database and queue calls, so a stuck
+	// backend surfaces as a fast 504 instead of a hung connection.
+	RequestTimeout time.Duration
+
 	// RetentionProcessedEvents bounds the exactly-once inbox (dedupe table).
 	// It must exceed any redelivery delay the brokers can produce; the
 	// worker deletes older rows on a schedule.
 	RetentionProcessedEvents time.Duration
+
+	// Breached-password checks (HIBP k-anonymity range API): "off",
+	// "warn" (log compromised passwords, allow them), or "enforce" (reject
+	// them). Checks fail open when the API is unreachable.
+	HIBPMode string
+	// HIBPURL overrides the range API base URL (tests point it at a stub).
+	HIBPURL string
+
+	// Progressive lockout: after LockoutThreshold password failures the
+	// account locks for LockoutWindow, doubling per additional failure up
+	// to the 24h cap. A threshold of 0 disables the feature entirely.
+	LockoutThreshold int
+	LockoutWindow    time.Duration
 
 	// UserRate limits each authenticated principal (user id or API-key
 	// subject) individually on top of the per-IP API budget.
@@ -119,9 +161,13 @@ type Config struct {
 	// as statement_timeout / idle_in_transaction_session_timeout.
 	Pool PoolTuning
 
-	// JWT token grants (opt-in): an empty secret disables the token
-	// endpoints entirely.
-	JWTSecret     string
+	// JWT token grants (opt-in): an empty secret and empty keyset disable
+	// the token endpoints entirely.
+	JWTSecret string
+	// JWTKeySetData is the raw APP_JWT_SECRETS_FILE contents (a kid→secret
+	// map with the active kid, for zero-downtime rotation); the tokens
+	// feature parses it at wiring time.
+	JWTKeySetData []byte
 	JWTAccessTTL  time.Duration
 	JWTRefreshTTL time.Duration
 

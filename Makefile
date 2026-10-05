@@ -1,4 +1,4 @@
-.PHONY: helm-lint helm-template run dev hooks worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate lint-spec vulncheck hooks docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate vps-setup vps-doctor vps-deploy vps-check vps-app-deploy vps-update vps-rollback vps-status vps-logs vps-ui vps-backup vps-restore vps-acme-production
+.PHONY: helm-lint helm-template run dev hooks worker test test-integration test-e2e test-performance coverage coverage-check seed-users seed-demo seed-demo-reset web-install web-dev web-build web-lint web-test check-size perf-login perf-users perf-analytics perf-enrichment lint vet generate lint-spec vulncheck hooks docker-up docker-down demo-up demo-down demo-kafka-profile demo-nats-contact demo-enrichment demo-dlq demo-outbox demo-breaker demo-ratelimit demo-idempotency chaos-up chaos-down chaos-status chaos-pg-latency chaos-pg-down chaos-redis-down chaos-restore nomad-up nomad-run nomad-stop nomad-validate kind-up kind-release kind-down openspec-validate vps-setup vps-doctor vps-deploy vps-check vps-app-deploy vps-update vps-rollback vps-status vps-logs vps-ui vps-backup vps-restore vps-acme-production vps-local vps-verify
 run:
 	go run ./cmd/api
 
@@ -13,6 +13,22 @@ hooks:
 worker:
 	go run ./cmd/worker
 
+# Schema migrations outside the app's boot path (boot auto-migrate stays on
+# as the fallback; golang-migrate advisory-locks, so the two never race).
+#   make migrate DATABASE_URL=postgres://...        apply pending migrations
+#   make migrate-version DATABASE_URL=...           show the schema version
+#   make migrate-force N=-1 DATABASE_URL=...        recover a dirty version
+DATABASE_URL ?= postgres://go_template:go_template@localhost:5432/go_template?sslmode=disable
+
+migrate:
+	go run ./cmd/migrate up
+
+migrate-version:
+	go run ./cmd/migrate version
+
+migrate-force:
+	go run ./cmd/migrate force ${N}
+
 test:
 	go test -race ./...
 
@@ -24,6 +40,21 @@ test-e2e:
 
 test-performance:
 	@command -v k6 >/dev/null 2>&1 && k6 run test/performance/smoke.js || echo "k6 is not installed; install k6 to run performance tests"
+
+# Micro-benchmarks for hot paths (etag computation, problem+json, the memory
+# rate limiter). Compare runs with benchstat: go test -bench=. -count=10 > old.txt
+bench:
+	go test -run='^$$' -bench=. -benchmem ./internal/httpx/ ./internal/platform/ratelimit/ ./internal/httpapp/
+
+# Fuzz the untrusted-input parsers (token verification, the problem+json
+# writer, If-Match parsing, log email masking). Go runs one target per
+# invocation; 30s each is a smoke pass, raise -fuzztime for deeper runs.
+# Found crashes land in testdata/fuzz/<Fuzz>/<case> and run in `make test`.
+fuzz:
+	go test -fuzz='^FuzzVerifyAccess$$' -fuzztime=30s ./internal/tokens/
+	go test -fuzz='^FuzzMaskEmails$$' -fuzztime=30s ./internal/observ/
+	go test -fuzz='^FuzzProblem$$' -fuzztime=30s ./internal/httpx/
+	go test -fuzz='^FuzzIfMatchParsing$$' -fuzztime=30s ./internal/httpx/
 
 # Performance scenarios need a live stack with seeded users:
 #   make docker-up && make seed-users && make perf-login
@@ -310,3 +341,9 @@ vps-acme-production: ## Switch Let's Encrypt staging -> production, redeploy Cad
 	@sed -i.bak 's/^acme_staging: true/acme_staging: false/' $(VPS)/inventories/$(VPS_SITE)/group_vars/vps/main.yml && rm -f $(VPS)/inventories/$(VPS_SITE)/group_vars/vps/main.yml.bak
 	@$(VPS)/scripts/run-playbook.sh deploy-app.yml -e jobs=caddy
 	@echo "Caddy reloaded against the production LE CA. Certificates are re-issued automatically."
+
+vps-local: ## ONE command: rehearse the ENTIRE deploy on a local OrbStack Ubuntu machine
+	@$(VPS)/scripts/vps-local.sh
+
+vps-verify: ## Post-deploy verification table (works for prod, dev and local)
+	@$(VPS)/scripts/vps-verify.sh

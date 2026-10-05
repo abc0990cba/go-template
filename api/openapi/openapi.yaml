@@ -27,6 +27,7 @@ tags:
   - name: impersonation
   - name: webhooks
   - name: tickets
+  - name: emails
 paths:
   /health/live:
     get:
@@ -336,7 +337,12 @@ paths:
   /api/auth/token/revoke:
     post:
       tags: [auth]
-      summary: Revoke a refresh token (idempotent)
+      summary: Revoke tokens (idempotent)
+      description: >-
+        Carrying refresh_token revokes it (reuse of a revoked refresh token
+        revokes its whole family). Carrying access_token denylists that
+        access token's jti until it expires, so logout is immediate for
+        Bearer clients. At least one field is required.
       operationId: revokeToken
       requestBody:
         required: true
@@ -344,9 +350,10 @@ paths:
           application/json:
             schema:
               type: object
-              required: [refresh_token]
+              minProperties: 1
               properties:
                 refresh_token: { type: string }
+                access_token: { type: string }
       responses:
         "204": { description: Token revoked or unknown }
         default: { $ref: "#/components/responses/Problem" }
@@ -494,12 +501,22 @@ paths:
         content:
           application/json:
             schema: { $ref: "#/components/schemas/UpdateUserRequest" }
+      parameters:
+        - name: If-Match
+          in: header
+          required: false
+          description: >-
+            Optimistic locking: the ETag returned by a prior GET of this
+            user. A stale tag answers 412 without applying the change; an
+            absent header keeps last-write-wins.
+          schema: { type: string }
       responses:
         "200":
           description: Updated user
           content:
             application/json:
               schema: { $ref: "#/components/schemas/User" }
+        "412": { $ref: "#/components/responses/Problem" }
         default: { $ref: "#/components/responses/Problem" }
     delete:
       tags: [users]
@@ -508,6 +525,29 @@ paths:
       security: [{ bearerAuth: [] }]
       responses:
         "204": { description: Deleted }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/users/{id}/unlock:
+    parameters:
+      - $ref: "#/components/parameters/userId"
+    post:
+      tags: [auth]
+      summary: Clear a locked account's login-failure counter
+      description: >-
+        Admin action for progressive lockout: the account can log in again
+        immediately. Idempotent — unlocking an unlocked account succeeds —
+        and the answer never reveals which accounts were locked.
+      operationId: unlockUser
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The account is usable again
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string }
         default: { $ref: "#/components/responses/Problem" }
   /api/users/{id}/enrich-demo:
     parameters:
@@ -885,6 +925,22 @@ paths:
           content:
             text/event-stream:
               schema: { type: string }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/events/ws:
+    get:
+      tags: [analytics]
+      summary: WebSocket stream carrying the same events as /api/events/stream
+      description: |
+        Upgrades to WebSocket. Every text frame is one JSON object:
+        `{"type":"analytics.event|job.updated|snapshot|connected","payload":{...}}`.
+        The server pings idle connections every ~15s; client frames are not
+        interpreted. Cross-site handshakes (browser Origin other than the API
+        host) are refused — cookies ride along on WebSocket upgrades.
+      operationId: streamEventsWS
+      security: [{ bearerAuth: [] }]
+      responses:
+        "101": { description: Switched to WebSocket }
+        "403": { $ref: "#/components/responses/Problem" }
         default: { $ref: "#/components/responses/Problem" }
   /api/sessions:
     get:
@@ -1679,6 +1735,72 @@ paths:
       responses:
         "204": { description: Stopped }
         default: { $ref: "#/components/responses/Problem" }
+  /api/emails:
+    get:
+      tags: [emails]
+      summary: List the outbound email delivery log
+      operationId: listEmailMessages
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [queued, sent, failed, dead] }
+        - { name: limit, in: query, schema: { type: integer, default: 25 } }
+        - { name: offset, in: query, schema: { type: integer, default: 0 } }
+      responses:
+        "200":
+          description: The delivery log, newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/EmailMessage" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/emails/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    get:
+      tags: [emails]
+      summary: Get one delivery-log entry
+      operationId: getEmailMessage
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The recorded message
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmailMessage" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/emails/{id}/retry:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [emails]
+      summary: Re-queue a failed or dead message for delivery
+      description: >-
+        Resets the message to queued and hands it back to the configured
+        transport (the queue worker, or an inline send in sync mode).
+        Re-delivering a sent message answers 409.
+      operationId: retryEmailMessage
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The message, re-queued
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/EmailMessage" }
+        "409": { $ref: "#/components/responses/Problem" }
+        default: { $ref: "#/components/responses/Problem" }
   /api/webhooks:
     get:
       tags: [webhooks]
@@ -1819,6 +1941,152 @@ paths:
                     type: array
                     items: { $ref: "#/components/schemas/DayCount" }
         default: { $ref: "#/components/responses/Problem" }
+  /api/files/multipart:
+    get:
+      tags: [files]
+      summary: Resumable-upload capability and its dev-mode shape
+      operationId: multipartCapability
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Whether sessions are available and how parts are uploaded
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [enabled, streaming, max_size]
+                properties:
+                  enabled: { type: boolean }
+                  streaming: { type: boolean }
+                  max_size: { type: integer }
+        default: { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [files]
+      summary: Open a resumable upload session
+      description: >-
+        Large attachments go to the file store in parts. Ticket attachments
+        are visibility-checked like single-shot uploads. The response names
+        the session, the destination key, and one presigned PUT URL per part
+        (S3 mode); dev mode returns streaming=true and parts are PUT to
+        /api/files/multipart/parts instead.
+      operationId: initiateMultipart
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, parts]
+              properties:
+                filename: { type: string }
+                content_type: { type: string }
+                parts: { type: integer, minimum: 2, maximum: 10000 }
+                ref_type: { type: string, enum: [ticket] }
+                ref_id: { type: string }
+      responses:
+        "201":
+          description: Session opened
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [key, upload_id, streaming]
+                properties:
+                  key: { type: string }
+                  upload_id: { type: string }
+                  part_urls: { type: array, items: { type: string } }
+                  streaming: { type: boolean }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/files/multipart/parts:
+    post:
+      tags: [files]
+      summary: Stream one part through the API (dev mode)
+      description: >-
+        Query parameters upload_id and part_number (1-based); the body is
+        the raw part bytes. Only available when the capability reports
+        streaming=true (the in-process file store).
+      operationId: putMultipartPart
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: upload_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: part_number
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1 }
+      requestBody:
+        required: true
+        # Part bytes arrive with whatever content type the uploader used.
+        content:
+          "*/*":
+            schema: { type: string, format: binary }
+      responses:
+        "204": { description: Part stored }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/files/multipart/complete:
+    post:
+      tags: [files]
+      summary: Assemble the parts and create the file record
+      description: >-
+        The listed parts (1-based numbers + the ETags the part uploads
+        returned) are assembled into the object; the metadata row appears
+        here, and the authoritative size comes from storage, not the client.
+      operationId: completeMultipart
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename, key, upload_id, parts]
+              properties:
+                filename: { type: string }
+                content_type: { type: string }
+                key: { type: string }
+                upload_id: { type: string }
+                ref_type: { type: string, enum: [ticket] }
+                ref_id: { type: string }
+                parts:
+                  type: array
+                  items:
+                    type: object
+                    required: [part_number, etag]
+                    properties:
+                      part_number: { type: integer, minimum: 1 }
+                      etag: { type: string }
+      responses:
+        "201":
+          description: File created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/File" }
+        default: { $ref: "#/components/responses/Problem" }
+  /api/files/multipart/abort:
+    post:
+      tags: [files]
+      summary: Discard an upload session
+      description: >-
+        The upload id is the capability — anyone holding it may abort.
+        Abandoned sessions are also aborted by the worker after 24h.
+      operationId: abortMultipart
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key, upload_id]
+              properties:
+                key: { type: string }
+                upload_id: { type: string }
+      responses:
+        "204": { description: Session discarded }
+        default: { $ref: "#/components/responses/Problem" }
   /api/tickets:
     get:
       tags: [tickets]
@@ -1927,6 +2195,15 @@ paths:
       summary: Edit the draft (author only, drafts only)
       operationId: updateTicket
       security: [{ bearerAuth: [] }]
+      parameters:
+        - name: If-Match
+          in: header
+          required: false
+          description: >-
+            Optimistic locking: the ETag returned by a prior GET of this
+            ticket. A stale tag answers 412 without applying the edit; an
+            absent header keeps last-write-wins.
+          schema: { type: string }
       requestBody:
         required: true
         content:
@@ -1943,6 +2220,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Ticket" }
+        "412": { $ref: "#/components/responses/Problem" }
         default: { $ref: "#/components/responses/Problem" }
     delete:
       tags: [tickets]
@@ -2534,6 +2812,19 @@ components:
         expires_at: { type: [string, "null"], format: date-time }
         revoked_at: { type: [string, "null"], format: date-time }
         created_at: { type: string, format: date-time }
+    EmailMessage:
+      type: object
+      required: [id, to, subject, kind, status, attempts, created_at]
+      properties:
+        id: { type: string }
+        to: { type: string }
+        subject: { type: string }
+        kind: { type: string }
+        status: { type: string, enum: [queued, sent, failed, dead] }
+        attempts: { type: integer }
+        last_error: { type: string }
+        created_at: { type: string, format: date-time }
+        sent_at: { type: [string, "null"], format: date-time }
     WebhookEndpoint:
       type: object
       required: [id, url, events, active, created_at, updated_at]

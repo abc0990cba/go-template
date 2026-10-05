@@ -27,10 +27,30 @@ if [ -f "$STATE_FILE" ]; then
   # shellcheck disable=SC1090
   source "$STATE_FILE"
 else
-  fail "no state file — run: make vps-setup"
+  fail "no state file — run: make vps-setup (or make vps-local for the local rehearsal)"
   exit 1
 fi
 check "inventory has a real VPS IP"           bash -c "[ '${vps_host}' != REPLACE_WITH_VPS_IP ] && [ -n '${vps_host}' ]"
+
+if [ "${vps_kind:-vps}" = "orbstack" ]; then
+  echo "--- local OrbStack machine ---"
+  check "OrbStack CLI installed"              bash -c "command -v orb"
+  check "machine exists"                      bash -c "orb list | awk '{print \$1}' | grep -qx \"\$(basename '${vps_host}' .orb.local)\""
+  check "SSH reachable"                       bash -c "ssh -i '${vps_ssh_key:-}' -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=5 '${vps_ssh_user}@${vps_host}' true"
+  check "dockerd inside the machine"          bash -c "ssh -i '${vps_ssh_key:-}' -o IdentitiesOnly=yes -o BatchMode=yes '${vps_ssh_user}@${vps_host}' 'sudo docker version --format {{.Server.Version}}'"
+  echo
+  APP_DOMAIN=$(get_var app_domain)
+  CI_DOMAIN=$(get_var ci_domain)
+  GRAF_DOMAIN=$(get_var grafana_domain)
+  echo "Browser access (OrbStack forwards machine ports to localhost) — add to /etc/hosts if you want names:"
+  echo "  127.0.0.1 ${APP_DOMAIN} ${CI_DOMAIN} ${GRAF_DOMAIN}"
+  if [ "$FAILURES" -eq 0 ]; then
+    ok "Local rehearsal looks good. Run: make vps-local (first time) or VPS_SITE=local make vps-deploy"
+  else
+    die "$FAILURES blocking check(s) failed"
+  fi
+  exit 0
+fi
 
 echo "--- network ---"
 WORKING_USER=$(detect_ssh_user) && ok "SSH reachable (user: ${WORKING_USER})" || {

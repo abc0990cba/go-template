@@ -43,7 +43,9 @@ func RegisterHTTP(authorized *gin.RouterGroup, h HTTP) {
 	authorized.GET("/tickets", h.RequirePermission("tickets", "read"), h.ETag(), h.list)
 	authorized.GET("/tickets/counts", h.RequirePermission("tickets", "read"), h.counts)
 	authorized.POST("/tickets", h.Idempotency(), h.RequirePermission("tickets", "create"), h.create)
-	authorized.GET("/tickets/:id", h.RequirePermission("tickets", "read"), h.get)
+	// The single-ticket GET carries the ETag clients echo back as If-Match
+	// on PATCH (optimistic locking).
+	authorized.GET("/tickets/:id", h.RequirePermission("tickets", "read"), h.ETag(), h.get)
 	authorized.PATCH("/tickets/:id", h.RequirePermission("tickets", "update"), h.update)
 	authorized.DELETE("/tickets/:id", h.RequirePermission("tickets", "delete"), h.remove)
 	authorized.POST("/tickets/:id/actions", h.RequirePermission("tickets", "read"), h.action)
@@ -160,12 +162,24 @@ func (h *HTTP) update(c *gin.Context) {
 	if !httpx.Bind(c, &req) {
 		return
 	}
+	// Optimistic locking: a client that read the ticket can pin its edit to
+	// the state it saw; a stale If-Match loses here instead of clobbering a
+	// concurrent editor's fields. The tag covers the same envelope GET
+	// returns, so the client can echo it verbatim.
+	current, approvals, err := h.Svc.Get(c.Request.Context(), h.actor(c), c.Param("id"))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	if !httpx.RequireIfMatch(c, gin.H{"ticket": current, "approvals": approvals}) {
+		return
+	}
 	ticket, err := h.Svc.Update(c.Request.Context(), h.actor(c), c.Param("id"), req.Title, req.Description, req.Priority)
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	audit.Record(h.Audit, c, "ticket.updated", "ticket", ticket.ID, nil, ticket)
+	audit.Record(h.Audit, c, "ticket.updated", "ticket", ticket.ID, current, ticket)
 	c.JSON(http.StatusOK, ticket)
 }
 

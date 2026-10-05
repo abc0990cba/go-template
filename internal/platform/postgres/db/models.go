@@ -47,6 +47,7 @@ type AuthIdentity struct {
 	Name            string
 	AvatarUrl       string
 	LastLoginAt     time.Time
+	EmailVerified   bool
 }
 
 type CasbinRule struct {
@@ -69,6 +70,19 @@ type DeadLetter struct {
 	Attempts   int32
 	ReplayedAt pgtype.Timestamptz
 	CreatedAt  time.Time
+}
+
+type EmailMessage struct {
+	ID        string
+	ToAddress string
+	Subject   string
+	Body      string
+	Kind      string
+	Status    string
+	Attempts  int32
+	LastError string
+	CreatedAt time.Time
+	SentAt    pgtype.Timestamptz
 }
 
 type EmailToken struct {
@@ -119,6 +133,13 @@ type Job struct {
 	UpdatedAt time.Time
 	OrgID     string
 	CreatedBy string
+}
+
+type LoginGuard struct {
+	UserID         string
+	FailedAttempts int32
+	LockedUntil    time.Time
+	UpdatedAt      time.Time
 }
 
 type MfaChallenge struct {

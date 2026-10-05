@@ -149,6 +149,55 @@ func RecordBulkheadRejected(name string) {
 	BulkheadRejected.WithLabelValues(name).Inc()
 }
 
+// HTTPValidationFailures counts requests (kind=request) rejected and
+// responses (kind=response) flagged by the runtime OpenAPI validator.
+var HTTPValidationFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_http_validation_failures_total",
+	Help: "Wire shapes failing the OpenAPI contract at runtime.",
+}, []string{"kind"})
+
+// LoadShedInFlight gauges requests currently admitted per load-shed lane.
+var LoadShedInFlight = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+	Name: "app_load_shed_in_flight",
+	Help: "Requests currently holding a load-shed slot.",
+}, []string{"lane"})
+
+// LoadShedRejected counts requests answered 503 because their lane was full.
+var LoadShedRejected = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_load_shed_rejected_total",
+	Help: "Requests shed because the server was saturated.",
+}, []string{"lane"})
+
+// WSConnections gauges open WebSocket streams.
+var WSConnections = prometheus.NewGauge(prometheus.GaugeOpts{
+	Name: "app_ws_connections",
+	Help: "WebSocket connections currently open.",
+})
+
+// WSMessages counts events relayed over WebSocket.
+var WSMessages = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_ws_messages_total",
+	Help: "Events relayed over WebSocket.",
+})
+
+// WSDrops counts connections ended by the server, by reason.
+var WSDrops = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_ws_drops_total",
+	Help: "Server-side WebSocket drops (slow_consumer, unresponsive, write_error).",
+}, []string{"reason"})
+
+// AuthLockouts counts accounts pinned by progressive lockout.
+var AuthLockouts = prometheus.NewCounter(prometheus.CounterOpts{
+	Name: "app_auth_lockouts_total",
+	Help: "Accounts pinned by progressive lockout after repeated password failures.",
+})
+
+// EmailMessages counts delivery-log outcomes (sent, failed, dead).
+var EmailMessages = prometheus.NewCounterVec(prometheus.CounterOpts{
+	Name: "app_email_messages_total",
+	Help: "Outbound email delivery outcomes.",
+}, []string{"result"})
+
 // PrunedRows counts rows removed by the worker's retention sweeps.
 var PrunedRows = prometheus.NewCounterVec(prometheus.CounterOpts{
 	Name: "app_prune_deleted_total",
@@ -160,7 +209,9 @@ func init() {
 		CBCurrentState, CBTransitions, EnrichmentEvents, EnrichmentApplyDuration,
 		OutboxPending, OutboxRelayed, DeadLettersPending, DeadLettersReplayed,
 		RateLimitRejected, RateLimitErrors, IdempotencyReplays,
-		BulkheadInFlight, BulkheadRejected, PrunedRows)
+		BulkheadInFlight, BulkheadRejected, PrunedRows,
+		HTTPValidationFailures, LoadShedInFlight, LoadShedRejected,
+		WSConnections, WSMessages, WSDrops, EmailMessages, AuthLockouts)
 }
 
 // RecordBreakerState applies one transition to the gauges; adapters call it

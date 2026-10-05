@@ -8,3 +8,5 @@ nomad_jobs_selected:
   - woodpecker
   - caddy
   - monitoring
+
+nomad_bin: /usr/local/bin/nomad

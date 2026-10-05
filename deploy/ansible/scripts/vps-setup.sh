@@ -118,8 +118,8 @@ all:
 EOF
 
 cat > "$STATE_FILE" <<EOF
-vps_host=${VPS_IP}
-vps_ssh_user=${SSH_USER}
+vps_host="${VPS_IP}"
+vps_ssh_user="${SSH_USER}"
 EOF
 ok "inventory + site vars written"
 

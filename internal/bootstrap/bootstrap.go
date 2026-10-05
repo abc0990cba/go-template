@@ -49,11 +49,15 @@ type Repos struct {
 	Settings      settings.Store
 	Notifications notifications.Store
 	EmailTokens   email.Store
+	// EmailMessages backs the delivery log (memory and postgres adapters
+	// both implement it).
+	EmailMessages email.MessageStore
 	APIKeys       apikeys.Store
 	Webhooks      webhooks.Store
 	Tickets       tickets.Store
 	Streams       streams.Store
 	Idempotency   kernel.IdempotencyRepo
+	LoginGuard    auth.LoginGuard
 	MFA           mfa.Store
 	Tokens        tokens.Store
 	Search        search.Store
@@ -115,7 +119,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 		}
 		return Repos{
 			Auth: store, Users: store, Jobs: store, Reports: store,
-			Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
+			Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, EmailMessages: store, LoginGuard: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 			Pinger: store, Events: events, EventStats: store, Warehouse: store, Kind: "memory",
 		}, closeAll, nil
 	}
@@ -145,7 +149,7 @@ func Store(cfg config.Config, logger *slog.Logger) (Repos, func(), error) {
 	}
 	return Repos{
 		Auth: store, Users: store, Jobs: store, Reports: store,
-		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
+		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, EmailMessages: store, LoginGuard: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, Idempotency: store, Rules: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store,
 		Pinger: store, Events: events, EventStats: stats, Warehouse: warehouse, Kind: "postgres",
 		PoolStats: store.Stats,
 	}, func() { closeAll(); store.Close() }, nil

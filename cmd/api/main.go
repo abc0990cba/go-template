@@ -6,8 +6,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,8 +13,6 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/redis/go-redis/extra/redisotel/v9"
-	"github.com/redis/go-redis/v9"
 
 	"github.com/your-org/go-template/internal/analytics"
 	"github.com/your-org/go-template/internal/cache"
@@ -25,17 +21,20 @@ import (
 
 	"github.com/your-org/go-template/internal/bootstrap"
 	"github.com/your-org/go-template/internal/config"
+	"github.com/your-org/go-template/internal/email"
 	"github.com/your-org/go-template/internal/export"
 	"github.com/your-org/go-template/internal/httpapp"
 	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/observ"
-	"github.com/your-org/go-template/internal/platform/mailer"
 	asynqqueue "github.com/your-org/go-template/internal/platform/queue"
 	"github.com/your-org/go-template/internal/platform/ratelimit"
 	"github.com/your-org/go-template/internal/platform/rbac"
+	platformrevocations "github.com/your-org/go-template/internal/platform/revocations"
 	"github.com/your-org/go-template/internal/realtime"
 	"github.com/your-org/go-template/internal/reliability"
 	"github.com/your-org/go-template/internal/tickets"
+	"github.com/your-org/go-template/internal/tokens"
 	"github.com/your-org/go-template/internal/webhooks"
 )
 
@@ -114,9 +113,46 @@ func main() {
 		webhookDispatcher = asynqqueue.NewWebhookEnqueuer(cfg.RedisAddr)
 	}
 
+	// JWT key rotation: parse the keyset fail-fast so a malformed secret
+	// mount kills the deploy, not the login flow hours later.
+	var jwtKeys *tokens.KeySet
+	if len(cfg.JWTKeySetData) > 0 {
+		parsed, err := tokens.ParseKeySet(cfg.JWTKeySetData, cfg.JWTSecret)
+		if err != nil {
+			logger.Error("invalid JWT keyset", "err", err)
+			os.Exit(1)
+		}
+		jwtKeys = parsed
+	}
+
+	// Breached-password checks (APP_HIBP_MODE): the gate fails open when
+	// the range API is unreachable, and warn mode logs but allows.
+	var pwned kernel.PwnedChecker
+	if cfg.HIBPMode != "off" {
+		pwned = openPwnedGate(cfg, logger)
+	}
+
+	// Queued email (APP_EMAIL_MODE=queue): recorded messages go to the
+	// worker for delivery; sync mode sends inline and still logs outcomes.
+	var emailDispatcher email.Dispatcher
+	if cfg.EmailMode == "queue" && jobQueue != nil {
+		enqueuer := asynqqueue.NewEmailEnqueuer(cfg.RedisAddr)
+		defer func() { _ = enqueuer.Close() }()
+		emailDispatcher = enqueuer
+	}
+
 	// Distributed rate limiting shares one Redis budget across api
 	// processes; single-process mode keeps token buckets in memory.
 	redisClient := openRedis(cfg, logger)
+
+	// Access-token denylist: shared via Redis so every replica honors a
+	// revocation; in-process otherwise (single-replica deployments).
+	var jwtRevocations tokens.Revocations
+	if redisClient != nil {
+		jwtRevocations = platformrevocations.New(redisClient)
+	} else {
+		jwtRevocations = tokens.NewMemoryRevocations()
+	}
 
 	// Read-through cache: shared via Redis when configured, in-process
 	// otherwise. Users + expanded permissions are the hot reads.
@@ -154,7 +190,8 @@ func main() {
 	services := bootstrap.NewContainer(bootstrap.Deps{
 		Auth: repos.Auth, Users: repos.Users, Jobs: repos.Jobs, Reports: repos.Reports,
 		Orgs: repos.Orgs, Roles: repos.Roles, Audit: repos.Audit,
-		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens, APIKeys: repos.APIKeys,
+		Settings: repos.Settings, Notifications: repos.Notifications, EmailTokens: repos.EmailTokens,
+		EmailMessages: repos.EmailMessages, EmailDispatcher: emailDispatcher, LoginGuard: repos.LoginGuard, Pwned: pwned, JWTKeys: jwtKeys, JWTRevocations: jwtRevocations, APIKeys: repos.APIKeys,
 		Webhooks: repos.Webhooks, Tickets: repos.Tickets, Streams: repos.Streams,
 		MFA:               repos.MFA,
 		Tokens:            repos.Tokens,
@@ -166,9 +203,10 @@ func main() {
 		WebhookDispatcher: webhookDispatcher, Mailer: sender, Breakers: breakers, Bulkheads: bulkheads,
 		StreamsObserver: observ.NewStreamsObserver(),
 		Realtime: func(n notifications.Notification) {
-			hub.Publish(realtime.NewEvent(realtime.TypeNotification, n))
+			// Personal: only the target user's connections receive it.
+			hub.Publish(realtime.NewUserEvent(realtime.TypeNotification, n, n.UserID))
 			if bridge != nil {
-				bridge.Publish(realtime.NewEvent(realtime.TypeNotification, n))
+				bridge.Publish(realtime.NewUserEvent(realtime.TypeNotification, n, n.UserID))
 			}
 		},
 		Events: events, EventStats: repos.EventStats, Queue: jobQueue,
@@ -178,20 +216,36 @@ func main() {
 	// mode, the api's /api/jobs/process in single-process dev mode.
 	services.Jobs.WithExporter(export.NewService(repos.Users, repos.Auth, repos.Tickets, repos.Notifications, repos.Audit, repos.Files, blobs))
 
+	// Activity events ride to the actor's orgs (admins see everything);
+	// resolved per event, cached with the RBAC service's org cache.
+	fan.WithOrgResolver(func(ctx context.Context, userID string) []string {
+		memberships, err := services.RBAC.OrgsForUser(ctx, userID)
+		if err != nil {
+			return nil
+		}
+		ids := make([]string, 0, len(memberships))
+		for _, org := range memberships {
+			ids = append(ids, org.ID)
+		}
+		return ids
+	})
+
 	if err := services.RBAC.EnsureSystemRoles(ctx); err != nil {
 		logger.Error("seed system roles", "err", err)
 		os.Exit(1)
 	}
 	services.Jobs.WithJobNotifier(func(job jobs.Job) {
-		hub.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+		// Org-scoped: members of the job's org (and platform admins) follow it.
+		hub.Publish(realtime.NewOrgEvent(realtime.TypeJobUpdated, job, job.OrgID))
 		if bridge != nil {
-			bridge.Publish(realtime.NewEvent(realtime.TypeJobUpdated, job))
+			bridge.Publish(realtime.NewOrgEvent(realtime.TypeJobUpdated, job, job.OrgID))
 		}
 	})
 	services.Tickets.WithNotifier(func(ticket tickets.Ticket) {
-		hub.Publish(realtime.NewEvent(realtime.TypeTicketUpdated, ticket))
+		// Org-scoped: ticket content never leaves its organization.
+		hub.Publish(realtime.NewOrgEvent(realtime.TypeTicketUpdated, ticket, ticket.OrgID))
 		if bridge != nil {
-			bridge.Publish(realtime.NewEvent(realtime.TypeTicketUpdated, ticket))
+			bridge.Publish(realtime.NewOrgEvent(realtime.TypeTicketUpdated, ticket, ticket.OrgID))
 		}
 	})
 
@@ -272,94 +326,3 @@ func main() {
 
 // openRealtimeBridge subscribes to the worker's realtime channel when Redis
 // is configured; nil otherwise (in-process events need no relay).
-func openRealtimeBridge(ctx context.Context, cfg config.Config, hub *realtime.Hub, logger *slog.Logger) *realtime.RedisBridge {
-	if cfg.RedisAddr == "" {
-		return nil
-	}
-	bridge := realtime.NewRedisBridge(cfg.RedisAddr, hub, logger)
-	go bridge.Run(ctx)
-	return bridge
-}
-
-// nonNil filters nil sinks so the fan sink only wraps real ones.
-func nonNil(sinks ...analytics.Sink) []analytics.Sink {
-	out := make([]analytics.Sink, 0, len(sinks))
-	for _, sink := range sinks {
-		if sink != nil {
-			out = append(out, sink)
-		}
-	}
-	return out
-}
-
-// runHealthcheck is the container HEALTHCHECK probe; distroless images have
-// no shell or curl, so the binary checks itself.
-func runHealthcheck() int {
-	addr := os.Getenv("APP_HTTP_ADDR")
-	if addr == "" {
-		addr = ":8080"
-	}
-	client := &http.Client{Timeout: 3 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://127.0.0.1%s/health/live", addr))
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "healthcheck:", err)
-		return 1
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		fmt.Fprintln(os.Stderr, "healthcheck: status", resp.StatusCode)
-		return 1
-	}
-	return 0
-}
-
-func newLogger(format string, level slog.Level) *slog.Logger {
-	opts := &slog.HandlerOptions{Level: level}
-	var handler slog.Handler
-	if format == "json" {
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	} else {
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	}
-	// Stamp trace_id/span_id on every line that runs inside a span, so a
-	// log line jumps to its Jaeger trace (and back via the request.id
-	// attribute the access log sets on the span).
-	return slog.New(observ.NewTraceHandler(handler))
-}
-
-// openMailer picks the SMTP transport when configured, the logging
-// fallback otherwise.
-func openMailer(cfg config.Config, logger *slog.Logger) mailer.Sender {
-	mailCfg := mailer.Config{
-		Host: cfg.SMTPHost, Port: cfg.SMTPPort,
-		Username: cfg.SMTPUsername, Password: cfg.SMTPPassword, From: cfg.SMTPFrom,
-	}
-	if !mailCfg.Enabled() {
-		return mailer.NewLogMailer(logger)
-	}
-	return mailer.NewSMTP(mailCfg, logger)
-}
-
-// openRedis connects the shared limiter client when Redis is configured;
-// nil keeps rate limiting in-process. Commands get client spans (redisotel)
-// so cache and limiter round-trips join the request trace.
-func openRedis(cfg config.Config, logger *slog.Logger) *redis.Client {
-	if cfg.RedisAddr == "" {
-		return nil
-	}
-	client := redis.NewClient(&redis.Options{Addr: cfg.RedisAddr})
-	if err := redisotel.InstrumentTracing(client); err != nil {
-		logger.Debug("redis tracing unavailable", "err", err)
-	}
-	return client
-}
-
-// openQueue returns the asynq-backed job queue, or nil in single-process
-// development mode where jobs run inline.
-func openQueue(cfg config.Config) (jobs.Queue, func()) {
-	if cfg.RedisAddr == "" {
-		return nil, func() {}
-	}
-	queue := asynqqueue.New(cfg.RedisAddr)
-	return queue, func() { _ = queue.Close() }
-}

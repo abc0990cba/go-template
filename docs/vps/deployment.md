@@ -51,6 +51,11 @@ Vault — deliberately (rationale: [docs/orchestrators.md](../orchestrators.md)
 already positions Nomad as the low-operations-budget path; the same repo also
 ships the Helm/Argo path for when you outgrow one node).
 
+> **Rehearse before you fly:** the identical flow runs locally on an OrbStack
+> Ubuntu machine — `make vps-local`. See
+> [LOCAL-REHEARSAL.md](LOCAL-REHEARSAL.md) for what differs (internal TLS,
+> `hardening_level: light`, working-tree image builds).
+
 ### Component inventory
 
 | Job / unit | Image (pinned in `group_vars/vps/main.yml`) | Binds | Purpose |
@@ -216,6 +221,24 @@ Whitebox + blackbox + host, reusing the repo's existing configs so
   (admin password from `secrets.yml`) or loopback-only via the tunnel.
 - Nomad's own metrics are exposed on the API with `prometheus_metrics = true`
   for ad-hoc scraping.
+
+### Log aggregation (Loki + promtail, `monitoring_logs_enabled`, default on)
+
+promtail discovers containers over the Docker socket and ships their logs
+to a single-binary Loki (filesystem storage, 7-day retention, loopback
+:3100). Grafana gets a `loki` datasource automatically — Explore is the
+query UI (`{container="api"} | json`). Prometheus scrapes both pipelines'
+own metrics, so a broken log pipeline alerts like any other target. Data
+lives in `/opt/go-template/data/loki`; size it for the retention you keep
+(7 days of this stack is well under 1 GB).
+
+### Uptime Kuma (`monitoring_uptime_enabled`, default on)
+
+Browser-configured synthetic checks behind `https://uptime.example.com`
+(Caddy route, its own account on first visit — set the admin password
+immediately). It probes from this host, so treat it as a convenience view:
+keep one external probe (Better Stack, Healthchecks.io, anything off-node)
+for true outside-in monitoring.
 
 ## Backups & disaster recovery
 

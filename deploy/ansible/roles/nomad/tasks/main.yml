@@ -1,23 +1,73 @@
 ---
-# Nomad single-node (server + client on one VPS): pinned apt install,
+# Nomad single-node (server + client on one VPS): version-pinned,
 # Ansible-managed internal CA for mTLS, ACLs on with Ansible-managed tokens.
-- name: HashiCorp apt keyring
-  ansible.builtin.get_url:
-    url: https://apt.releases.hashicorp.com/gpg
-    dest: /etc/apt/keyrings/hashicorp.asc
-    mode: "0644"
+# Install order: (1) the release CDN zip; (2) fallback: extract the binary
+# from the official hashicorp/nomad Docker image — for networks whose egress
+# geo-blocks releases.hashicorp.com (docker.io is usually reachable there).
+- name: Check for an existing Nomad binary
+  ansible.builtin.stat:
+    path: /usr/local/bin/nomad
+  register: nomad_bin_stat
 
-- name: HashiCorp apt repository
-  ansible.builtin.apt_repository:
-    repo: "deb [arch={{ 'amd64' if ansible_architecture == 'x86_64' else 'arm64' }} signed-by=/etc/apt/keyrings/hashicorp.asc] https://apt.releases.hashicorp.com {{ ansible_distribution_release }} main"
-    filename: hashicorp
-    state: present
+- name: Download Nomad from the release CDN
+  # curl -f: clean failure signal (failed_when on get_url would still mark
+  # the result "succeeded" and break the conditional below).
+  ansible.builtin.command:
+    argv:
+      - curl
+      - -fsSL
+      - --max-time
+      - "180"
+      - -o
+      - /tmp/nomad.zip
+      - "https://releases.hashicorp.com/nomad/{{ nomad_version }}/nomad_{{ nomad_version }}_linux_{{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}.zip"
+  register: nomad_cdn
+  changed_when: nomad_cdn.rc == 0
+  failed_when: false
+  when: not nomad_bin_stat.stat.exists
 
-- name: Install Nomad (version-pinned)
-  ansible.builtin.apt:
-    name: "nomad={{ nomad_version }}*"
-    state: present
-    update_cache: true
+- name: Install the Nomad binary from the CDN archive
+  ansible.builtin.unarchive:
+    src: /tmp/nomad.zip
+    dest: /usr/local/bin
+    remote_src: true
+    mode: "0755"
+  when: nomad_cdn.rc | default(1) == 0
+
+- name: Install Nomad from the official image (CDN unreachable fallback)
+  when: nomad_cdn.rc | default(1) != 0 and not nomad_bin_stat.stat.exists
+  block:
+    - name: Pull the hashicorp/nomad image
+      ansible.builtin.command:
+        argv: [docker, pull, "hashicorp/nomad:{{ nomad_version }}"]
+
+    - name: Create a throwaway container
+      ansible.builtin.command:
+        argv: [docker, create, "hashicorp/nomad:{{ nomad_version }}"]
+      register: nomad_extract_container
+
+    - name: Copy the Nomad binary out of the image
+      ansible.builtin.command:
+        argv: [docker, cp, "{{ nomad_extract_container.stdout }}:/bin/nomad", /usr/local/bin/nomad]
+
+    - name: Remove the throwaway container
+      ansible.builtin.command:
+        argv: [docker, rm, "{{ nomad_extract_container.stdout }}"]
+
+    - name: Make the Nomad binary executable
+      ansible.builtin.file:
+        path: /usr/local/bin/nomad
+        owner: root
+        mode: "0755"
+
+- name: Confirm the Nomad binary runs
+  ansible.builtin.command: /usr/local/bin/nomad version
+  changed_when: false
+  register: nomad_version_out
+
+- name: Nomad binary version
+  ansible.builtin.debug:
+    msg: "{{ nomad_version_out.stdout }}"
 
 - name: TLS directory
   ansible.builtin.file:
@@ -72,12 +122,14 @@
 - name: SAN extension file (loopback, docker gateways, public IP)
   # IP SANs cover every address a nomad CLI may dial: the host loopback, the
   # public IP, and the docker bridge gateways CI pipeline containers use.
+  # ansible_host may be a hostname (local rehearsal: *.orb.local) — it becomes
+  # a DNS SAN in that case; openssl rejects hostnames under IP:.
   ansible.builtin.copy:
     content: |
       basicConstraints = CA:FALSE
       keyUsage = digitalSignature, keyEncipherment
       extendedKeyUsage = serverAuth, clientAuth
-      subjectAltName = DNS:localhost, DNS:{{ ansible_hostname }}, IP:127.0.0.1, IP:{{ ansible_host }}, IP:172.17.0.1, IP:172.31.100.1, IP:::1
+      subjectAltName = DNS:localhost, DNS:{{ ansible_hostname }}, IP:127.0.0.1, {{ 'IP:' ~ ansible_host if ansible_host is match('^[0-9.]+$') else 'DNS:' ~ ansible_host }}, IP:172.17.0.1, IP:172.31.100.1, IP:::1
     dest: /etc/nomad.d/tls/nomad.ext
     mode: "0600"
 
@@ -152,30 +204,34 @@
     path: /etc/nomad.d/tokens/bootstrap.token
   register: bootstrap_token_file
 
-- name: Bootstrap ACLs (one-time; retrieves the management token)
-  ansible.builtin.command:
-    argv: [nomad, acl, bootstrap, -json]
-    environment:
-      NOMAD_ADDR: https://127.0.0.1:4646
-      NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
+- name: Bootstrap ACLs (one-time; writes the management token root-only)
+  # ansible-core 2.19+ replaces no_log'ed registered results with a censored
+  # dict (no rc/stdout), which breaks until-loops and later .stdout reads.
+  # So secrets are kept out of task OUTPUT instead: the CLI JSON goes
+  # straight to a 0600 file and only a status line reaches stdout.
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ nomad_bin }} acl bootstrap -json > /tmp/nomad-bootstrap.json
+    jq -e -r .SecretID /tmp/nomad-bootstrap.json > /tmp/nomad-bootstrap.token
+    test -s /tmp/nomad-bootstrap.token
+    mv /tmp/nomad-bootstrap.json /etc/nomad.d/tokens/bootstrap.json
+    mv /tmp/nomad-bootstrap.token /etc/nomad.d/tokens/bootstrap.token
+    chmod 600 /etc/nomad.d/tokens/bootstrap.json /etc/nomad.d/tokens/bootstrap.token
+    echo "bootstrap ok"
+  args:
+    executable: /bin/bash
+  environment:
+    NOMAD_ADDR: https://127.0.0.1:4646
+    NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
   register: acl_bootstrap
   until: acl_bootstrap.rc == 0
   retries: 12
   delay: 5
   when: not bootstrap_token_file.stat.exists
+  changed_when: acl_bootstrap.rc == 0
   # If this fails with "ACL bootstrap already done", the token file was lost:
   # follow docs/vps/runbook.md "recover a lost management token" (nomad acl reset).
   failed_when: acl_bootstrap.rc != 0
-  no_log: true
-
-- name: Persist the management token (0600)
-  ansible.builtin.copy:
-    content: "{{ acl_bootstrap.stdout | from_json | dict2items | selectattr('key', 'equalto', 'SecretID') | map(attribute='value') | join }}"
-    dest: /etc/nomad.d/tokens/bootstrap.token
-    owner: root
-    mode: "0600"
-  when: acl_bootstrap is changed
-  no_log: true
 
 - name: Read back the management token for subsequent tasks
   ansible.builtin.slurp:
@@ -188,7 +244,7 @@
     nomad_cli_env:
       NOMAD_ADDR: https://127.0.0.1:4646
       NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
-      NOMAD_TOKEN: "{{ mgmt_token_raw.content | b64decode }}"
+      NOMAD_TOKEN: "{{ mgmt_token_raw.content | b64decode | trim }}"
   no_log: true
 
 - name: ACL policy directory
@@ -207,8 +263,8 @@
 
 - name: Apply the CI deploy policy (upsert)
   ansible.builtin.command:
-    argv: [nomad, acl, policy, apply, deploy, /etc/nomad.d/policies/deploy.hcl]
-    environment: "{{ nomad_cli_env }}"
+    argv: ["{{ nomad_bin }}", acl, policy, apply, deploy, /etc/nomad.d/policies/deploy.hcl]
+  environment: "{{ nomad_cli_env }}"
   register: policy_apply
   changed_when: "'successfully wrote' in policy_apply.stdout | lower"
 
@@ -217,22 +273,20 @@
     path: /etc/nomad.d/tokens/deploy.token
   register: deploy_token_file
 
-- name: Create the CI deploy token
-  ansible.builtin.command:
-    argv: [nomad, acl, token, create, -name, ci-deploy, -policy, deploy, -json]
-    environment: "{{ nomad_cli_env }}"
-  register: deploy_token_create
+- name: Create the CI deploy token (written root-only, never in task output)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ nomad_bin }} acl token create -name ci-deploy -policy deploy -json > /tmp/nomad-deploy.json
+    jq -e -r .SecretID /tmp/nomad-deploy.json > /tmp/nomad-deploy.token
+    test -s /tmp/nomad-deploy.token
+    mv /tmp/nomad-deploy.json /etc/nomad.d/tokens/deploy.json
+    mv /tmp/nomad-deploy.token /etc/nomad.d/tokens/deploy.token
+    chmod 600 /etc/nomad.d/tokens/deploy.json /etc/nomad.d/tokens/deploy.token
+    echo "ci deploy token written"
+  args:
+    executable: /bin/bash
+  environment: "{{ nomad_cli_env }}"
   when: not deploy_token_file.stat.exists
-  no_log: true
-
-- name: Persist the CI deploy token (0600)
-  ansible.builtin.copy:
-    content: "{{ deploy_token_create.stdout | from_json | dict2items | selectattr('key', 'equalto', 'SecretID') | map(attribute='value') | join }}"
-    dest: /etc/nomad.d/tokens/deploy.token
-    owner: root
-    mode: "0600"
-  when: deploy_token_create is changed
-  no_log: true
 
 - name: nomad-admin wrapper (root-only CLI with TLS + token prewired)
   ansible.builtin.copy:
@@ -243,7 +297,7 @@
       export NOMAD_ADDR=https://127.0.0.1:4646
       export NOMAD_CACERT=/etc/nomad.d/tls/ca.pem
       export NOMAD_TOKEN="$(cat /etc/nomad.d/tokens/bootstrap.token)"
-      exec /usr/bin/nomad "$@"
+      exec /usr/local/bin/nomad "$@"
     dest: /usr/local/bin/nomad-admin
     owner: root
     mode: "0700"

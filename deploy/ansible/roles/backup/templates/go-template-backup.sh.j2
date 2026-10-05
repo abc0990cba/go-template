@@ -28,6 +28,19 @@ for db in go_template woodpecker; do
   fi
 done
 
+# Hand-configured state that would be lost on node loss: Uptime Kuma's
+# check definitions and Grafana's UI-created content (dashboards and
+# datasources provisioned from the repo are re-rendered on deploy; anything
+# created in the UI is not).
+if [ -d /opt/go-template/data/uptime-kuma ]; then
+  tar czf "$BASE/uptime-kuma-${TS}.tgz" -C / opt/go-template/data/uptime-kuma
+  echo "archived uptime-kuma -> uptime-kuma-${TS}.tgz"
+fi
+if [ -d /var/lib/grafana ]; then
+  tar czf "$BASE/grafana-state-${TS}.tgz" -C / var/lib/grafana 2>/dev/null || true
+  echo "archived grafana state -> grafana-state-${TS}.tgz"
+fi
+
 tar czf "$BASE/secrets-and-tls-${TS}.tgz" \
   -C / opt/go-template/secrets etc/nomad.d/tls etc/nomad.d/tokens
 chmod 600 "$BASE"/*

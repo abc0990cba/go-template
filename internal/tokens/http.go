@@ -91,12 +91,27 @@ func (h *HTTP) grant(c *gin.Context) {
 	}
 }
 
-// revoke kills a refresh token; unknown tokens answer 204 the same.
+// revoke kills a refresh token (and, when the request carries one, its
+// sibling access token via the jti denylist); unknown tokens answer 204 the
+// same.
 func (h *HTTP) revoke(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token"`
+		AccessToken  string `json:"access_token"`
 	}
 	if !httpx.Bind(c, &req) {
+		return
+	}
+	if req.AccessToken != "" {
+		// Best-effort: an unparseable access token answers 400 so callers
+		// learn they passed garbage, instead of silently keeping it live.
+		if err := h.Svc.RevokeAccess(c.Request.Context(), req.AccessToken); err != nil && !errors.Is(err, ErrAuthDisabled) {
+			httpx.Fail(c, h.Logger, err)
+			return
+		}
+	}
+	if req.RefreshToken == "" {
+		c.Status(http.StatusNoContent)
 		return
 	}
 	if err := h.Svc.Revoke(c.Request.Context(), req.RefreshToken); err != nil {

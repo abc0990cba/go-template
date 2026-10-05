@@ -27,7 +27,7 @@ func newTestContainer(t *testing.T, store *repository.MemoryStore, events analyt
 	}
 	services := bootstrap.NewContainer(bootstrap.Deps{
 		Auth: store, Users: store, Jobs: store, Reports: store,
-		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store, Blobs: platformfilestore.NewMemory(), Mailer: nil, Events: events, EventStats: store, RBACEnforcer: enforcer,
+		Orgs: store, Roles: store, Audit: store, Settings: store, Notifications: store, EmailTokens: store, EmailMessages: store, APIKeys: store, Webhooks: store, Tickets: store, Streams: store, MFA: store, Tokens: store, Search: store, Invitations: store, Files: store, Blobs: platformfilestore.NewMemory(), Mailer: nil, Events: events, EventStats: store, RBACEnforcer: enforcer,
 	}, logger, cfg)
 	if err := services.RBAC.EnsureSystemRoles(t.Context()); err != nil {
 		t.Fatalf("seed system roles: %v", err)

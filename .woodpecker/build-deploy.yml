@@ -46,20 +46,18 @@ steps:
       - docker push 127.0.0.1:5000/go-template:"${CI_COMMIT_SHA:0:8}"
 
   - name: deploy
-    image: alpine:3.21
+    # The official image ships the pinned nomad CLI (works on networks whose
+    # egress blocks releases.hashicorp.com; GitHub releases carry no assets).
+    image: hashicorp/nomad:2.0.7
     environment:
       NOMAD_ADDR: https://172.17.0.1:4646
     secrets: [nomad_token, nomad_ca_cert, app_domain]
     commands:
-      - apk add --no-cache unzip curl >/dev/null
-      # Pinned nomad CLI matching the server major.
-      - wget -q "https://releases.hashicorp.com/nomad/${NOMAD_VERSION:-1.10.4}/nomad_${NOMAD_VERSION:-1.10.4}_linux_amd64.zip"
-      - unzip -o "nomad_${NOMAD_VERSION:-1.10.4}_linux_amd64.zip" >/dev/null
       - echo "$NOMAD_CA_CERT" > ca.pem
       - export NOMAD_CACERT=ca.pem NOMAD_TOKEN="$NOMAD_TOKEN"
       # Blocking run: exits non-zero unless the canary passed /health/ready
       # and was promoted; auto_revert has already rolled back otherwise.
-      - ./nomad job run
+      - nomad job run
           -var "image_tag=$CI_COMMIT_TAG"
           -var "app_domain=$APP_DOMAIN"
           deploy/nomad/app.nomad.hcl

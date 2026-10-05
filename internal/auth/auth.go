@@ -20,14 +20,17 @@ import (
 // Identity links one external identity (password, google, github, facebook,
 // twitter) to a user; (provider, provider_subject) is globally unique.
 type Identity struct {
-	UserID          string    `json:"user_id"`
-	Provider        string    `json:"provider"`
-	ProviderSubject string    `json:"provider_subject"`
-	Email           string    `json:"email"`
-	Name            string    `json:"name"`
-	AvatarURL       string    `json:"avatar_url"`
-	LinkedAt        time.Time `json:"linked_at"`
-	LastLoginAt     time.Time `json:"last_login_at"`
+	UserID          string `json:"user_id"`
+	Provider        string `json:"provider"`
+	ProviderSubject string `json:"provider_subject"`
+	Email           string `json:"email"`
+	// EmailVerified mirrors the provider's claim; read it before ever
+	// trusting identity emails for login or account recovery.
+	EmailVerified bool      `json:"email_verified"`
+	Name          string    `json:"name"`
+	AvatarURL     string    `json:"avatar_url"`
+	LinkedAt      time.Time `json:"linked_at"`
+	LastLoginAt   time.Time `json:"last_login_at"`
 }
 
 // OAuthState is a single-use CSRF value for the OAuth redirect round trip.
@@ -97,6 +100,14 @@ type Service struct {
 	// the user service on writes — both share the same keys.
 	cache cache.Cache
 	group singleflight.Group
+	// guard is the optional progressive-lockout counter (WithLockout); nil
+	// keeps login free of any account-state tracking.
+	guard            LoginGuard
+	lockoutThreshold int
+	lockoutWindow    time.Duration
+	// pwned is the optional breached-password gate (WithPwned); a true
+	// answer rejects the new password as a validation error.
+	pwned kernel.PwnedChecker
 }
 
 // NewService wires the auth service; the session TTL is the sliding expiry
@@ -110,6 +121,9 @@ func (s *Service) WithCache(c cache.Cache) *Service { s.cache = c; return s }
 
 // WithClock replaces the wall clock; tests walk time deterministically.
 func (s *Service) WithClock(now kernel.Clock) *Service { s.now = now; return s }
+
+// WithPwned attaches the breached-password gate applied to new passwords.
+func (s *Service) WithPwned(check kernel.PwnedChecker) *Service { s.pwned = check; return s }
 
 // emit records an analytics event attributed to the acting user when a sink
 // is configured.
@@ -125,6 +139,11 @@ func (s *Service) Register(ctx context.Context, email, name, password string) (u
 	if !strings.Contains(email, "@") || len(password) < 8 {
 		return users.User{}, "", kernel.Invalid("email must be valid and password must be at least 8 characters")
 	}
+	if s.pwned != nil {
+		if compromised, err := s.pwned(ctx, password); err == nil && compromised {
+			return users.User{}, "", kernel.Invalid("password has appeared in a data breach; choose another")
+		}
+	}
 	now := time.Now()
 	user := users.User{ID: kernel.NewID(), Email: strings.ToLower(email), Name: name, CreatedAt: now, UpdatedAt: now}
 	if err := s.store.CreateUser(ctx, user, hashPassword(password)); err != nil {
@@ -139,11 +158,23 @@ func (s *Service) Register(ctx context.Context, email, name, password string) (u
 }
 
 // Login verifies the password and opens a session. Unknown emails and wrong
-// passwords both produce ErrInvalidCredentials.
+// passwords both produce ErrInvalidCredentials — and so does a locked
+// account (progressive lockout), which keeps the answer uniform.
 func (s *Service) Login(ctx context.Context, email, password string) (users.User, string, error) {
 	user, hash, err := s.store.GetUserByEmail(ctx, strings.ToLower(email))
-	if err != nil || !verifyPassword(hash, password) {
+	if err != nil {
 		return users.User{}, "", kernel.ErrInvalidCredentials
+	}
+	if s.lockedOut(ctx, user.ID) {
+		s.emit(ctx, "user_login_locked", user.ID)
+		return users.User{}, "", kernel.ErrInvalidCredentials
+	}
+	if !verifyPassword(hash, password) {
+		s.recordFailure(ctx, user.ID)
+		return users.User{}, "", kernel.ErrInvalidCredentials
+	}
+	if s.guard != nil {
+		_ = s.guard.ResetLoginGuard(ctx, user.ID)
 	}
 	token := kernel.NewID()
 	if err := s.store.CreateSession(ctx, token, user.ID, "", s.sessionTTL); err != nil {
@@ -247,6 +278,7 @@ func (s *Service) LinkIdentity(ctx context.Context, userID string, profile oauth
 		Provider:        profile.Provider,
 		ProviderSubject: profile.ProviderSubject,
 		Email:           profile.Email,
+		EmailVerified:   profile.EmailVerified,
 		Name:            profile.Name,
 		AvatarURL:       profile.AvatarURL,
 	})

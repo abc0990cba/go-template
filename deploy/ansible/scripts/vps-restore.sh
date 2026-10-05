@@ -17,7 +17,8 @@ USER_SSH="$(detect_ssh_user)" || die "Cannot SSH to ${vps_host}"
 BASENAME="$(basename "$FILE")"
 
 info "Uploading ${BASENAME} ..."
-scp -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$FILE" "$USER_SSH@${vps_host}:/tmp/"
+build_ssh_opts
+scp "${SSH_OPTS[@]}" "$FILE" "$USER_SSH@${vps_host}:/tmp/"
 
 REMOTE="
 set -euo pipefail

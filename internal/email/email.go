@@ -37,6 +37,12 @@ type Service struct {
 	logger      *slog.Logger
 	now         kernel.Clock
 	notifyOwner func(context.Context, string, string, string, string, string)
+	// messages records the delivery log; nil keeps the direct-send behavior
+	// (dev mode and existing tests). dispatcher nil means inline sending.
+	messages   MessageStore
+	dispatcher Dispatcher
+	// pwned is the optional breached-password gate on reset passwords.
+	pwned kernel.PwnedChecker
 }
 
 // NewService wires the flow. notifier is optional and receives
@@ -54,6 +60,9 @@ func NewService(tokens Store, auth AuthWriter, sender mailer.Sender, hash func(s
 		now:       kernel.SystemClock,
 	}
 }
+
+// WithPwned attaches the breached-password gate applied to reset passwords.
+func (s *Service) WithPwned(check kernel.PwnedChecker) *Service { s.pwned = check; return s }
 
 // WithClock replaces the wall clock; tests walk time deterministically.
 func (s *Service) WithClock(now kernel.Clock) *Service {
@@ -80,12 +89,9 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 	}
 	link := fmt.Sprintf("%s/reset-password?token=%s", s.baseURL, raw)
 	body := mailer.Button(link, "Reset password")
-	err = s.mailer.Send(ctx, mailer.Message{
-		To:      user.Email,
-		Subject: "Reset your password",
+	err = s.deliver(ctx, KindReset, user.Email, "Reset your password",
 		// #nosec G203 -- body comes from mailer.Button, which HTML-escapes its inputs
-		Body: template.HTML("<p>We received a request to reset your password.</p>" + string(body)),
-	})
+		template.HTML("<p>We received a request to reset your password.</p>"+string(body)))
 	if err != nil {
 		// Mail problems never surface to the caller; the log has the detail
 		// and the raw link at debug level keeps the flow usable without a
@@ -101,6 +107,11 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 func (s *Service) ResetPassword(ctx context.Context, rawToken, newPassword string) error {
 	if len(newPassword) < 8 {
 		return kernel.Invalid("password must be at least 8 characters")
+	}
+	if s.pwned != nil {
+		if compromised, err := s.pwned(ctx, newPassword); err == nil && compromised {
+			return kernel.Invalid("password has appeared in a data breach; choose another")
+		}
 	}
 	token, err := s.consumeToken(ctx, rawToken, KindReset)
 	if err != nil {
@@ -126,12 +137,9 @@ func (s *Service) SendVerification(ctx context.Context, user users.User) error {
 	}
 	link := fmt.Sprintf("%s/verify-email?token=%s", s.baseURL, raw)
 	body := mailer.Button(link, "Confirm email")
-	return s.mailer.Send(ctx, mailer.Message{
-		To:      user.Email,
-		Subject: "Confirm your email",
+	return s.deliver(ctx, KindVerify, user.Email, "Confirm your email",
 		// #nosec G203 -- body comes from mailer.Button, which HTML-escapes its inputs
-		Body: template.HTML("<p>Please confirm your email address.</p>" + string(body)),
-	})
+		template.HTML("<p>Please confirm your email address.</p>"+string(body)))
 }
 
 // VerifyEmail consumes a verification token. The template records who

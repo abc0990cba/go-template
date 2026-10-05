@@ -23,7 +23,7 @@
     nomad_cli_env:
       NOMAD_ADDR: https://127.0.0.1:4646
       NOMAD_CACERT: /etc/nomad.d/tls/ca.pem
-      NOMAD_TOKEN: "{{ mgmt_token_raw.content | b64decode }}"
+      NOMAD_TOKEN: "{{ mgmt_token_raw.content | b64decode | trim }}"
   no_log: true
 
 # --- secret files (mounted read-only into tasks; app reads APP_*_FILE) -------
@@ -60,6 +60,8 @@
   loop:
     - { src: Caddyfile.j2, dest: caddy/Caddyfile }
     - { src: prometheus.yml.j2, dest: prometheus/prometheus.yml }
+    - { src: loki-config.yml.j2, dest: loki/loki-config.yml }
+    - { src: promtail-config.yml.j2, dest: loki/promtail-config.yml }
     - { src: alertmanager.yml.j2, dest: alertmanager/alertmanager.yml }
     - { src: grafana-datasources.yml.j2, dest: grafana/provisioning/datasources/datasources.yml }
     - { src: grafana-dashboards-provider.yml.j2, dest: grafana/provisioning/dashboards/provider.yml }
@@ -163,27 +165,40 @@
       when: wp_db_exists.stdout | trim != "1"
 
 # --- application ---------------------------------------------------------------
-- name: Check whether the app image already exists in the local registry
+- name: Check whether the app image already exists in the local docker cache
+  ansible.builtin.command:
+    argv: ["docker", "image", "inspect", "{{ app_image }}:{{ app_image_tag }}"]
+  register: app_image_inspect
+  failed_when: false
+  changed_when: false
+  when: "'app' in nomad_jobs_selected"
+
+- name: Pull the app image from the local registry when not cached
   ansible.builtin.command:
     argv: ["docker", "pull", "{{ app_image }}:{{ app_image_tag }}"]
   register: app_image_pull
   failed_when: false
   changed_when: false
-  when: "'app' in nomad_jobs_selected"
+  when: "'app' in nomad_jobs_selected and app_image_inspect.rc != 0"
 
 - name: First deploy — build the image on the VPS (bootstrap build job)
-  when: "'app' in nomad_jobs_selected and app_image_pull.rc != 0"
+  # Runs only when the image is neither in the docker cache nor the registry —
+  # the very first deploy, before Woodpecker CI exists. `make vps-local`
+  # pre-builds from the working tree, so local rehearsals skip this entirely.
+  when: >-
+    'app' in nomad_jobs_selected
+    and app_image_inspect.rc != 0
+    and (app_image_pull is skipped or app_image_pull.rc != 0)
   block:
     - name: Submit the bootstrap build (clone -> docker build -> local registry)
       ansible.builtin.command:
-        argv: ["nomad", "job", "run", "-detach", "{{ vps_base_dir }}/jobs/build-bootstrap.nomad.hcl"]
-        environment: "{{ nomad_cli_env }}"
-      no_log: true
+        argv: ["{{ nomad_bin }}", "job", "run", "-detach", "{{ vps_base_dir }}/jobs/build-bootstrap.nomad.hcl"]
+      environment: "{{ nomad_cli_env }}"
 
     - name: Wait for the bootstrap build to finish (up to ~25 min on 2 vCPU)
       ansible.builtin.command:
-        argv: ["nomad", "job", "status", "build-bootstrap"]
-        environment: "{{ nomad_cli_env }}"
+        argv: ["{{ nomad_bin }}", "job", "status", "build-bootstrap"]
+      environment: "{{ nomad_cli_env }}"
       register: build_status
       until: "'Complete' in build_status.stdout or 'Failed' in build_status.stdout"
       retries: 50
@@ -200,10 +215,9 @@
 
     - name: Clean up the finished bootstrap job
       ansible.builtin.command:
-        argv: ["nomad", "job", "stop", "-purge", "build-bootstrap"]
-        environment: "{{ nomad_cli_env }}"
+        argv: ["{{ nomad_bin }}", "job", "stop", "-purge", "build-bootstrap"]
+      environment: "{{ nomad_cli_env }}"
       failed_when: false
-      no_log: true
 
 - name: Run the app (canary + auto_revert gated on /health/ready)
   ansible.builtin.include_tasks: run-nomad-job.yml

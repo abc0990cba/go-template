@@ -71,6 +71,9 @@ func RegisterHTTP(public, authorized *gin.RouterGroup, h HTTP) {
 	authorized.POST("/profile/unlink/:provider", h.unlinkProvider)
 	authorized.POST("/impersonation", h.RequirePermission("impersonation", "execute"), h.impersonate)
 	authorized.POST("/impersonation/stop", h.stopImpersonation)
+	// Progressive-lockout admin unlock: clearing the failure counter of an
+	// account an operator has verified. Idempotent and audited.
+	authorized.POST("/users/:id/unlock", h.RequirePermission("users", "update"), h.unlock)
 }
 
 // RegisterRoot mounts the server-side OAuth redirect routes on the root
@@ -296,4 +299,16 @@ func (h *HTTP) grantRegistrationRole(ctx context.Context, userID string) {
 		return
 	}
 	_ = h.RBAC.AssignRole(userID, "viewer", domain)
+}
+
+// unlock clears a locked account's failure counter. Always 200: unlocking
+// an unlocked account is a no-op, and the answer must not leak which
+// accounts were locked (that would make the endpoint an oracle).
+func (h *HTTP) unlock(c *gin.Context) {
+	if err := h.Svc.Unlock(c.Request.Context(), c.Param("id")); err != nil {
+		httpx.Fail(c, h.Logger, err)
+		return
+	}
+	audit.Record(h.Audit, c, "auth.unlocked", "user", c.Param("id"), nil, nil)
+	c.JSON(http.StatusOK, gin.H{"status": "unlocked"})
 }

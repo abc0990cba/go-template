@@ -14,7 +14,7 @@
       "then": { "field": "summary", "function": "truthy" }
     },
     "operation-success-response": {
-      "description": "Every operation must document its success response.",
+      "description": "Every operation must document its success response. 101 counts too: it is the success answer of a WebSocket handshake.",
       "severity": "error",
       "given": "$.paths[*][get,put,post,delete,options,head,patch,trace]",
       "then": {
@@ -24,6 +24,7 @@
           "schema": {
             "type": "object",
             "anyOf": [
+              { "required": ["101"] },
               { "required": ["200"] },
               { "required": ["201"] },
               { "required": ["202"] },

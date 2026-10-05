@@ -20,6 +20,7 @@ import (
 	"github.com/your-org/go-template/internal/files"
 	"github.com/your-org/go-template/internal/invitations"
 	"github.com/your-org/go-template/internal/jobs"
+	"github.com/your-org/go-template/internal/kernel"
 	"github.com/your-org/go-template/internal/mfa"
 	"github.com/your-org/go-template/internal/notifications"
 	"github.com/your-org/go-template/internal/platform/mailer"
@@ -99,6 +100,23 @@ type Deps struct {
 	// every read on the store.
 	Cache             cache.Cache
 	WebhookDispatcher webhooks.Dispatcher
+	// EmailMessages backs the delivery log; nil keeps email on the
+	// direct-send path with no log. EmailDispatcher (optional) hands
+	// recorded messages to the queue instead of sending inline.
+	EmailMessages   email.MessageStore
+	EmailDispatcher email.Dispatcher
+	// LoginGuard backs progressive lockout; nil (or threshold 0) keeps
+	// login free of account-state tracking.
+	LoginGuard auth.LoginGuard
+	// Pwned is the optional breached-password gate for new passwords; nil
+	// keeps registrations and resets free of external checks.
+	Pwned kernel.PwnedChecker
+	// JWTKeys enables kid-based token-secret rotation; nil keeps
+	// single-secret mode (APP_JWT_SECRET).
+	JWTKeys *tokens.KeySet
+	// JWTRevocations is the shared jti denylist (Redis in production,
+	// in-process otherwise); nil keeps access verification stateless.
+	JWTRevocations tokens.Revocations
 	// Breakers wraps outbound HTTP and broker calls; nil disables breakers.
 	Breakers *reliability.Breakers
 	// Bulkheads bound concurrent calls per outbound dependency; nil runs
@@ -166,6 +184,8 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	}
 	services.MFA = mfa.NewService(deps.MFA, deps.Auth, services.Settings, deps.Events, cfg.SessionTTL, auth.VerifyPassword)
 	services.Tokens = tokens.NewService(deps.Tokens, deps.Auth, services.MFA, deps.Events, cfg.JWTSecret, cfg.JWTAccessTTL, cfg.JWTRefreshTTL, auth.VerifyPassword)
+	services.Tokens.WithKeys(deps.JWTKeys)
+	services.Tokens.WithRevocations(deps.JWTRevocations)
 	services.Tickets = tickets.NewService(deps.Tickets, services.RBAC, deps.Events, logger)
 	if deps.Files != nil && deps.Blobs != nil {
 		services.Files = files.NewService(deps.Files, deps.Blobs, services.Tickets, cfg.FilesMaxBytes, logger)
@@ -173,6 +193,10 @@ func NewContainer(deps Deps, logger *slog.Logger, cfg config.Config) *Container 
 	}
 	services.Tickets.WithNotifications(notifications)
 	services.Email = email.NewService(deps.EmailTokens, deps.Auth, deps.Mailer, auth.HashPassword, cfg.BaseURL, logger)
+	services.Email.WithMessages(deps.EmailMessages, deps.EmailDispatcher)
+	services.Auth.WithLockout(deps.LoginGuard, cfg.LockoutThreshold, cfg.LockoutWindow)
+	services.Auth.WithPwned(deps.Pwned)
+	services.Email.WithPwned(deps.Pwned)
 	services.APIKeys = apikeys.NewService(deps.APIKeys)
 	services.Webhooks = webhooks.NewService(deps.Webhooks, deps.WebhookDispatcher, services.Settings, tracedClient(cfg.ExternalTimeout), deps.Breakers, deps.Bulkheads, logger)
 	services.Email.WithNotifier(func(ctx context.Context, userID, typ, title, body, link string) {

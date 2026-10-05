@@ -46,7 +46,7 @@ func TestQueueEndToEnd(t *testing.T) {
 
 	// The worker side: the same mux the worker binary runs.
 	server := asynq.NewServer(asynq.RedisClientOpt{Addr: addr}, asynq.Config{Concurrency: 2})
-	mux := queue.NewMux(services.Jobs, testLogger(), services.Webhooks)
+	mux := queue.NewMux(services.Jobs, testLogger(), services.Webhooks, services.Email)
 	go func() { _ = server.Run(mux) }()
 	t.Cleanup(server.Shutdown)
 

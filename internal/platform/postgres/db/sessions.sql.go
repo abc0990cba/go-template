@@ -50,26 +50,49 @@ func (q *Queries) DeleteSessionsForUser(ctx context.Context, userID string) erro
 	return err
 }
 
-const getSession = `-- name: GetSession :one
+const getSessionFresh = `-- name: GetSessionFresh :one
 UPDATE sessions
 SET expires_at = now() + make_interval(secs => $2)
-WHERE token = $1 AND expires_at > now()
+WHERE token = $1
+  AND expires_at > now()
+  AND expires_at < now() + make_interval(secs => $2) / 2
 RETURNING user_id, impersonated_by
 `
 
-type GetSessionParams struct {
+type GetSessionFreshParams struct {
 	Token string
 	Secs  float64
 }
 
-type GetSessionRow struct {
+type GetSessionFreshRow struct {
 	UserID         string
 	ImpersonatedBy string
 }
 
-func (q *Queries) GetSession(ctx context.Context, arg GetSessionParams) (GetSessionRow, error) {
-	row := q.db.QueryRow(ctx, getSession, arg.Token, arg.Secs)
-	var i GetSessionRow
+// The sliding expiry rewrites the row only when it matters: if more than
+// half the TTL remains, the read skips the write (most requests hit this
+// path). The caller falls back to a plain read when no row comes back.
+func (q *Queries) GetSessionFresh(ctx context.Context, arg GetSessionFreshParams) (GetSessionFreshRow, error) {
+	row := q.db.QueryRow(ctx, getSessionFresh, arg.Token, arg.Secs)
+	var i GetSessionFreshRow
+	err := row.Scan(&i.UserID, &i.ImpersonatedBy)
+	return i, err
+}
+
+const getSessionReadonly = `-- name: GetSessionReadonly :one
+SELECT user_id, impersonated_by
+FROM sessions
+WHERE token = $1 AND expires_at > now()
+`
+
+type GetSessionReadonlyRow struct {
+	UserID         string
+	ImpersonatedBy string
+}
+
+func (q *Queries) GetSessionReadonly(ctx context.Context, token string) (GetSessionReadonlyRow, error) {
+	row := q.db.QueryRow(ctx, getSessionReadonly, token)
+	var i GetSessionReadonlyRow
 	err := row.Scan(&i.UserID, &i.ImpersonatedBy)
 	return i, err
 }

@@ -38,35 +38,37 @@ type sessionEntry struct {
 // MemoryStore is an in-process, mutex-guarded store. Data does not survive
 // restarts, and separate processes never see each other's state.
 type MemoryStore struct {
-	mu           sync.RWMutex
-	users        map[string]users.User
-	passwords    map[string]string
-	identities   []auth.Identity
-	sessions     map[string]sessionEntry
-	oauthStates  map[string]auth.OAuthState
-	jobs         map[string]jobs.Job
-	reports      map[string]analytics.Report
-	enrichments  []enrichmentRow
-	enrichSeq    int64
-	events       []eventRecord
-	orgs         map[string]rbac.Organization
-	orgMembers   []rbac.OrgMember
-	roles        map[string]rbac.Role
-	rules        []rbac.PolicyRule
-	ruleSeq      int64
-	auditLog     []audit.Entry
-	settings     map[string]settings.Setting
-	notifs       []notifications.Notification
-	emailTokens  []emailTokenRow
-	apiKeys      []apiKeyRow
-	webhooks     []webhooks.Endpoint
-	deliveries   []webhooks.Delivery
-	ticketTypes  map[string]tickets.TicketType
-	tickets      map[string]tickets.Ticket
-	ticketSeq    map[string]int
-	approvals    map[string][]tickets.TicketApproval
-	comments     []tickets.TicketComment
-	ticketEvents []tickets.TicketEvent
+	mu            sync.RWMutex
+	users         map[string]users.User
+	passwords     map[string]string
+	identities    []auth.Identity
+	sessions      map[string]sessionEntry
+	oauthStates   map[string]auth.OAuthState
+	jobs          map[string]jobs.Job
+	reports       map[string]analytics.Report
+	enrichments   []enrichmentRow
+	enrichSeq     int64
+	events        []eventRecord
+	orgs          map[string]rbac.Organization
+	orgMembers    []rbac.OrgMember
+	roles         map[string]rbac.Role
+	rules         []rbac.PolicyRule
+	ruleSeq       int64
+	auditLog      []audit.Entry
+	settings      map[string]settings.Setting
+	notifs        []notifications.Notification
+	emailTokens   []emailTokenRow
+	emailMessages []email.Message
+	loginGuards   map[string]loginGuard
+	apiKeys       []apiKeyRow
+	webhooks      []webhooks.Endpoint
+	deliveries    []webhooks.Delivery
+	ticketTypes   map[string]tickets.TicketType
+	tickets       map[string]tickets.Ticket
+	ticketSeq     map[string]int
+	approvals     map[string][]tickets.TicketApproval
+	comments      []tickets.TicketComment
+	ticketEvents  []tickets.TicketEvent
 
 	// Streams: exactly-once enrichment bookkeeping, the outbox, dead
 	// letters, and API idempotency reservations.
@@ -123,6 +125,7 @@ func NewMemoryStore() *MemoryStore {
 		orgs:            map[string]rbac.Organization{},
 		roles:           map[string]rbac.Role{},
 		settings:        map[string]settings.Setting{},
+		loginGuards:     map[string]loginGuard{},
 		ticketTypes:     map[string]tickets.TicketType{},
 		tickets:         map[string]tickets.Ticket{},
 		ticketSeq:       map[string]int{},

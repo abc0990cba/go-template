@@ -1,17 +1,23 @@
 # Managed by Ansible — deploy/ansible/roles/nomad_jobs (rendered from
-# Caddyfile.j2). Caddy handles Let's Encrypt obtain/renew/reload automatically;
-# certificates persist on the caddydata host volume across restarts.
+# Caddyfile.j2). tls_mode=acme: Caddy handles Let's Encrypt obtain/renew/
+# reload automatically; certificates persist on the caddydata host volume.
+# tls_mode=internal: Caddy's built-in CA signs local certs (rehearsal only).
 {
 	admin 127.0.0.1:2019
+{% if tls_mode == 'acme' %}
 	email {{ acme_email }}
 {% if acme_staging %}
 	# STAGING CA: untrusted certificates on purpose (no rate limits while
 	# testing). Switch to production with: make vps-acme-production
 	acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 {% endif %}
+{% endif %}
 }
 
 {{ app_domain }} {
+{% if tls_mode == 'internal' %}
+	tls internal
+{% endif %}
 	encode zstd gzip
 	# Never expose internals through the public front door. /health/* stays
 	# reachable on purpose: Prometheus's blackbox probe checks the public
@@ -29,6 +35,9 @@
 {% if ci_enabled and ci_domain %}
 
 {{ ci_domain }} {
+{% if tls_mode == 'internal' %}
+	tls internal
+{% endif %}
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -42,6 +51,9 @@
 {% if monitoring_enabled and grafana_domain %}
 
 {{ grafana_domain }} {
+{% if tls_mode == 'internal' %}
+	tls internal
+{% endif %}
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -50,5 +62,21 @@
 		-Server
 	}
 	reverse_proxy 127.0.0.1:3000
+}
+{% endif %}
+{% if monitoring_enabled and monitoring_uptime_enabled | default(true) and uptime_domain %}
+
+{{ uptime_domain }} {
+{% if tls_mode == 'internal' %}
+	tls internal
+{% endif %}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:3001
 }
 {% endif %}

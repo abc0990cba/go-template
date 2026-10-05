@@ -10,15 +10,17 @@
     - role: nomad_jobs
       vars:
         nomad_jobs_selected: "{{ jobs | default(['app']) }}"
+      tags: [stack]
 
 - name: Smoke check
   hosts: vps
   become: true
+  tags: [smoke]
   tasks:
     - name: Wait for https://{{ app_domain }}/health/ready through caddy
       ansible.builtin.uri:
         url: "https://{{ app_domain }}/health/ready"
-        validate_certs: "{{ not (acme_staging | bool) }}"
+        validate_certs: "{{ tls_mode == 'acme' and not (acme_staging | bool) }}"
         status_code: 200
       register: smoke
       retries: 30

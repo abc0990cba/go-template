@@ -55,6 +55,12 @@ type App struct {
 	// readyProbes are extra readiness checks (broker pings), run after the
 	// store ping.
 	readyProbes []func(ctx context.Context) error
+	// spec enforces the OpenAPI contract on /api at runtime; nil disables
+	// the gate (APP_OPENAPI_VALIDATION=off).
+	spec *specValidator
+	// shed caps concurrent /api requests; nil disables load shedding
+	// (APP_LOADSHED_MAX_INFLIGHT=0).
+	shed *loadShed
 }
 
 // Options carries the HTTP layer's optional dependencies; zero values keep
@@ -99,6 +105,8 @@ func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Lo
 		limiters:         limiters,
 		idempotencyStore: o.Idempotency,
 		readyProbes:      o.ReadyProbes,
+		spec:             newSpecValidator(logger, cfg.OpenAPIValidation),
+		shed:             newLoadShed(cfg.LoadShedMaxInflight),
 	}
 	r := gin.New()
 	r.Use(gin.Recovery(), app.securityHeaders(), app.requestID(), app.tracing(), app.metrics(), app.accessLog(), app.maintenanceGate(), app.bodyLimit())
@@ -122,8 +130,11 @@ func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Lo
 	// Bearer token (non-browser clients); unsafe methods are additionally
 	// checked against Origin/Sec-Fetch-Site, replacing the old form CSRF.
 	// Every /api request passes the shared rate limiter; auth endpoints add
-	// a much tighter per-IP budget on top.
-	api := r.Group("/api", app.originCheck(), app.apiRateLimit())
+	// a much tighter per-IP budget on top. Downstream of the limiters, the
+	// load shedder bounds concurrency per lane, the request timeout bounds
+	// each context, and the OpenAPI gate rejects wire shapes off contract.
+	api := r.Group("/api", app.originCheck(), app.apiRateLimit(),
+		app.loadShedMiddleware(), app.requestTimeout(), app.openapiValidate())
 
 	// Authenticated routes resolve the caller, then the active Casbin
 	// domain (X-Org-Id header, else the user's single org, else the
@@ -133,6 +144,7 @@ func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Lo
 	// the whole /api group already paid.
 	authorized := api.Group("", app.apiAuthRequired, app.identityRateLimit(), app.orgDomain)
 	authorized.GET("/events/stream", app.sseStream)
+	authorized.GET("/events/ws", app.wsStream)
 
 	// Feature surfaces registered from their own packages.
 	auth.RegisterHTTP(api, authorized, auth.HTTP{
@@ -151,6 +163,10 @@ func NewRouter(cfg config.Config, services *bootstrap.Container, logger *slog.Lo
 		RequirePermission: app.requirePermission,
 	})
 	email.RegisterHTTP(api, email.HTTP{Svc: services.Email, Settings: services.Settings, Audit: services.Audit, AuthRateLimit: app.authRateLimit()})
+	email.RegisterAdminHTTP(authorized, email.AdminHTTP{
+		Svc: services.Email, Audit: services.Audit, Logger: logger,
+		RequirePermission: app.requirePermission,
+	})
 	mfa.RegisterHTTP(api, authorized, mfa.HTTP{
 		Svc: services.MFA, Settings: services.Settings, Notifications: services.Notifications,
 		Audit: services.Audit, Logger: logger,
@@ -321,7 +337,7 @@ func (a *App) apiAuthRequired(c *gin.Context) {
 // jwtAuth resolves an access JWT to its user. The token carries identity
 // only; permissions are still resolved server-side per request.
 func (a *App) jwtAuth(c *gin.Context, token string) {
-	userID, err := a.services.Tokens.VerifyAccess(token)
+	userID, err := a.services.Tokens.VerifyAccessContext(c.Request.Context(), token)
 	if err != nil {
 		a.problem(c, http.StatusUnauthorized, "unauthorized", nil)
 		c.Abort()

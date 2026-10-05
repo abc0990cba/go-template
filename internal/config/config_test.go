@@ -31,6 +31,15 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.OAuthStateTTL != 10*time.Minute {
 		t.Errorf("OAuthStateTTL: got %s", cfg.OAuthStateTTL)
 	}
+	if cfg.OpenAPIValidation != "requests" {
+		t.Errorf("OpenAPIValidation: want requests, got %q", cfg.OpenAPIValidation)
+	}
+	if cfg.LoadShedMaxInflight != 512 {
+		t.Errorf("LoadShedMaxInflight: want 512, got %d", cfg.LoadShedMaxInflight)
+	}
+	if cfg.RequestTimeout != 30*time.Second {
+		t.Errorf("RequestTimeout: got %s", cfg.RequestTimeout)
+	}
 }
 
 func TestLoadAcceptsValidOverrides(t *testing.T) {
@@ -71,6 +80,9 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		{"zero external timeout", "APP_EXTERNAL_TIMEOUT", "0s"},
 		{"zero oauth state ttl", "OAUTH_STATE_TTL", "0s"},
 		{"unknown log level", "APP_LOG_LEVEL", "loud"},
+		{"unknown validation mode", "APP_OPENAPI_VALIDATION", "sometimes"},
+		{"negative load shed cap", "APP_LOADSHED_MAX_INFLIGHT", "-1"},
+		{"negative request timeout", "APP_REQUEST_TIMEOUT", "-5s"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

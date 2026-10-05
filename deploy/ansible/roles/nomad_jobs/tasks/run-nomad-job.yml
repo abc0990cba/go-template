@@ -5,14 +5,12 @@
 # zero exit means healthy; a failure leaves auto_revert's rollback in place.
 - name: "Validate {{ job_name }} job spec"
   ansible.builtin.command:
-    argv: "{{ (['nomad', 'job', 'validate'] + (job_vars | default([])) + [job_file | default(vps_base_dir ~ '/jobs/' ~ job_name ~ '.nomad.hcl')]) }}"
-    environment: "{{ nomad_cli_env }}"
+    argv: "{{ ([nomad_bin, 'job', 'validate'] + (job_vars | default([])) + [job_file | default(vps_base_dir ~ '/jobs/' ~ job_name ~ '.nomad.hcl')]) }}"
+  environment: "{{ nomad_cli_env }}"
   changed_when: false
-  no_log: true
 
 - name: "Run {{ job_name }} (waits for a healthy deployment)"
   ansible.builtin.command:
-    argv: "{{ (['nomad', 'job', 'run'] + (job_vars | default([])) + [job_file | default(vps_base_dir ~ '/jobs/' ~ job_name ~ '.nomad.hcl')]) }}"
-    environment: "{{ nomad_cli_env }}"
+    argv: "{{ ([nomad_bin, 'job', 'run'] + (job_vars | default([])) + [job_file | default(vps_base_dir ~ '/jobs/' ~ job_name ~ '.nomad.hcl')]) }}"
+  environment: "{{ nomad_cli_env }}"
   timeout: "{{ job_timeout | default(600) }}"
-  no_log: true

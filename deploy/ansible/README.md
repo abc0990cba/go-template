@@ -10,11 +10,13 @@ One-VPS production deployment: Ansible provisions, Nomad orchestrates.
 Cheat sheet:
 
 ```bash
+make vps-local         # rehearse the ENTIRE flow on a local OrbStack machine
 make vps-setup         # once per VPS: questions -> secrets -> vault -> inventory
 make vps-doctor        # check prereqs / SSH / DNS / VPS size
 make vps-deploy        # full converge (idempotent)
 make vps-app-deploy TAG=v1.2.3
 make vps-rollback
+make vps-verify        # PASS/FAIL post-deploy checks (all sites)
 make vps-status | vps-logs S=api | vps-ui | vps-backup | vps-restore FILE=...
 ```
 

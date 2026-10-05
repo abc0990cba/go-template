@@ -53,14 +53,14 @@ job "postgres" {
 
       volume_mount {
         volume      = "secrets"
-        destination = "/secrets"
+        destination = "/mnt/secrets"
         read_only   = true
       }
 
       env {
         POSTGRES_USER         = "go_template"
         POSTGRES_DB           = "go_template"
-        POSTGRES_PASSWORD_FILE = "/secrets/pg_password"
+        POSTGRES_PASSWORD_FILE = "/mnt/secrets/pg_password"
         PGDATA                = "/var/lib/postgresql/data/pgdata"
       }
 

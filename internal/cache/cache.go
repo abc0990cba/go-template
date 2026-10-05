@@ -26,12 +26,16 @@ type Cache interface {
 const (
 	CacheKeyUser  = "user:"  // + user id
 	CacheKeyPerms = "perms:" // + domain + ":" + user id
+	CacheKeyOrgs  = "orgs:"  // + user id
 	CacheTTLUser  = 30 * time.Second
 	CacheTTLPerms = 30 * time.Second
 )
 
 // UserCacheKey is the canonical cache key for a user record.
 func UserCacheKey(userID string) string { return CacheKeyUser + userID }
+
+// OrgsCacheKey is the canonical cache key for a user's org memberships.
+func OrgsCacheKey(userID string) string { return CacheKeyOrgs + userID }
 
 // PermsCacheKey is the canonical cache key for a user's expanded permission
 // set inside one domain.

@@ -15,6 +15,7 @@ const (
 	TypeReportGenerate = "user.report_generate"
 	TypeWebhookDeliver = "webhook.deliver"
 	TypeExportGenerate = "user.export_generate"
+	TypeEmailDeliver   = "email.deliver"
 )
 
 // ExportGenerate is the payload for TypeExportGenerate: one user's GDPR
@@ -31,6 +32,13 @@ type WebhookDeliver struct {
 	PayloadVersion int    `json:"payload_version"`
 	EndpointID     string `json:"endpoint_id"`
 	DeliveryID     string `json:"delivery_id"`
+}
+
+// EmailDeliver is the payload for TypeEmailDeliver: one recorded message
+// the worker should attempt to deliver.
+type EmailDeliver struct {
+	PayloadVersion int    `json:"payload_version"`
+	MessageID      string `json:"message_id"`
 }
 
 // EnrichBatch is the payload for TypeEnrichBatch. Bump PayloadVersion when

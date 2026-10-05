@@ -15,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
+	openapispec "github.com/your-org/go-template/api/openapi"
 	"github.com/your-org/go-template/internal/observ"
 )
 
@@ -156,9 +157,10 @@ func pprofHandler() gin.HandlerFunc {
 	return gin.WrapH(mux)
 }
 
-// openapi serves the raw contract; Scalar on /docs renders it.
+// openapi serves the raw contract; Scalar on /docs renders it. The body is
+// the embedded copy — the distroless image ships no YAML files.
 func (a *App) openapi(c *gin.Context) {
-	c.File("api/openapi/openapi.yaml")
+	c.Data(http.StatusOK, "text/yaml; charset=utf-8", openapispec.Spec)
 }
 
 // docs renders the Scalar API reference over the contract.

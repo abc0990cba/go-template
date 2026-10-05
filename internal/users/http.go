@@ -118,6 +118,12 @@ func (h *HTTP) update(c *gin.Context) {
 		return
 	}
 	before, _ := h.Svc.Get(c.Request.Context(), c.Param("id"))
+	// Optimistic locking: an If-Match from the client's last GET must match
+	// the current state, or a concurrent edit is clobbered. Missing header
+	// keeps the old last-write-wins behavior.
+	if !httpx.RequireIfMatch(c, before) {
+		return
+	}
 	user, err := h.Svc.Update(c.Request.Context(), c.Param("id"), req.Email, req.Name, derefString(req.ExternalRef))
 	if err != nil {
 		httpx.Fail(c, h.Logger, err)

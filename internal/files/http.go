@@ -32,6 +32,13 @@ type HTTP struct {
 // RegisterHTTP mounts the file routes on the authorized group.
 func RegisterHTTP(authorized *gin.RouterGroup, h HTTP) {
 	authorized.POST("/files", h.upload)
+	// Resumable uploads: sessions own their state in the file store; the
+	// metadata row appears only at completion.
+	authorized.GET("/files/multipart", h.multipartStatus)
+	authorized.POST("/files/multipart", h.initiateMultipart)
+	authorized.POST("/files/multipart/parts", h.putMultipartPart)
+	authorized.POST("/files/multipart/complete", h.completeMultipart)
+	authorized.POST("/files/multipart/abort", h.abortMultipart)
 	authorized.GET("/files/:id", h.get)
 	authorized.GET("/files/:id/content", h.download)
 	authorized.GET("/files/:id/url", h.presign)

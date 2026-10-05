@@ -29,8 +29,12 @@ type Profile struct {
 	Provider        string `json:"provider"`
 	ProviderSubject string `json:"provider_subject"`
 	Email           string `json:"email"`
-	Name            string `json:"name"`
-	AvatarURL       string `json:"avatar_url"`
+	// EmailVerified carries the provider's own verification claim. Nothing
+	// today gates on it (linking requires a live session), but a future
+	// OAuth login path must not trust unverified addresses.
+	EmailVerified bool   `json:"email_verified"`
+	Name          string `json:"name"`
+	AvatarURL     string `json:"avatar_url"`
 }
 
 // Manager holds the per-provider OAuth2 configuration and an HTTP client
@@ -228,10 +232,11 @@ func (m *Manager) ExchangeProfile(ctx context.Context, provider, code, verifier 
 
 func fetchGoogleProfile(ctx context.Context, client *http.Client, url string) (Profile, error) {
 	var body struct {
-		Sub     string `json:"sub"`
-		Email   string `json:"email"`
-		Name    string `json:"name"`
-		Picture string `json:"picture"`
+		Sub           string `json:"sub"`
+		Email         string `json:"email"`
+		EmailVerified bool   `json:"email_verified"`
+		Name          string `json:"name"`
+		Picture       string `json:"picture"`
 	}
 	if err := getJSON(ctx, client, url, &body); err != nil {
 		return Profile{}, err
@@ -239,7 +244,8 @@ func fetchGoogleProfile(ctx context.Context, client *http.Client, url string) (P
 	if body.Sub == "" {
 		return Profile{}, errors.New("google profile is missing subject")
 	}
-	return Profile{Provider: "google", ProviderSubject: body.Sub, Email: body.Email, Name: body.Name, AvatarURL: body.Picture}, nil
+	return Profile{Provider: "google", ProviderSubject: body.Sub, Email: body.Email,
+		EmailVerified: body.EmailVerified, Name: body.Name, AvatarURL: body.Picture}, nil
 }
 
 func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, emailURL string) (Profile, error) {
@@ -254,6 +260,9 @@ func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, email
 		return Profile{}, err
 	}
 	email := user.Email
+	// The public profile email is a confirmed address (GitHub only exposes
+	// verified emails there); the /emails fallback requires primary+verified.
+	emailVerified := email != ""
 	if email == "" {
 		var emails []struct {
 			Email    string `json:"email"`
@@ -264,6 +273,7 @@ func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, email
 			for _, candidate := range emails {
 				if candidate.Primary && candidate.Verified {
 					email = candidate.Email
+					emailVerified = true
 					break
 				}
 			}
@@ -276,7 +286,8 @@ func fetchGitHubProfile(ctx context.Context, client *http.Client, userURL, email
 	if name == "" {
 		name = user.Login
 	}
-	return Profile{Provider: "github", ProviderSubject: fmt.Sprintf("%d", user.ID), Email: email, Name: name, AvatarURL: user.AvatarURL}, nil
+	return Profile{Provider: "github", ProviderSubject: fmt.Sprintf("%d", user.ID), Email: email,
+		EmailVerified: emailVerified, Name: name, AvatarURL: user.AvatarURL}, nil
 }
 
 func fetchFacebookProfile(ctx context.Context, client *http.Client, url string) (Profile, error) {
@@ -284,6 +295,7 @@ func fetchFacebookProfile(ctx context.Context, client *http.Client, url string) 
 		ID      string `json:"id"`
 		Name    string `json:"name"`
 		Email   string `json:"email"`
+		IsValid *bool  `json:"is_valid"` // absent on older API shapes; false = unconfirmed address
 		Picture struct {
 			Data struct {
 				URL string `json:"url"`
@@ -298,7 +310,10 @@ func fetchFacebookProfile(ctx context.Context, client *http.Client, url string) 
 	}
 	// Facebook only returns email when the user granted the scope; the auth
 	// feature tolerates an empty address, falling back to the subject.
-	return Profile{Provider: "facebook", ProviderSubject: body.ID, Email: body.Email, Name: body.Name, AvatarURL: body.Picture.Data.URL}, nil
+	// is_valid=false marks an unconfirmed address.
+	verified := body.IsValid == nil || *body.IsValid
+	return Profile{Provider: "facebook", ProviderSubject: body.ID, Email: body.Email,
+		EmailVerified: verified, Name: body.Name, AvatarURL: body.Picture.Data.URL}, nil
 }
 
 func fetchTwitterProfile(ctx context.Context, client *http.Client, url string) (Profile, error) {

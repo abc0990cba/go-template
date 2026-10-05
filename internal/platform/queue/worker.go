@@ -8,6 +8,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
+	"github.com/your-org/go-template/internal/email"
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/webhooks"
@@ -15,11 +16,24 @@ import (
 
 // NewMux builds the worker handler set on top of the job service. Handlers
 // decode the versioned payloads, treat malformed ones as non-retryable, and
-// sync the operational job record around execution. The webhooks service may
-// be nil to skip the webhook task.
-func NewMux(jobService *jobs.Service, logger *slog.Logger, webhooks *webhooks.Service) *asynq.ServeMux {
+// sync the operational job record around execution. The webhooks and email
+// services may be nil to skip their tasks.
+func NewMux(jobService *jobs.Service, logger *slog.Logger, webhooks *webhooks.Service, emails *email.Service) *asynq.ServeMux {
 	// The GDPR export handler lives in the jobs service via WithExporter.
 	mux := asynq.NewServeMux()
+
+	if emails != nil {
+		mux.HandleFunc(jobs.TypeEmailDeliver, func(ctx context.Context, t *asynq.Task) error {
+			var p jobs.EmailDeliver
+			if err := json.Unmarshal(t.Payload(), &p); err != nil {
+				return asynqPermanent(fmt.Errorf("decode %s payload: %w", t.Type(), err))
+			}
+			if p.MessageID == "" {
+				return asynqPermanent(fmt.Errorf("email payload needs a message id"))
+			}
+			return emails.DeliverQueued(ctx, p.MessageID)
+		})
+	}
 
 	if webhooks != nil {
 		mux.HandleFunc(jobs.TypeWebhookDeliver, func(ctx context.Context, t *asynq.Task) error {

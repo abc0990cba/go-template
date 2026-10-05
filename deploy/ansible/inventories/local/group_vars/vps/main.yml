@@ -1,0 +1,64 @@
+# =============================================================================
+# Local rehearsal knobs (OrbStack machine on this Mac).
+# Everything NOT listed here inherits the committed prod defaults (main.yml in
+# inventories/prod is NOT shared — this file is standalone by design, so a
+# local run can never mutate prod values). Secrets: secrets.yml (gitignored),
+# generated non-interactively by `make vps-local`.
+# =============================================================================
+
+vps_deploy_user: deploy
+# Caddy's built-in CA instead of Let's Encrypt — browsers show one warning
+# unless you trust the printed root.crt; curl uses -k (vps-verify handles it).
+tls_mode: internal
+# Skip apt upgrade / fail2ban / unattended-upgrades / UFW: the four pieces
+# with no local value that dominate first-run time.
+hardening_level: light
+
+app_domain: app.go-template.test
+ci_domain: ci.go-template.test
+grafana_domain: grafana.go-template.test
+acme_email: local@go-template.test
+
+# Full app stack locally, same as prod — EXCEPT the CI platform: Woodpecker
+# v3 refuses to boot without a forge (GitHub OAuth callback needs a public
+# URL). Everything else — including the exact `nomad job run` deploy path the
+# CI pipeline uses — is exercised locally via `VPS_SITE=local make vps-app-deploy`.
+ci_enabled: false
+monitoring_enabled: true
+alert_receiver: none
+woodpecker_admin_user: ""
+
+app_image: 127.0.0.1:5000/go-template
+app_image_tag: v0.1.0        # built from your working tree by make vps-local
+bootstrap_repo_url: unused   # local builds rsync the worktree; no clone needed
+
+api_replicas: 1
+app_report_cron: "0 3 * * *"
+app_smtp_host: ""
+app_smtp_port: "587"
+app_smtp_username: ""
+app_smtp_from: "no-reply@{{ app_domain }}"
+
+prometheus_retention: 7d
+
+# Same pinned versions as prod so the rehearsal exercises the real pins.
+nomad_version: "2.0.7"
+docker_apt_version: "5:28"
+caddy_image: "caddy:2.10.2"
+postgres_image: "postgres:16.9"
+redis_image: "redis:7.4.5-alpine"
+registry_image: "registry:2.8.3"
+woodpecker_image: "woodpeckerci/woodpecker-server:v3"
+woodpecker_agent_image: "woodpeckerci/woodpecker-agent:v3"
+prometheus_image: "prom/prometheus:v3.4.1"
+alertmanager_image: "prom/alertmanager:v0.28.1"
+grafana_image: "grafana/grafana:11.6.0"
+node_exporter_image: "prom/node-exporter:v1.9.1"
+blackbox_exporter_image: "prom/blackbox-exporter:v0.26.0"
+trivy_image: "aquasec/trivy:0.63.0"
+pipeline_nomad_version: "2.0.7"  # nomad binary used inside the CI deploy step
+
+backup_local_retention_days: 3
+backup_at: "03:15"
+
+vps_base_dir: /opt/go-template

@@ -11,6 +11,7 @@ import (
 
 	"github.com/hibiken/asynq"
 
+	"github.com/your-org/go-template/internal/email"
 	"github.com/your-org/go-template/internal/jobs"
 	"github.com/your-org/go-template/internal/observ"
 	"github.com/your-org/go-template/internal/webhooks"
@@ -106,3 +107,35 @@ func (w *WebhookEnqueuer) Deliver(ctx context.Context, endpoint webhooks.Endpoin
 	_, _ = w.client.EnqueueContext(ctx, task,
 		asynq.TaskID(delivery.ID), asynq.MaxRetry(3), asynq.Timeout(30*time.Second), asynq.Queue("default"))
 }
+
+// EmailEnqueuer pushes recorded email messages onto the asynq queue; it
+// implements the email.Dispatcher port for multi-process mode.
+type EmailEnqueuer struct {
+	client *asynq.Client
+}
+
+var _ email.Dispatcher = (*EmailEnqueuer)(nil)
+
+// NewEmailEnqueuer opens the producer against a Redis address.
+func NewEmailEnqueuer(redisAddr string) *EmailEnqueuer {
+	return &EmailEnqueuer{client: asynq.NewClient(asynq.RedisClientOpt{Addr: redisAddr})}
+}
+
+// Dispatch enqueues the message for the worker process. Fire-and-forget
+// like the webhook enqueuer: the delivery log carries the outcome, and
+// enqueue failures land there via the message staying queued.
+func (e *EmailEnqueuer) Dispatch(ctx context.Context, msg email.Message) {
+	body, err := json.Marshal(jobs.EmailDeliver{PayloadVersion: 1, MessageID: msg.ID})
+	if err != nil {
+		return
+	}
+	headers := map[string]string{}
+	observ.InjectHeaders(ctx, headers)
+	task := asynq.NewTaskWithHeaders(jobs.TypeEmailDeliver, body, headers)
+	_, _ = e.client.EnqueueContext(ctx, task,
+		asynq.TaskID("email-"+msg.ID), asynq.MaxRetry(email.MaxDeliveryAttempts),
+		asynq.Timeout(30*time.Second), asynq.Queue("default"))
+}
+
+// Close releases the client connection.
+func (e *EmailEnqueuer) Close() error { return e.client.Close() }

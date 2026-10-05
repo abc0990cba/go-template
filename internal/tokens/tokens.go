@@ -44,14 +44,19 @@ const (
 // rotate on every use; presenting a rotated token revokes its whole family
 // (the standard reuse-detection breach response).
 type Service struct {
-	store      Store
-	auth       Auth
-	events     analytics.Sink
-	mfa        *mfa.Service
-	secret     []byte
-	accessTTL  time.Duration
-	refreshTTL time.Duration
-	verify     func(encoded, password string) bool
+	store  Store
+	auth   Auth
+	events analytics.Sink
+	mfa    *mfa.Service
+	secret []byte
+	// keyset enables kid-based rotation; nil keeps single-secret mode.
+	keyset *KeySet
+	// revocations is the optional jti denylist consulted on VerifyAccess
+	// (WithRevocations); nil keeps verification stateless.
+	revocations Revocations
+	accessTTL   time.Duration
+	refreshTTL  time.Duration
+	verify      func(encoded, password string) bool
 }
 
 // NewService wires the grant. An empty secret keeps the endpoints
@@ -87,7 +92,7 @@ func (s *Service) emit(ctx context.Context, event, userID string) {
 // the same challenge bridge as the browser login: the grant answers with the
 // challenge token and CompleteChallengeGrant finishes it.
 func (s *Service) PasswordGrant(ctx context.Context, email, password, userAgent, ip string) (users.User, *GrantResult, string, error) {
-	if len(s.secret) == 0 {
+	if !s.enabled() {
 		return users.User{}, nil, "", ErrAuthDisabled
 	}
 	user, hash, err := s.auth.GetUserByEmail(ctx, strings.ToLower(email))
@@ -114,7 +119,7 @@ func (s *Service) PasswordGrant(ctx context.Context, email, password, userAgent,
 
 // CompleteChallengeGrant finishes an MFA login for a token client.
 func (s *Service) CompleteChallengeGrant(ctx context.Context, challenge, code, userAgent, ip string) (users.User, *GrantResult, error) {
-	if len(s.secret) == 0 {
+	if !s.enabled() {
 		return users.User{}, nil, ErrAuthDisabled
 	}
 	if s.mfa == nil {
@@ -135,7 +140,7 @@ func (s *Service) CompleteChallengeGrant(ctx context.Context, challenge, code, u
 // RefreshGrant rotates the presented refresh token. A revoked token reaching
 // here means its family leaked: every token in the family dies immediately.
 func (s *Service) RefreshGrant(ctx context.Context, refreshToken, userAgent, ip string) (users.User, *GrantResult, error) {
-	if len(s.secret) == 0 {
+	if !s.enabled() {
 		return users.User{}, nil, ErrAuthDisabled
 	}
 	if refreshToken == "" {
@@ -170,7 +175,7 @@ func (s *Service) RefreshGrant(ctx context.Context, refreshToken, userAgent, ip 
 // Revoke kills the presented refresh token; unknown tokens vanish silently
 // so the endpoint cannot probe which tokens exist.
 func (s *Service) Revoke(ctx context.Context, refreshToken string) error {
-	if len(s.secret) == 0 {
+	if !s.enabled() {
 		return ErrAuthDisabled
 	}
 	stored, err := s.store.GetRefreshTokenByHash(ctx, hashToken(refreshToken))
@@ -183,7 +188,7 @@ func (s *Service) Revoke(ctx context.Context, refreshToken string) error {
 // RevokeAllForUser drops every live refresh token (logout-everywhere for
 // token clients).
 func (s *Service) RevokeAllForUser(ctx context.Context, userID string) error {
-	if len(s.secret) == 0 {
+	if !s.enabled() {
 		return ErrAuthDisabled
 	}
 	return s.store.RevokeRefreshTokensForUser(ctx, userID)
@@ -191,14 +196,17 @@ func (s *Service) RevokeAllForUser(ctx context.Context, userID string) error {
 
 // Prune drops long-expired refresh tokens; the worker calls it on a schedule.
 func (s *Service) Prune(ctx context.Context) error {
-	if len(s.secret) == 0 {
+	if !s.enabled() {
 		return nil
 	}
 	return s.store.DeleteExpiredRefreshTokens(ctx)
 }
 
 // AccessConfigured reports whether token auth is enabled for this deployment.
-func (s *Service) AccessConfigured() bool { return len(s.secret) > 0 }
+func (s *Service) AccessConfigured() bool { return s.enabled() }
+
+// enabled reports whether a signing secret (single or keyset) is set.
+func (s *Service) enabled() bool { return len(s.secret) > 0 || s.keyset != nil }
 
 // issue mints an access JWT plus a new refresh token in the given family.
 func (s *Service) issue(ctx context.Context, userID, familyID, userAgent, ip string) (*GrantResult, error) {
@@ -240,7 +248,13 @@ func (s *Service) signAccess(userID string, now time.Time) (string, error) {
 		"exp": now.Add(s.accessTTL).Unix(),
 		"jti": kernel.NewID(),
 	}
-	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString(s.secret)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	if s.keyset != nil {
+		kid, secret := s.keyset.Active()
+		token.Header["kid"] = kid
+		return token.SignedString(secret)
+	}
+	return token.SignedString(s.secret)
 }
 
 // hashToken is the one place refresh tokens are hashed — sha256 hex, the
@@ -253,12 +267,20 @@ func hashToken(token string) string {
 }
 
 // VerifyAccess parses and validates an access token, returning the user id.
+// Signature, claims, and (when a denylist is attached) jti revocation all
+// gate the result.
 func (s *Service) VerifyAccess(tokenString string) (string, error) {
-	if len(s.secret) == 0 {
+	return s.VerifyAccessContext(context.Background(), tokenString)
+}
+
+// VerifyAccessContext is VerifyAccess with a caller-provided context (the
+// denylist lookup honors its deadline).
+func (s *Service) VerifyAccessContext(ctx context.Context, tokenString string) (string, error) {
+	if !s.enabled() {
 		return "", ErrAuthDisabled
 	}
-	parsed, err := jwt.Parse(tokenString, func(_ *jwt.Token) (any, error) {
-		return s.secret, nil
+	parsed, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
+		return s.keyFor(token.Header["kid"])
 	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithIssuer(Issuer))
 	if err != nil {
 		return "", ErrInvalidGrant
@@ -268,6 +290,9 @@ func (s *Service) VerifyAccess(tokenString string) (string, error) {
 		return "", ErrInvalidGrant
 	}
 	if typ, _ := claims["typ"].(string); typ != "access" {
+		return "", ErrInvalidGrant
+	}
+	if s.revoked(ctx, claims) {
 		return "", ErrInvalidGrant
 	}
 	sub, _ := claims["sub"].(string)

@@ -42,10 +42,10 @@ ask_yn() {
 }
 
 # Read a scalar from a group_vars YAML file without sourcing YAML in bash:
-# get_var app_domain [file]
+# get_var app_domain [file]. Strips quotes and trailing # comments.
 get_var() {
   local __key="$1" __file="${2:-$ANSIBLE_DIR/inventories/$VPS_SITE/group_vars/vps/site.yml}" __v=""
-  local __sed="s/^${__key}:[[:space:]]*//; s/^\"//; s/\"$//"
+  local __sed="s/^${__key}:[[:space:]]*//; s/[[:space:]]*#.*$//; s/^\"//; s/\"$//"
   __v="$(grep -E "^${__key}:" "$__file" 2>/dev/null | head -1 | sed -E "$__sed")"
   # Fall back to the committed defaults file when the site file has no such key.
   if [ -z "$__v" ] && [ "$__file" != "$ANSIBLE_DIR/inventories/$VPS_SITE/group_vars/vps/main.yml" ]; then
@@ -63,15 +63,27 @@ require_setup() {
   [ -n "${vps_host:-}" ] || die "Empty vps_host in $STATE_FILE"
 }
 
+# SSH options for every connection: batch mode, short timeouts, and — when the
+# site state defines one — the site's dedicated key (the local OrbStack
+# rehearsal uses .vps-state/local_key). Sets the global SSH_OPTS ARRAY: repo
+# paths may contain spaces (e.g. "/Volumes/ADATA SC750/..."), so callers must
+# expand as ssh "${SSH_OPTS[@]}" — never as an unquoted string.
+build_ssh_opts() {
+  SSH_OPTS=(-o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new)
+  if [ -n "${vps_ssh_key:-}" ]; then
+    SSH_OPTS+=(-i "$vps_ssh_key" -o IdentitiesOnly=yes)
+  fi
+}
+
 # Figure out which SSH identity works right now (bootstrap root vs hardened
 # deploy user) and remember it in .vps-state. Echoes the working user.
 detect_ssh_user() {
   local candidates=("${vps_ssh_user:-}" root deploy)
   local user attempt
+  build_ssh_opts
   for user in "${candidates[@]}"; do
     [ -n "$user" ] || continue
-    if attempt=$(ssh -o BatchMode=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=accept-new \
-        "$user@${vps_host}" true 2>/dev/null); then
+    if attempt=$(ssh "${SSH_OPTS[@]}" "$user@${vps_host}" true 2>/dev/null); then
       echo "$user"
       return 0
     fi
@@ -90,14 +102,15 @@ persist_ssh_user() {
     sed -i.bak "s/^vps_ssh_user=.*/vps_ssh_user=${user}/" "$STATE_FILE"
     rm -f "$STATE_FILE.bak"
   else
-    echo "vps_ssh_user=${user}" >> "$STATE_FILE"
+    echo "vps_ssh_user=\"${user}\"" >> "$STATE_FILE"
   fi
 }
 
 # Run a command on the VPS as root: vps_remote 'nomad-admin job status'
 vps_remote() {
   local user
-  user="$(detect_ssh_user)" || die "Cannot SSH to ${vps_host} as root or deploy. Check your key: ssh ${vps_host}"
-  ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new "$user@${vps_host}" \
+  user="$(detect_ssh_user)" || die "Cannot SSH to ${vps_host}. Check your key: ssh ${vps_host}"
+  build_ssh_opts
+  ssh "${SSH_OPTS[@]}" "$user@${vps_host}" \
     "sudo -n bash -c $(printf '%q' "$1")"
 }

@@ -319,7 +319,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Revoke a refresh token (idempotent) */
+        /**
+         * Revoke tokens (idempotent)
+         * @description Carrying refresh_token revokes it (reuse of a revoked refresh token revokes its whole family). Carrying access_token denylists that access token's jti until it expires, so logout is immediate for Bearer clients. At least one field is required.
+         */
         post: operations["revokeToken"];
         delete?: never;
         options?: never;
@@ -449,6 +452,28 @@ export interface paths {
         post?: never;
         /** Delete a user */
         delete: operations["deleteUser"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["userId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Clear a locked account's login-failure counter
+         * @description Admin action for progressive lockout: the account can log in again immediately. Idempotent — unlocking an unlocked account succeeds — and the answer never reveals which accounts were locked.
+         */
+        post: operations["unlockUser"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -728,6 +753,30 @@ export interface paths {
          *     heartbeats are comment lines.
          */
         get: operations["streamEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/events/ws": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * WebSocket stream carrying the same events as /api/events/stream
+         * @description Upgrades to WebSocket. Every text frame is one JSON object:
+         *     `{"type":"analytics.event|job.updated|snapshot|connected","payload":{...}}`.
+         *     The server pings idle connections every ~15s; client frames are not
+         *     interpreted. Cross-site handshakes (browser Origin other than the API
+         *     host) are refused — cookies ride along on WebSocket upgrades.
+         */
+        get: operations["streamEventsWS"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1373,6 +1422,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/emails": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the outbound email delivery log */
+        get: operations["listEmailMessages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/emails/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /** Get one delivery-log entry */
+        get: operations["getEmailMessage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/emails/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-queue a failed or dead message for delivery
+         * @description Resets the message to queued and hands it back to the configured transport (the queue worker, or an inline send in sync mode). Re-delivering a sent message answers 409.
+         */
+        post: operations["retryEmailMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/webhooks": {
         parameters: {
             query?: never;
@@ -1471,6 +1578,87 @@ export interface paths {
         get: operations["getAnalyticsDAU"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/multipart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resumable-upload capability and its dev-mode shape */
+        get: operations["multipartCapability"];
+        put?: never;
+        /**
+         * Open a resumable upload session
+         * @description Large attachments go to the file store in parts. Ticket attachments are visibility-checked like single-shot uploads. The response names the session, the destination key, and one presigned PUT URL per part (S3 mode); dev mode returns streaming=true and parts are PUT to /api/files/multipart/parts instead.
+         */
+        post: operations["initiateMultipart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/multipart/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stream one part through the API (dev mode)
+         * @description Query parameters upload_id and part_number (1-based); the body is the raw part bytes. Only available when the capability reports streaming=true (the in-process file store).
+         */
+        post: operations["putMultipartPart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/multipart/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assemble the parts and create the file record
+         * @description The listed parts (1-based numbers + the ETags the part uploads returned) are assembled into the object; the metadata row appears here, and the authoritative size comes from storage, not the client.
+         */
+        post: operations["completeMultipart"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/multipart/abort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discard an upload session
+         * @description The upload id is the capability — anyone holding it may abort. Abandoned sessions are also aborted by the worker after 24h.
+         */
+        post: operations["abortMultipart"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1835,6 +2023,20 @@ export interface components {
             revoked_at?: string | null;
             /** Format: date-time */
             created_at: string;
+        };
+        EmailMessage: {
+            id: string;
+            to: string;
+            subject: string;
+            kind: string;
+            /** @enum {string} */
+            status: "queued" | "sent" | "failed" | "dead";
+            attempts: number;
+            last_error?: string;
+            /** Format: date-time */
+            created_at: string;
+            /** Format: date-time */
+            sent_at?: string | null;
         };
         WebhookEndpoint: {
             id: string;
@@ -2816,7 +3018,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    refresh_token: string;
+                    refresh_token?: string;
+                    access_token?: string;
                 };
             };
         };
@@ -3024,7 +3227,10 @@ export interface operations {
     updateUser: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optimistic locking: the ETag returned by a prior GET of this user. A stale tag answers 412 without applying the change; an absent header keeps last-write-wins. */
+                "If-Match"?: string;
+            };
             path: {
                 id: components["parameters"]["userId"];
             };
@@ -3045,6 +3251,7 @@ export interface operations {
                     "application/json": components["schemas"]["User"];
                 };
             };
+            412: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -3065,6 +3272,31 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    unlockUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["userId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The account is usable again */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        status: string;
+                    };
+                };
             };
             default: components["responses"]["Problem"];
         };
@@ -3487,6 +3719,26 @@ export interface operations {
                     "text/event-stream": string;
                 };
             };
+            default: components["responses"]["Problem"];
+        };
+    };
+    streamEventsWS: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Switched to WebSocket */
+            101: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };
@@ -4613,6 +4865,80 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    listEmailMessages: {
+        parameters: {
+            query?: {
+                status?: "queued" | "sent" | "failed" | "dead";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The delivery log, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["EmailMessage"][];
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getEmailMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The recorded message */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailMessage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    retryEmailMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The message, re-queued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmailMessage"];
+                };
+            };
+            409: components["responses"]["Problem"];
+            default: components["responses"]["Problem"];
+        };
+    };
     listWebhooks: {
         parameters: {
             query?: never;
@@ -4808,6 +5134,157 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    multipartCapability: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whether sessions are available and how parts are uploaded */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        streaming: boolean;
+                        max_size: number;
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    initiateMultipart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    filename: string;
+                    content_type?: string;
+                    parts: number;
+                    /** @enum {string} */
+                    ref_type?: "ticket";
+                    ref_id?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Session opened */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        key: string;
+                        upload_id: string;
+                        part_urls?: string[];
+                        streaming: boolean;
+                    };
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    putMultipartPart: {
+        parameters: {
+            query: {
+                upload_id: string;
+                part_number: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "*/*": string;
+            };
+        };
+        responses: {
+            /** @description Part stored */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    completeMultipart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    filename: string;
+                    content_type?: string;
+                    key: string;
+                    upload_id: string;
+                    /** @enum {string} */
+                    ref_type?: "ticket";
+                    ref_id?: string;
+                    parts: {
+                        part_number: number;
+                        etag: string;
+                    }[];
+                };
+            };
+        };
+        responses: {
+            /** @description File created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["File"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    abortMultipart: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    key: string;
+                    upload_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Session discarded */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listTickets: {
         parameters: {
             query?: {
@@ -4950,7 +5427,10 @@ export interface operations {
     updateTicket: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Optimistic locking: the ETag returned by a prior GET of this ticket. A stale tag answers 412 without applying the edit; an absent header keeps last-write-wins. */
+                "If-Match"?: string;
+            };
             path: {
                 id: string;
             };
@@ -4976,6 +5456,7 @@ export interface operations {
                     "application/json": components["schemas"]["Ticket"];
                 };
             };
+            412: components["responses"]["Problem"];
             default: components["responses"]["Problem"];
         };
     };

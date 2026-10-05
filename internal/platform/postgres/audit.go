@@ -66,10 +66,15 @@ func (s *Store) ListAudit(ctx context.Context, opts kernel.AuditOptions) ([]audi
 	return entries, nil
 }
 
-// DeleteAuditOlderThan implements retention; wired to the cleanup cron.
-func (s *Store) DeleteAuditOlderThan(ctx context.Context, cutoff time.Time) (int64, error) {
-	n, err := s.q.DeleteAuditOlderThan(ctx, cutoff)
-	return n, mapErr(err)
+// PruneAuditLog implements retention through the audit_prune SECURITY
+// DEFINER function — direct DELETE on audit_log is trigger-blocked for this
+// role (migration 000022). The worker's sweep calls it on a schedule.
+func (s *Store) PruneAuditLog(ctx context.Context, cutoff time.Time) (int64, error) {
+	pruned, err := s.q.PruneAuditLog(ctx, cutoff)
+	if err != nil {
+		return 0, mapErr(err)
+	}
+	return pruned, nil
 }
 
 var _ settings.Store = (*Store)(nil)
@@ -195,11 +200,20 @@ func notificationFromRow(id, userID, typ, title, body, link string, readAt pgtyp
 func (s *Store) SetPasswordCredential(ctx context.Context, userID, passwordHash string) error {
 	if passwordHash == "" {
 		_, err := s.q.DeletePasswordCredential(ctx, userID)
+		if err == nil {
+			// A credential change proves control of the account; the
+			// lockout counter starts fresh.
+			_, _ = s.q.ResetLoginGuard(ctx, userID)
+		}
 		return mapErr(err)
 	}
-	return mapErr(s.q.UpsertPasswordCredential(ctx, db.UpsertPasswordCredentialParams{
+	if err := mapErr(s.q.UpsertPasswordCredential(ctx, db.UpsertPasswordCredentialParams{
 		UserID: userID, PasswordHash: passwordHash,
-	}))
+	})); err != nil {
+		return err
+	}
+	_, _ = s.q.ResetLoginGuard(ctx, userID)
+	return nil
 }
 
 var _ email.Store = (*Store)(nil)

@@ -1,6 +1,8 @@
-// Package audit owns the immutable audit trail: who did what, when, from
-// where, with before/after diffs. Records are never updated or deleted
-// except by retention.
+// Package audit owns the tamper-resistant audit trail: who did what, when,
+// from where, with before/after diffs. The API surface is append-only, and
+// the database enforces it (migration 000022 blocks UPDATE/DELETE for the
+// application role); retention runs through the audit_prune SECURITY
+// DEFINER function on a schedule.
 package audit
 
 import (
@@ -28,10 +30,12 @@ type Entry struct {
 	CreatedAt    time.Time `json:"created_at"`
 }
 
-// Store persists the append-only trail.
+// Store persists the append-only trail. PruneAuditLog is the retention
+// surface — the only sanctioned delete path, invoked by the worker's sweep.
 type Store interface {
 	RecordAudit(ctx context.Context, entry Entry) error
 	ListAudit(ctx context.Context, opts kernel.AuditOptions) ([]Entry, error)
+	PruneAuditLog(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 // Service appends immutable records to the audit trail. Handlers call

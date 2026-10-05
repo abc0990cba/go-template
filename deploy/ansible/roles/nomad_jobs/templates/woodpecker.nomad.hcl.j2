@@ -50,9 +50,11 @@ job "woodpecker" {
         WOODPECKER_GRPC_ADDR             = "127.0.0.1:9000"
         WOODPECKER_ADMIN                 = "{{ woodpecker_admin_user }}"
         WOODPECKER_DATABASE_DRIVER       = "postgres"
-        WOODPECKER_DATABASE_DATASOURCE   = "postgres://woodpecker:{{ secrets.postgres_password }}@127.0.0.1:5432/woodpecker?sslmode=disable"
+        WOODPECKER_DATABASE_DATASOURCE   = "postgres://go_template:{{ secrets.postgres_password }}@127.0.0.1:5432/woodpecker?sslmode=disable"
         WOODPECKER_AGENT_SECRET          = "{{ secrets.woodpecker_agent_secret }}"
-        WOODPECKER_GITHUB                = "true"
+        {# Only enable the GitHub forge once the OAuth client exists; with an
+           empty client id the server would crash-loop on startup. #}
+        WOODPECKER_GITHUB                = "{{ 'true' if secrets.woodpecker_github_client_id else 'false' }}"
         WOODPECKER_GITHUB_CLIENT_ID      = "{{ secrets.woodpecker_github_client_id }}"
         WOODPECKER_GITHUB_CLIENT_SECRET  = "{{ secrets.woodpecker_github_client_secret }}"
         WOODPECKER_LOG_LEVEL             = "info"

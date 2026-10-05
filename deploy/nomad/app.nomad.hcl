@@ -89,7 +89,6 @@ job "go-template" {
       canary           = 1
       auto_promote     = true
       auto_revert      = true
-      prune            = true
     }
 
     restart {
@@ -125,16 +124,16 @@ job "go-template" {
 
       volume_mount {
         volume      = "secrets"
-        destination = "/secrets"
+        destination = "/mnt/secrets"
         read_only   = true
       }
 
       env {
         APP_HTTP_ADDR          = ":8080"
         APP_BASE_URL           = "${local.base_url}"
-        APP_DATABASE_URL_FILE  = "/secrets/database_url"
+        APP_DATABASE_URL_FILE  = "/mnt/secrets/database_url"
         APP_REDIS_ADDR         = "127.0.0.1:6379"
-        APP_JWT_SECRET_FILE    = "/secrets/jwt_secret"
+        APP_JWT_SECRET_FILE    = "/mnt/secrets/jwt_secret"
         APP_LOG_LEVEL          = "info"
         APP_LOG_FORMAT         = "json"
         APP_COOKIE_SECURE      = "1"
@@ -143,7 +142,7 @@ job "go-template" {
         APP_SMTP_PORT          = "${var.smtp_port}"
         APP_SMTP_USERNAME      = "${var.smtp_username}"
         APP_SMTP_FROM          = "${var.smtp_from}"
-        APP_SMTP_PASSWORD_FILE = "/secrets/smtp_password"
+        APP_SMTP_PASSWORD_FILE = "/mnt/secrets/smtp_password"
       }
 
       resources {
@@ -168,7 +167,6 @@ job "go-template" {
       min_healthy_time = "10s"
       healthy_deadline = "5m"
       auto_revert      = true
-      prune            = true
     }
 
     restart {
@@ -203,12 +201,12 @@ job "go-template" {
 
       volume_mount {
         volume      = "secrets"
-        destination = "/secrets"
+        destination = "/mnt/secrets"
         read_only   = true
       }
 
       env {
-        APP_DATABASE_URL_FILE = "/secrets/database_url"
+        APP_DATABASE_URL_FILE = "/mnt/secrets/database_url"
         APP_REDIS_ADDR        = "127.0.0.1:6379"
         APP_METRICS_ADDR      = "127.0.0.1:9090"
         APP_LOG_LEVEL         = "info"

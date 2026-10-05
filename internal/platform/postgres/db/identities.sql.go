@@ -11,7 +11,7 @@ import (
 )
 
 const getIdentity = `-- name: GetIdentity :one
-SELECT provider, provider_subject, user_id, email, name, avatar_url, linked_at, last_login_at
+SELECT provider, provider_subject, user_id, email, name, avatar_url, email_verified, linked_at, last_login_at
 FROM auth_identities
 WHERE provider = $1 AND provider_subject = $2
 `
@@ -28,6 +28,7 @@ type GetIdentityRow struct {
 	Email           string
 	Name            string
 	AvatarUrl       string
+	EmailVerified   bool
 	LinkedAt        time.Time
 	LastLoginAt     time.Time
 }
@@ -42,6 +43,7 @@ func (q *Queries) GetIdentity(ctx context.Context, arg GetIdentityParams) (GetId
 		&i.Email,
 		&i.Name,
 		&i.AvatarUrl,
+		&i.EmailVerified,
 		&i.LinkedAt,
 		&i.LastLoginAt,
 	)
@@ -66,8 +68,8 @@ func (q *Queries) GetIdentityOwner(ctx context.Context, arg GetIdentityOwnerPara
 }
 
 const insertIdentity = `-- name: InsertIdentity :exec
-INSERT INTO auth_identities (provider, provider_subject, user_id, email, name, avatar_url, linked_at, last_login_at)
-VALUES ($1, $2, $3, $4, $5, $6, now(), now())
+INSERT INTO auth_identities (provider, provider_subject, user_id, email, name, avatar_url, email_verified, linked_at, last_login_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, now(), now())
 `
 
 type InsertIdentityParams struct {
@@ -77,6 +79,7 @@ type InsertIdentityParams struct {
 	Email           string
 	Name            string
 	AvatarUrl       string
+	EmailVerified   bool
 }
 
 func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) error {
@@ -87,12 +90,13 @@ func (q *Queries) InsertIdentity(ctx context.Context, arg InsertIdentityParams) 
 		arg.Email,
 		arg.Name,
 		arg.AvatarUrl,
+		arg.EmailVerified,
 	)
 	return err
 }
 
 const listIdentities = `-- name: ListIdentities :many
-SELECT provider, provider_subject, user_id, email, name, avatar_url, linked_at, last_login_at
+SELECT provider, provider_subject, user_id, email, name, avatar_url, email_verified, linked_at, last_login_at
 FROM auth_identities
 WHERE user_id = $1
 ORDER BY linked_at ASC
@@ -105,6 +109,7 @@ type ListIdentitiesRow struct {
 	Email           string
 	Name            string
 	AvatarUrl       string
+	EmailVerified   bool
 	LinkedAt        time.Time
 	LastLoginAt     time.Time
 }
@@ -125,6 +130,7 @@ func (q *Queries) ListIdentities(ctx context.Context, userID string) ([]ListIden
 			&i.Email,
 			&i.Name,
 			&i.AvatarUrl,
+			&i.EmailVerified,
 			&i.LinkedAt,
 			&i.LastLoginAt,
 		); err != nil {

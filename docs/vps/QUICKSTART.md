@@ -13,6 +13,11 @@ The full explanation of every moving part lives in
 
 ## 0. Prerequisites (5 minutes, one time)
 
+> **Want to see the whole flow first, without a VPS?** `make vps-local`
+> rehearses this entire deployment on an OrbStack Ubuntu machine on your Mac —
+> same playbooks, ~95% fidelity, deletable in one command.
+> See [LOCAL-REHEARSAL.md](LOCAL-REHEARSAL.md).
+
 1. **A VPS** — Ubuntu **24.04 LTS** (22.04 works), 2+ vCPU, **8 GB RAM
    recommended** (4 GB minimum: see [sizing](deployment.md#sizing)), from any
    provider. Create it with your SSH key.

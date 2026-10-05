@@ -4,11 +4,14 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/your-org/go-template/internal/platform/hibp"
 )
 
 // Load reads configuration from the environment. Invalid values fail startup
@@ -196,6 +199,22 @@ func Load() (Config, error) {
 	if cfg.RetentionProcessedEvents <= 0 {
 		return Config{}, fmt.Errorf("%s must be positive", "APP_RETENTION_PROCESSED_EVENTS")
 	}
+	if cfg.HIBPMode = env("APP_HIBP_MODE", "off"); cfg.HIBPMode != "off" && cfg.HIBPMode != "warn" && cfg.HIBPMode != "enforce" {
+		return Config{}, fmt.Errorf("APP_HIBP_MODE must be off, warn, or enforce, got %q", cfg.HIBPMode)
+	}
+	cfg.HIBPURL = env("APP_HIBP_URL", hibp.DefaultURL)
+	if cfg.LockoutThreshold, err = intEnv("APP_LOCKOUT_THRESHOLD", 5); err != nil {
+		return Config{}, err
+	}
+	if cfg.LockoutThreshold < 0 {
+		return Config{}, fmt.Errorf("%s must not be negative", "APP_LOCKOUT_THRESHOLD")
+	}
+	if cfg.LockoutWindow, err = durationEnv("APP_LOCKOUT_WINDOW", 15*time.Minute); err != nil {
+		return Config{}, err
+	}
+	if cfg.LockoutWindow <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_LOCKOUT_WINDOW")
+	}
 	if cfg.UserRateRPS, err = floatEnv("APP_USER_RATE_RPS", 100); err != nil {
 		return Config{}, err
 	}
@@ -205,11 +224,57 @@ func Load() (Config, error) {
 	if cfg.UserRateRPS <= 0 || cfg.UserRateBurst <= 0 {
 		return Config{}, fmt.Errorf("user rate limit must be positive")
 	}
+	if cfg.OpenAPIValidation = env("APP_OPENAPI_VALIDATION", "requests"); cfg.OpenAPIValidation != "off" &&
+		cfg.OpenAPIValidation != "requests" && cfg.OpenAPIValidation != "all" {
+		return Config{}, fmt.Errorf("APP_OPENAPI_VALIDATION must be off, requests, or all, got %q", cfg.OpenAPIValidation)
+	}
+	if cfg.LoadShedMaxInflight, err = intEnv("APP_LOADSHED_MAX_INFLIGHT", 512); err != nil {
+		return Config{}, err
+	}
+	if cfg.LoadShedMaxInflight < 0 {
+		return Config{}, fmt.Errorf("%s must not be negative", "APP_LOADSHED_MAX_INFLIGHT")
+	}
+	if cfg.RequestTimeout, err = durationEnv("APP_REQUEST_TIMEOUT", 30*time.Second); err != nil {
+		return Config{}, err
+	}
+	if cfg.RequestTimeout < 0 {
+		return Config{}, fmt.Errorf("%s must not be negative", "APP_REQUEST_TIMEOUT")
+	}
+	if cfg.EmailMode = env("APP_EMAIL_MODE", "sync"); cfg.EmailMode != "sync" && cfg.EmailMode != "queue" {
+		return Config{}, fmt.Errorf("APP_EMAIL_MODE must be sync or queue, got %q", cfg.EmailMode)
+	}
+	if cfg.EmailMode == "queue" && cfg.RedisAddr == "" {
+		return Config{}, fmt.Errorf("APP_EMAIL_MODE=queue requires APP_REDIS_ADDR")
+	}
+	if cfg.EmailRetention, err = durationEnv("APP_EMAIL_RETENTION", 30*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.EmailRetention <= 0 {
+		return Config{}, fmt.Errorf("%s must be positive", "APP_EMAIL_RETENTION")
+	}
+	if cfg.AuditRetention, err = durationEnv("APP_AUDIT_RETENTION", 365*24*time.Hour); err != nil {
+		return Config{}, err
+	}
+	if cfg.AuditRetention < 0 {
+		return Config{}, fmt.Errorf("%s must not be negative", "APP_AUDIT_RETENTION")
+	}
 	if cfg.Pool, err = poolTuningEnv(); err != nil {
 		return Config{}, err
 	}
 	if cfg.JWTSecret, err = secretValue("APP_JWT_SECRET"); err != nil {
 		return Config{}, err
+	}
+	if path := os.Getenv("APP_JWT_SECRETS_FILE"); path != "" {
+		// #nosec G304,G703 -- path is the operator-provided APP_JWT_SECRETS_FILE
+		// (docker-secrets mount pattern); reading it is the feature.
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return Config{}, fmt.Errorf("APP_JWT_SECRETS_FILE: %w", readErr)
+		}
+		if len(bytes.TrimSpace(data)) == 0 {
+			return Config{}, fmt.Errorf("APP_JWT_SECRETS_FILE is empty")
+		}
+		cfg.JWTKeySetData = data
 	}
 	if cfg.JWTSecret != "" && len(cfg.JWTSecret) < 32 {
 		return Config{}, fmt.Errorf("APP_JWT_SECRET must be at least 32 bytes, got %d", len(cfg.JWTSecret))

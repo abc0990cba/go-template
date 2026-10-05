@@ -10,3 +10,10 @@ datasources:
     access: proxy
     url: http://127.0.0.1:9091
     isDefault: true
+{% if monitoring_logs_enabled | default(true) %}
+  - name: Loki
+    type: loki
+    uid: loki
+    access: proxy
+    url: http://127.0.0.1:3100
+{% endif %}

@@ -52,6 +52,24 @@ client {
   host_volume "grafanadata" {
     path = "{{ vps_base_dir }}/data/grafana"
   }
+{% if monitoring_logs_enabled | default(true) %}
+  host_volume "lokidata" {
+    path = "{{ vps_base_dir }}/data/loki"
+  }
+  # promtail reads container discovery + logs straight from the socket.
+  host_volume "docker.sock" {
+    path      = "/var/run/docker.sock"
+    read_only = true
+  }
+  host_volume "positions" {
+    path = "{{ vps_base_dir }}/data/promtail"
+  }
+{% endif %}
+{% if monitoring_uptime_enabled | default(true) %}
+  host_volume "kumadata" {
+    path = "{{ vps_base_dir }}/data/uptime-kuma"
+  }
+{% endif %}
   # App secret files — written by Ansible, mounted read-only into tasks.
   host_volume "secrets" {
     path      = "{{ vps_base_dir }}/secrets"
@@ -81,7 +99,10 @@ plugin "docker" {
   config {
     # Required: the Woodpecker agent mounts /var/run/docker.sock and the
     # bootstrap build job bind-mounts it too. Single-tenant VPS: acceptable.
-    volumes = true
+    # Nomad 2.x syntax (1.x used `volumes = true`).
+    volumes {
+      enabled = true
+    }
   }
 }
 

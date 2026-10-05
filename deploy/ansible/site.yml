@@ -15,17 +15,23 @@
   hosts: vps
   become: true
   roles:
-    - nomad_jobs
-    - backup
+    - role: nomad_jobs
+      tags: [stack]
+    - role: backup
+      tags: [backup]
 
 - name: Smoke check + summary
   hosts: vps
   become: true
+  tags: [smoke]
   tasks:
     - name: Wait for https://{{ app_domain }}/health/ready through caddy
       ansible.builtin.uri:
         url: "https://{{ app_domain }}/health/ready"
-        validate_certs: "{{ not (acme_staging | bool) }}"   # staging certs are untrusted on purpose
+        # Trust the cert chain only for production ACME certificates; the
+        # Let's Encrypt staging CA and the local internal CA are untrusted
+        # on purpose.
+        validate_certs: "{{ tls_mode == 'acme' and not (acme_staging | bool) }}"
         status_code: 200
       register: smoke
       retries: 30

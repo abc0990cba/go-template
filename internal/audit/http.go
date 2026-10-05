@@ -62,7 +62,10 @@ func (h *HTTP) list(c *gin.Context) {
 		httpx.Fail(c, nil, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"data": httpx.ListOrEmpty(entries), "next_cursor": ""})
+	c.JSON(http.StatusOK, gin.H{
+		"data":        httpx.ListOrEmpty(entries),
+		"next_cursor": httpx.NextOffsetCursor(opts.Offset, len(entries)),
+	})
 }
 
 // userActivity serves one account's history card: audit records where the

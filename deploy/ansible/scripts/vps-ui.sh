@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # `make vps-ui` — open SSH tunnels to the loopback-only admin surfaces:
-#   Nomad UI  -> http://127.0.0.1:4646
-#   Grafana   -> http://127.0.0.1:3001
+#   Nomad UI   -> http://127.0.0.1:4646
+#   Grafana    -> http://127.0.0.1:3001
+#   Uptime     -> http://127.0.0.1:3002 (Uptime Kuma)
+#   Asynqmon   -> http://127.0.0.1:8082 (queue inspection)
+#   Loki       -> http://127.0.0.1:3100 (API, curl/debug)
 # Keep the terminal open while browsing. Ctrl-C closes the tunnels.
 set -euo pipefail
 # shellcheck source=lib.sh
@@ -21,8 +24,12 @@ else
   echo "  Grafana   http://127.0.0.1:3001   (login admin)"
 fi
 echo
-exec ssh -N \
+build_ssh_opts
+exec ssh "${SSH_OPTS[@]}" \
+  -N \
   -L 4646:127.0.0.1:4646 \
   -L 3001:127.0.0.1:3000 \
-  -o BatchMode=yes -o StrictHostKeyChecking=accept-new \
+  -L 3002:127.0.0.1:3001 \
+  -L 3100:127.0.0.1:3100 \
+  -L 8082:127.0.0.1:8082 \
   "$USER_SSH@${vps_host}"

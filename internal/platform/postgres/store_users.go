@@ -156,6 +156,7 @@ func (s *Store) LinkIdentity(ctx context.Context, identity auth.Identity) error 
 		ProviderSubject: identity.ProviderSubject,
 		UserID:          identity.UserID,
 		Email:           identity.Email,
+		EmailVerified:   identity.EmailVerified,
 		Name:            identity.Name,
 		AvatarUrl:       identity.AvatarURL,
 	}))
@@ -169,7 +170,7 @@ func (s *Store) GetIdentity(ctx context.Context, provider, subject string) (auth
 	}
 	return auth.Identity{
 		UserID: row.UserID, Provider: row.Provider, ProviderSubject: row.ProviderSubject,
-		Email: row.Email, Name: row.Name, AvatarURL: row.AvatarUrl,
+		Email: row.Email, EmailVerified: row.EmailVerified, Name: row.Name, AvatarURL: row.AvatarUrl,
 		LinkedAt: row.LinkedAt, LastLoginAt: row.LastLoginAt,
 	}, nil
 }
@@ -189,7 +190,7 @@ func (s *Store) ListIdentities(ctx context.Context, userID string) ([]auth.Ident
 	for _, row := range rows {
 		identities = append(identities, auth.Identity{
 			UserID: row.UserID, Provider: row.Provider, ProviderSubject: row.ProviderSubject,
-			Email: row.Email, Name: row.Name, AvatarURL: row.AvatarUrl,
+			Email: row.Email, EmailVerified: row.EmailVerified, Name: row.Name, AvatarURL: row.AvatarUrl,
 			LinkedAt: row.LinkedAt, LastLoginAt: row.LastLoginAt,
 		})
 	}
@@ -202,11 +203,21 @@ func (s *Store) CreateSession(ctx context.Context, token, userID, impersonatedBy
 	return mapErr(s.q.CreateSession(ctx, db.CreateSessionParams{Token: token, UserID: userID, ImpersonatedBy: impersonatedBy, Secs: ttl.Seconds()}))
 }
 
-// GetSession resolves only unexpired tokens and slides the expiry forward
-// in the same statement. It reports the impersonator, if any.
+// GetSession resolves only unexpired tokens. The sliding expiry writes the
+// row only when less than half the TTL remains (every other request is a
+// plain read — the write-always version made each authenticated request a
+// row update); a mid-session revocation is still honored because the read
+// always hits the table. It reports the impersonator, if any.
 func (s *Store) GetSession(ctx context.Context, token string, ttl time.Duration) (auth.Session, error) {
-	row, err := s.q.GetSession(ctx, db.GetSessionParams{Token: token, Secs: ttl.Seconds()})
-	return auth.Session{UserID: row.UserID, ImpersonatedBy: row.ImpersonatedBy}, mapErr(err)
+	row, err := s.q.GetSessionFresh(ctx, db.GetSessionFreshParams{Token: token, Secs: ttl.Seconds()})
+	if mapErr(err) == nil {
+		return auth.Session{UserID: row.UserID, ImpersonatedBy: row.ImpersonatedBy}, nil
+	}
+	readOnly, err := s.q.GetSessionReadonly(ctx, token)
+	if err != nil {
+		return auth.Session{}, mapErr(err)
+	}
+	return auth.Session{UserID: readOnly.UserID, ImpersonatedBy: readOnly.ImpersonatedBy}, nil
 }
 
 // DeleteSession revokes a token.

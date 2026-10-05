@@ -162,13 +162,14 @@ job "monitoring" {
 
       volume_mount {
         volume      = "secrets"
-        destination = "/secrets"
+        destination = "/mnt/secrets"
         read_only   = true
       }
 
       env {
-        GF_SECURITY_ADMIN_USER             = "admin"
-        GF_SECURITY_ADMIN_PASSWORD__FILE   = "/secrets/grafana_admin_password"        GF_USERS_ALLOW_SIGN_UP            = "false"
+        GF_SECURITY_ADMIN_USER           = "admin"
+        GF_SECURITY_ADMIN_PASSWORD__FILE = "/mnt/secrets/grafana_admin_password"
+        GF_USERS_ALLOW_SIGN_UP           = "false"
         GF_ANALYTICS_REPORTING_ENABLED    = "false"
         GF_ANALYTICS_CHECK_FOR_UPDATES    = "false"
         GF_SERVER_HTTP_ADDR               = "127.0.0.1"
@@ -273,4 +274,171 @@ job "monitoring" {
       }
     }
   }
+  # ----------------------------------------------------------------- loki ---
+  # Log aggregation: promtail ships container logs (docker_sd) to Loki; the
+  # Grafana Explore view queries them. Loopback-only like the rest.
+{% if monitoring_logs_enabled | default(true) %}
+  group "loki" {
+    count = 1
+
+    volume "lokidata" {
+      type   = "host"
+      source = "lokidata"
+    }
+
+    volume "configs" {
+      type      = "host"
+      source    = "configs"
+      read_only = true
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "loki" {
+      driver = "docker"
+
+      config {
+        image        = "{{ loki_image }}"
+        network_mode = "host"
+        args         = ["-config.file=/conf/loki/loki-config.yml"]
+      }
+
+      volume_mount {
+        volume      = "lokidata"
+        destination = "/loki"
+      }
+
+      volume_mount {
+        volume      = "configs"
+        destination = "/conf"
+        read_only   = true
+      }
+
+      resources {
+        cpu    = 200
+        memory = 384
+      }
+    }
+
+    task "promtail" {
+      driver = "docker"
+
+      config {
+        image        = "{{ promtail_image }}"
+        network_mode = "host"
+        args         = ["-config.file=/conf/loki/promtail-config.yml"]
+      }
+
+      volume_mount {
+        volume      = "configs"
+        destination = "/conf"
+        read_only   = true
+      }
+
+      # Docker API for container discovery and log streaming.
+      volume_mount {
+        volume      = "docker.sock"
+        destination = "/var/run/docker.sock"
+        read_only   = true
+      }
+
+      volume_mount {
+        volume      = "positions"
+        destination = "/positions"
+      }
+
+      resources {
+        cpu    = 100
+        memory = 128
+      }
+    }
+  }
+{% endif %}
+
+  # -------------------------------------------------------------- uptime ---
+  # Uptime Kuma: browser-configured synthetic checks. It probes from this
+  # host through Caddy (the blackbox-exporter path), so a green dashboard
+  # still depends on the host being up — treat it as convenience, and keep
+  # one external probe for real outside-in monitoring.
+{% if monitoring_uptime_enabled | default(true) %}
+  group "uptime" {
+    count = 1
+
+    volume "kumadata" {
+      type   = "host"
+      source = "kumadata"
+    }
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "uptime-kuma" {
+      driver = "docker"
+
+      config {
+        image        = "{{ uptime_kuma_image }}"
+        network_mode = "host"
+      }
+
+      volume_mount {
+        volume      = "kumadata"
+        destination = "/app/data"
+      }
+
+      env {
+        UPTIME_KUMA_PORT = "3001"
+        HOST             = "127.0.0.1"
+      }
+
+      resources {
+        cpu    = 100
+        memory = 256
+      }
+    }
+  }
+{% endif %}
+  # ------------------------------------------------------------ asynqmon ---
+  # Queue introspection for the asynq-backed jobs (email delivery, webhooks,
+  # reports): pending/retry/scheduled/archived views per queue. No auth of
+  # its own — loopback only; reach it with `make vps-ui` (UFW keeps the
+  # port off the network).
+{% if monitoring_asynqmon_enabled | default(true) %}
+  group "asynqmon" {
+    count = 1
+
+    restart {
+      attempts = 3
+      interval = "10m"
+      delay    = "15s"
+      mode     = "delay"
+    }
+
+    task "asynqmon" {
+      driver = "docker"
+
+      config {
+        image        = "{{ asynqmon_image }}"
+        network_mode = "host"
+        args = [
+          "--redis-addr=127.0.0.1:6379",
+          "--port=8082",
+        ]
+      }
+
+      resources {
+        cpu    = 50
+        memory = 64
+      }
+    }
+  }
+{% endif %}
 }
