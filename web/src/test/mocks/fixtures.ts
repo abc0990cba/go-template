@@ -1,5 +1,6 @@
 import { HttpResponse } from "msw";
 import type { Paged } from "@/shared/api/pagination";
+import type { StoredFile } from "@/features/files/api";
 import type { Ticket, TicketDecision, TicketType } from "@/features/tickets";
 import type { Me } from "@/shared/types/core";
 
@@ -77,6 +78,19 @@ export function ticketTypeFixture(overrides: Partial<TicketType> = {}): TicketTy
     active: true,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+/** A minimal valid stored-file record for attachment endpoints. */
+export function fileFixture(overrides: Partial<StoredFile> = {}): StoredFile {
+  return {
+    id: "f-1",
+    owner_id: "u-test-1",
+    filename: "evidence.bin",
+    content_type: "application/octet-stream",
+    size_bytes: 11,
+    created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }

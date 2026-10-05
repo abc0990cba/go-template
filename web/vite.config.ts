@@ -64,7 +64,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       // Same-origin API access in dev: no CORS, cookies just work.
-      "/api": proxyOptions,
+      "/api": { ...proxyOptions, ws: true },
       "/health": proxyOptions,
       "/docs": proxyOptions,
       "/openapi.yaml": proxyOptions,

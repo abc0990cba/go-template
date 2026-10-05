@@ -1,4 +1,4 @@
-import { api, unwrap } from "@/shared/api/core";
+import { api, unwrap, unwrapWithETag } from "@/shared/api/core";
 import type { Paged, ListParams } from "@/shared/api/pagination";
 import type { operations } from "@/shared/api/schema.gen";
 import type {
@@ -50,15 +50,21 @@ export function getTicket(id: string): Promise<TicketDetail> {
   return unwrap(api.GET("/api/tickets/{id}", { params: { path: { id } } }));
 }
 
+/** getTicketWithETag pairs the detail with its ETag for optimistic writes. */
+export function getTicketWithETag(id: string): Promise<{ data: TicketDetail; etag: string }> {
+  return unwrapWithETag(api.GET("/api/tickets/{id}", { params: { path: { id } } }));
+}
+
 export function updateTicket(
   id: string,
   title: string,
   description: string,
   priority: TicketPriority,
+  etag?: string,
 ): Promise<Ticket> {
   return unwrap(
     api.PATCH("/api/tickets/{id}", {
-      params: { path: { id } },
+      params: { path: { id }, header: etag ? { "If-Match": etag } : undefined },
       body: { title, description, priority },
     }),
   );

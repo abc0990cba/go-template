@@ -1,5 +1,6 @@
 import { auth } from "./auth";
 import { core } from "./core";
+import { files } from "./files";
 import { tickets } from "./tickets";
 import { admin } from "./admin";
 
@@ -8,4 +9,4 @@ import { admin } from "./admin";
  * appended by server.use() overrides at runtime. */
 export * from "../fixtures";
 
-export const handlers = [...core, ...auth, ...tickets, ...admin];
+export const handlers = [...core, ...auth, ...files, ...tickets, ...admin];

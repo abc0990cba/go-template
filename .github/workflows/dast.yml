@@ -1,0 +1,74 @@
+# DAST: dynamic application security testing against a running build.
+#
+# Boots the compose stack (the api builds the production image — SPA
+# embedded, distroless runtime — with the demo dataset seeded) and points
+# the OWASP ZAP baseline scan at it. The baseline is a passive proxy scan
+# plus the standard initial-access checks; it fails the job only on
+# FAIL-level findings, while the full HTML report is archived either way.
+#
+# Alerts are advisory input, not verdicts: triage them like any scanner's
+# output — confirm, fix, or suppress with a documented reason.
+name: dast
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1" # weekly, Mondays 04:00 UTC
+
+permissions:
+  contents: read
+
+jobs:
+  zap-baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the smoke stack
+        run: |
+          docker compose up -d --build api
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8080/health/ready > /dev/null 2>&1; then
+              echo "api is ready"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "api never became ready"
+          docker compose logs api
+          exit 1
+
+      - name: ZAP baseline scan
+        continue-on-error: false
+        run: |
+          mkdir -p zap
+          # --network host: the scanner must reach the compose-published port
+          # on the runner's loopback. -I keeps WARN-level findings from
+          # failing the job (they are in the report); FAILs still fail.
+          docker run --rm --network host \
+            -v "$PWD/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://127.0.0.1:8080 \
+            -r zap-report.html \
+            -I \
+            --autooff \
+            -T 120
+        # The ZAP exit code carries the verdict: 0 = clean, 1 = FAILs.
+        # Warnings (exit 2) are accepted this iteration; triage them from
+        # the artifact and add suppressions with reasons where they are
+        # scanner noise.
+
+      - name: Archive the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-baseline-report
+          path: zap/zap-report.html
+          if-no-files-found: warn
+
+      - name: Stop the stack
+        if: always()
+        run: docker compose down -v

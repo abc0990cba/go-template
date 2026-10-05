@@ -1,4 +1,4 @@
-import { api, unwrap } from "@/shared/api/core";
+import { api, unwrap, unwrapWithETag } from "@/shared/api/core";
 import type { Paged, ListParams } from "@/shared/api/pagination";
 import type { operations } from "@/shared/api/schema.gen";
 import type { User } from "@/shared/types/core";
@@ -29,14 +29,23 @@ export function getUser(id: string): Promise<User> {
   return unwrap(api.GET("/api/users/{id}", { params: { path: { id } } }));
 }
 
+/** getUserWithETag pairs the record with its ETag for optimistic writes. */
+export function getUserWithETag(id: string): Promise<{ data: User; etag: string }> {
+  return unwrapWithETag(api.GET("/api/users/{id}", { params: { path: { id } } }));
+}
+
 export function updateUser(
   id: string,
   email: string,
   name: string,
   external_ref?: string,
+  etag?: string,
 ): Promise<User> {
   return unwrap(
-    api.PUT("/api/users/{id}", { params: { path: { id } }, body: { email, name, external_ref } }),
+    api.PUT("/api/users/{id}", {
+      params: { path: { id }, header: etag ? { "If-Match": etag } : undefined },
+      body: { email, name, external_ref },
+    }),
   );
 }
 

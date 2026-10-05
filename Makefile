@@ -46,6 +46,17 @@ test-performance:
 bench:
 	go test -run='^$$' -bench=. -benchmem ./internal/httpx/ ./internal/platform/ratelimit/ ./internal/httpapp/
 
+# DAST locally: boots the compose stack and runs the same OWASP ZAP
+# baseline scan CI runs (docs: .github/workflows/dast.yml). Needs Docker.
+dast:
+	docker compose up -d --build api
+	curl -fsS --retry 30 --retry-connrefused http://127.0.0.1:8080/health/ready > /dev/null
+	mkdir -p zap
+	docker run --rm --network host -v "$$PWD/zap:/zap/wrk:rw" \
+		ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+		-t http://127.0.0.1:8080 -r zap-report.html -I --autooff -T 120
+	docker compose down -v
+
 # Fuzz the untrusted-input parsers (token verification, the problem+json
 # writer, If-Match parsing, log email masking). Go runs one target per
 # invocation; 30s each is a smoke pass, raise -fuzztime for deeper runs.

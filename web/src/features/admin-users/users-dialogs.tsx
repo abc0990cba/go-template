@@ -1,5 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
-
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -28,7 +28,8 @@ import {
   DialogTitle,
 } from "@/shared/components/ui/dialog";
 import { Input } from "@/shared/components/ui/input";
-import { createUser, deleteUser, updateUser } from "./api";
+import { createUser, deleteUser, getUserWithETag, updateUser } from "./api";
+import { isStaleWrite } from "@/shared/api/core";
 
 import type { User } from "@/shared/types/core";
 import {
@@ -140,18 +141,51 @@ export function EditDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const queryClient = useQueryClient();
   const form = useForm<UserForm>({
     resolver: zodResolver(userFormSchema),
     values: { name: user?.name ?? "", email: user?.email ?? "" },
   });
+  // Optimistic locking: fetch the current ETag when the dialog opens and
+  // echo it as If-Match; a concurrent edit fails with 412 instead of
+  // clobbering, and the dialog reloads the fresh state.
+  const [etag, setEtag] = useState("");
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    getUserWithETag(user.id)
+      .then(({ etag: current }) => {
+        if (!cancelled) setEtag(current);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
   const update = useMutation({
-    mutationFn: (values: UserForm) => updateUser(user?.id ?? "", values.email, values.name),
+    mutationFn: (values: UserForm) =>
+      updateUser(user?.id ?? "", values.email, values.name, undefined, etag),
     onSuccess: () => {
       toast.success("User updated");
       onOpenChange(false);
       onSaved();
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => {
+      if (isStaleWrite(error)) {
+        toast.error(
+          "The user was changed by someone else — the latest version has been loaded; please review and save again.",
+        );
+        void queryClient.invalidateQueries({ queryKey: ["users"] });
+        if (user) {
+          getUserWithETag(user.id).then(({ data, etag: fresh }) => {
+            setEtag(fresh);
+            form.reset({ name: data.name, email: data.email });
+          });
+        }
+        return;
+      }
+      toast.error(error.message);
+    },
   });
   return (
     <Dialog open={user !== null} onOpenChange={onOpenChange}>

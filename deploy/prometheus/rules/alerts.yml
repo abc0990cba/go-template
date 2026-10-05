@@ -136,7 +136,7 @@ groups:
   # --- resilience & feature gates (added with the load shedder, runtime
   # contract validation, WebSocket gateway, queued email, lockout, and the
   # pgx pool collector — the metrics that previously had no alert) ---------
-  - name: go-template-resilience
+  - name: go-template-resilience-gates
     rules:
       - alert: PgPoolWaiters
         expr: rate(app_pgpool_waiters_total[5m]) > 1

@@ -22,6 +22,9 @@ afterEach(() => {
 // LiveProvider opens a Server-Sent Events connection on mount; jsdom has no
 // EventSource, so the app would crash before rendering anything.
 vi.stubGlobal("EventSource", MockEventSource);
+// jsdom has a WebSocket, but the realtime transport must default to the
+// SSE stub in component tests; transport tests inject their own doubles.
+vi.stubGlobal("WebSocket", undefined);
 
 // Radix components and Tailwind's media-query hooks need matchMedia.
 if (typeof window.matchMedia !== "function") {

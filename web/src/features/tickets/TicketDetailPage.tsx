@@ -3,7 +3,7 @@ import { useNavigate, Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Check, CheckCheck, Undo2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, CheckCheck, Pencil, Undo2, X } from "lucide-react";
 import { ExplainerBanner } from "@/shared/components/explainer-banner";
 import { useCan, useMe } from "@/shared/hooks/use-permissions";
 import {
@@ -33,6 +33,8 @@ import {
   ticketComments,
   ticketEvents,
 } from "./api";
+import { EditTicketDialog } from "./EditTicketDialog";
+import { TicketAttachmentsCard } from "@/features/files/TicketAttachmentsCard";
 import { TicketStatusBadge, ticketLabel } from "./TicketStatusBadge";
 import { ApprovalStep, CommentForm, RejectDialog, TerminalOutcome } from "./TicketDetailParts";
 
@@ -43,6 +45,7 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
   const me = useMe();
   const [rejectOpen, setRejectOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
 
   const detail = useSuspenseQuery({
     queryKey: ["tickets", "single", ticketId],
@@ -129,6 +132,14 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
 
   return (
     <div className="space-y-4">
+      {editOpen && (
+        <EditTicketDialog
+          ticket={ticket}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          onSaved={invalidate}
+        />
+      )}
       <Button variant="ghost" size="sm" className="-ml-2" asChild>
         <Link to="/tickets">
           <ArrowLeft /> My tickets
@@ -155,6 +166,9 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
         <div className="ml-auto flex flex-wrap gap-2">
           {mine && ticket.status === "draft" && (
             <>
+              <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+                <Pencil /> Edit
+              </Button>
               <Button
                 size="sm"
                 onClick={() => act.mutate({ action: "submit" })}
@@ -284,6 +298,8 @@ export function TicketDetailPage({ ticketId }: { ticketId: string }) {
             ))}
           </CardContent>
         </Card>
+
+        <TicketAttachmentsCard ticketId={ticket.id} />
 
         <Card>
           <CardHeader>

@@ -63,7 +63,18 @@ export function setActiveOrg(orgId: string): void {
  */
 const transportFetch: typeof fetch = async (input, init) => {
   const orgId = getActiveOrg();
-  const headers = new Headers(init?.headers);
+  // openapi-fetch hands fetch a fully-built Request (Content-Type, body and
+  // friends already set). Any member present in init REPLACES the Request's
+  // counterpart, so passing a bare `headers` object wiped them — sign-in
+  // went out with an empty Content-Type and the runtime contract gate
+  // rejected it. Start from the Request's own headers and layer init's on
+  // top, then add the tenant header last.
+  const headers = new Headers(init?.headers ?? undefined);
+  if (input instanceof Request) {
+    for (const [key, value] of input.headers) {
+      if (!headers.has(key)) headers.set(key, value);
+    }
+  }
   if (orgId) headers.set("X-Org-Id", orgId);
   try {
     return await fetch(input, { ...init, credentials: "include", headers });
@@ -107,6 +118,50 @@ export async function unwrap<T>(
   if (response.ok) return data as T;
   const problem = (error ?? {}) as ProblemBody;
   throw new ApiError(response.status, problem.title ?? "request failed", problem.detail ?? "");
+}
+
+/**
+ * unwrapWithETag is unwrap for conditional writes: it also returns the
+ * response's ETag (empty when absent), which the caller echoes back as
+ * If-Match so a concurrent edit fails with 412 instead of clobbering.
+ */
+export async function unwrapWithETag<T>(
+  call: Promise<{
+    data?: T;
+    error?: unknown;
+    response: Response;
+  }>,
+): Promise<{ data: T; etag: string }> {
+  const { data, error, response } = await call;
+  if (response.ok) {
+    return { data: data as T, etag: response.headers.get("ETag") ?? "" };
+  }
+  const problem = (error ?? {}) as ProblemBody;
+  throw new ApiError(response.status, problem.title ?? "request failed", problem.detail ?? "");
+}
+
+/**
+ * presignedPut uploads raw bytes to a presigned storage URL (S3/MinIO part
+ * uploads) and returns the response's ETag. It lives beside the fetch
+ * wrapper: the URL is storage-signed, not an API endpoint, so it cannot go
+ * through the typed client — but the transport rules (credentials, error
+ * mapping) stay in this one place.
+ */
+export async function presignedPut(url: string, body: Blob): Promise<string> {
+  const response = await fetch(url, { method: "PUT", body });
+  if (!response.ok) {
+    throw new ApiError(response.status, "part upload failed", "");
+  }
+  return response.headers.get("ETag") ?? "";
+}
+
+/**
+ * isStaleWrite reports an optimistic-locking rejection (HTTP 412): the
+ * resource changed since the caller last read it. The UI reloads the
+ * current state and asks the user to re-apply their edit.
+ */
+export function isStaleWrite(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 412;
 }
 
 export type { Paged, ListParams };

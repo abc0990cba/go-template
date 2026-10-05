@@ -55,3 +55,6 @@ deploy/ansible/inventories/prod/group_vars/vps/site.yml
 deploy/ansible/inventories/prod/hosts.yml
 deploy/ansible/inventories/dev/hosts.yml
 
+
+# Local-only compose overrides (host port conflicts etc.)
+docker-compose.override.yml

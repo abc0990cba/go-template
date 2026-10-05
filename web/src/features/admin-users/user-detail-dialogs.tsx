@@ -1,7 +1,7 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Check, Link2, Loader2, RefreshCw, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/shared/components/ui/button";
@@ -23,7 +23,8 @@ import {
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 
-import { updateUser } from "./api";
+import { getUserWithETag, updateUser } from "./api";
+import { isStaleWrite } from "@/shared/api/core";
 
 import type { User } from "@/shared/types/core";
 
@@ -38,19 +39,50 @@ export function EditUserDialog({
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [email, setEmail] = useState(user.email);
   const [name, setName] = useState(user.name);
   const [externalRef, setExternalRef] = useState(user.external_ref ?? "");
+  // Optimistic locking: the ETag captured when the dialog opens rides as
+  // If-Match; a concurrent edit answers 412 and the dialog reloads.
+  const [etag, setEtag] = useState("");
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    getUserWithETag(user.id)
+      .then(({ etag: current }) => {
+        if (!cancelled) setEtag(current);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, user.id]);
 
   const update = useMutation({
     mutationFn: () =>
-      updateUser(user.id, email.trim(), name.trim(), externalRef.trim() || undefined),
+      updateUser(user.id, email.trim(), name.trim(), externalRef.trim() || undefined, etag),
     onSuccess: () => {
       toast.success("User updated");
       onOpenChange(false);
       onSaved();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error) => {
+      if (isStaleWrite(error)) {
+        toast.error(
+          "The user was changed by someone else — the latest version has been loaded; please review and save again.",
+        );
+        void queryClient.invalidateQueries({ queryKey: ["users"] });
+        getUserWithETag(user.id).then(({ data, etag: fresh }) => {
+          setEtag(fresh);
+          setEmail(data.email);
+          setName(data.name);
+          setExternalRef(data.external_ref ?? "");
+        });
+        return;
+      }
+      toast.error(error.message);
+    },
   });
 
   return (

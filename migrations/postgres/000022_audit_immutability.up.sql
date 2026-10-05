@@ -4,12 +4,15 @@
 -- possible through the parameterized SECURITY DEFINER prune function, and
 -- the demo seeder keeps its reset path (demo-% rows).
 
-CREATE FUNCTION audit_block_mutation() RETURNS trigger AS $$
+-- Idempotent pieces: a database that applied the earlier draft of this
+-- migration recovers with `migrate-force 21` + `migrate up` (docs/vps/runbook.md).
+CREATE OR REPLACE FUNCTION audit_block_mutation() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'audit_log is append-only (attempted %)', TG_OP;
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS audit_log_no_mutation ON audit_log;
 CREATE TRIGGER audit_log_no_mutation
   BEFORE UPDATE OR DELETE ON audit_log
   FOR EACH ROW
@@ -21,7 +24,7 @@ CREATE TRIGGER audit_log_no_mutation
 -- the table owner, callable by the application role for retention sweeps.
 -- The transaction-local setting marks the trigger-suppressed window, so the
 -- blocking trigger stays armed for every other statement in the session.
-CREATE FUNCTION audit_prune(older_than timestamptz) RETURNS bigint AS $$
+CREATE OR REPLACE FUNCTION audit_prune(older_than timestamptz) RETURNS bigint AS $$
 DECLARE
   pruned bigint;
 BEGIN

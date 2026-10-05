@@ -106,7 +106,10 @@ services:
       - "1025:1025" # SMTP
 
   minio:
-    image: minio/minio:RELEASE.2024-01-16T16-07-38Z
+    # minio/minio was removed from Docker Hub (2025); quay.io is the
+    # publisher now. If quay requires auth on your network, drop the files
+    # profile — the api degrades to its in-process file store.
+    image: quay.io/minio/minio:latest
     profiles: ["files"] # start with: docker compose --profile files up
     command: server /data --console-address ":9001"
     environment:
