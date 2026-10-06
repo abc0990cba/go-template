@@ -135,7 +135,7 @@ STATUS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE/api/users/me/expo
 check "export accepted" 202 "$STATUS"
 # NOTE: without S3 the blob store is per-process — the worker stores the
 # bundle in its own memory, so the api cannot stream it. Multi-process
-# deployments must configure APP_S3_* (docs/files.md).
+# deployments must configure APP_S3_* (docs/guides/files.md).
 for i in $(seq 1 15); do
   JOB=$(curl -s "$BASE/api/users/me/export" -H "Authorization: Bearer $ADMIN" | jqget status)
   [ "$JOB" = "completed" ] && break

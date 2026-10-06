@@ -1,5 +1,5 @@
 #!/bin/sh
-# Chaos lab: inject faults through Toxiproxy. See docs/chaos.md for the
+# Chaos lab: inject faults through Toxiproxy. See docs/operations/chaos.md for the
 # game-day scenarios each script supports. Requires the chaos profile:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.chaos.yml \

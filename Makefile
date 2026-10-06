@@ -237,7 +237,7 @@ demo-ratelimit:
 demo-idempotency:
 	./scripts/demo-idempotency.sh
 
-# --- Chaos lab (docs/chaos.md) -----------------------------------------------
+# --- Chaos lab (docs/operations/chaos.md) -----------------------------------------------
 # Fault injection through Toxiproxy: the app talks to postgres/redis through
 # the proxy and you break the middle. Best experienced with the
 # observability profile up so the dashboards and alerts react.
@@ -300,9 +300,9 @@ nomad-stop:
 	pkill -f "nomad agent -dev" || true
 
 openspec-validate:
-	@command -v openspec >/dev/null 2>&1 && openspec validate || echo "openspec CLI is not installed; see docs/openspec.md"
+	@command -v openspec >/dev/null 2>&1 && openspec validate || echo "openspec CLI is not installed; see docs/reference/openspec.md"
 
-# --- VPS deployment (Ansible + Nomad; docs/vps/QUICKSTART.md) -----------------
+# --- VPS deployment (Ansible + Nomad; docs/deployment/vps/QUICKSTART.md) -----------------
 # One VPS, one command: `make vps-setup` once, then `make vps-deploy` forever.
 # Add SITE=dev to any target to operate on the dev VPS instead of prod.
 

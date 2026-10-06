@@ -2,7 +2,7 @@
 # `make vps-restore FILE=...` — restore a pg_dump archive produced by the
 # nightly backup into the app database, then redeploy the app job.
 # Destructive for the target database by design (that is what restore means);
-# runbook: docs/vps/runbook.md#restore-a-backup
+# runbook: docs/deployment/vps/runbook.md#restore-a-backup
 set -euo pipefail
 # shellcheck source=lib.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"

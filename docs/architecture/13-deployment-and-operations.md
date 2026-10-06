@@ -63,8 +63,8 @@ Postgres/Redis/ClickHouse come from your platform.
 `make helm-lint` / `make helm-template` validate locally (both modes); the
 release pipeline publishes the packaged chart to
 `oci://ghcr.io/<owner>/charts`, which the Argo CD Application in
-`deploy/gitops/` pulls (docs/gitops.md). A Nomad alternative with native
-canary + auto-revert lives in `deploy/nomad/` — `docs/orchestrators.md`
+`deploy/gitops/` pulls (docs/deployment/gitops.md). A Nomad alternative with native
+canary + auto-revert lives in `deploy/nomad/` — `docs/deployment/orchestrators.md`
 compares the orchestrator paths, including why Swarm is documented rather
 than shipped.
 

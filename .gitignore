@@ -39,7 +39,7 @@ web/node_modules/
 web/dist/*
 !web/dist/.gitkeep
 
-# Build artifact of cmd/devtools (make devtools builds it locally)
+# Build artifact of cmd/devtools (go build -o devtools ./cmd/devtools)
 /devtools
 
 # Build artifact of cmd/worker (go build ./cmd/worker)

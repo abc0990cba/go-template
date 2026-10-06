@@ -31,7 +31,7 @@ same two binaries with canary=1, `auto_promote`, and `auto_revert`: one
 canary allocation beside stable, `/health/ready` as the gate, automatic
 revert on failure. Lighter (a single dev agent runs locally), and its
 rollback trigger is health checks rather than business metrics — the
-comparison doc (`docs/orchestrators.md`) maps the trade.
+comparison doc (`docs/deployment/orchestrators.md`) maps the trade.
 
 **Local rehearsal:** `scripts/kind-demo.sh` (make kind-up / kind-release /
 kind-down) boots kind + Prometheus + Argo Rollouts and walks a canary

@@ -19,9 +19,9 @@ complete until the change exists, OpenAPI updated for HTTP behavior,
 migrations + sqlc queries for DB behavior, tests/perf added, and the
 traceability matrices updated:
 
-- `docs/requirements-matrix.md` — requirement → where implemented
-- `docs/traceability-matrix.md` — requirement → spec → tests → docs
-- `docs/test-matrix.md` / `docs/performance-matrix.md` — coverage and
+- `docs/testing/requirements-matrix.md` — requirement → where implemented
+- `docs/testing/traceability-matrix.md` — requirement → spec → tests → docs
+- `docs/testing/test-matrix.md` / `docs/testing/performance-matrix.md` — coverage and
   budgets per feature
 
 `make openspec-validate` checks structure when the CLI is available. The

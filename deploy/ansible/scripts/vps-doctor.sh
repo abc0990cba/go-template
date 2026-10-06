@@ -97,7 +97,7 @@ if [ -n "${WORKING_USER:-}" ]; then
   cpus=$(remote 'nproc' || echo 0)
   [ "${cpus:-0}" -ge 2 ] 2>/dev/null && ok ">= 2 CPU cores" || warn "< 2 CPU cores (builds will be slow)"
   ram=$(remote 'free -gm | grep -m1 Mem | tr -s " " | cut -d" " -f2' || echo 0)
-  [ "${ram:-0}" -ge 3 ] 2>/dev/null && ok ">= 3 GB RAM" || warn "< 3 GB RAM — disable CI and/or monitoring (docs/vps/deployment.md#sizing)"
+  [ "${ram:-0}" -ge 3 ] 2>/dev/null && ok ">= 3 GB RAM" || warn "< 3 GB RAM — disable CI and/or monitoring (docs/deployment/vps/deployment.md#sizing)"
   disk=$(remote 'df -BG / | grep -m1 / | tr -s " " | cut -d" " -f4 | tr -d G' || echo 0)
   [ "${disk:-0}" -ge 15 ] 2>/dev/null && ok ">= 15 GB free disk" || warn "< 15 GB free disk (images + backups + TSDB need room)"
   remote 'ss -tlnp | grep -qE ":80 |:443 "' && warn "ports 80/443 already have listeners (existing web server?)" || ok "ports 80/443 are free"

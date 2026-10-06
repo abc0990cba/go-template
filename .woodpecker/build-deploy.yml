@@ -5,7 +5,7 @@
 # The app job spec (deploy/nomad/app.nomad.hcl) is the same file Ansible uses;
 # CI only passes different -var values.
 #
-# One-time setup (docs/vps/deployment.md#ci-setup):
+# One-time setup (docs/deployment/vps/deployment.md#ci-setup):
 #   1. GitHub OAuth app -> put client id/secret into secrets.yml (make vps-update JOBS=woodpecker)
 #   2. Activate the repo in the Woodpecker UI
 #   3. Add Woodpecker secrets: nomad_token (/etc/nomad.d/tokens/deploy.token),

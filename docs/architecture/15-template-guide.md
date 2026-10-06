@@ -42,7 +42,7 @@ pattern, the contract tests' dual-adapter structure, `internal/reliability`
 > [0021](decisions/0021-package-by-feature.md)) — "add a feature" now means
 > *create `internal/<feature>/` with its service, `http.go` and `store.go`,
 > then two one-line registrations*. The playbook at the end of
-> [18](18-migration-roadmap.md) is the operative checklist; the recipe
+> [18](history/18-migration-roadmap.md) is the operative checklist; the recipe
 > below shows the same flow mapped to today's layout.
 
 Worked example: adding a **"Newsletter subscriptions"** resource. Every
@@ -123,7 +123,7 @@ The rules that make the recipe work:
 
 ## 15.6 Where to go next
 
-- Run it: [docs/quickstart.md](../quickstart.md) → `make docker-up`.
+- Run it: [docs/getting-started/quickstart.md](../getting-started/quickstart.md) → `make docker-up`.
 - Verify the whole thing live:
   `BASE=http://localhost:8080 bash scripts/regression-walkthrough.sh` →
   expect `PASS=33 FAIL=0`.

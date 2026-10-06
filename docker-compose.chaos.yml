@@ -6,7 +6,7 @@
 # Toxiproxy sits between the app and postgres/redis; the api and worker talk
 # to the proxies instead of the real services. Inject faults with the
 # scripts in scripts/ (or the make chaos-* targets) and watch the app
-# degrade exactly as docs/chaos.md predicts — breakers trip, alerts fire,
+# degrade exactly as docs/operations/chaos.md predicts — breakers trip, alerts fire,
 # dashboards move. Remove the toxic and everything self-heals.
 #
 # The proxies listen on the ports the app already expects (postgres:5432,

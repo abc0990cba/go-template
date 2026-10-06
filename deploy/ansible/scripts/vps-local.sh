@@ -10,7 +10,7 @@
 #   re-runs   ≈ 1–2 min  (VPS_SITE=local make vps-deploy)
 #   teardown  = orb delete go-template-vps && rm -rf deploy/ansible/.vps-state
 #
-# See docs/vps/LOCAL-REHEARSAL.md.
+# See docs/deployment/vps/LOCAL-REHEARSAL.md.
 set -euo pipefail
 # This script always targets the local site — pin it before lib.sh derives paths.
 export VPS_SITE="${VPS_SITE:-local}"

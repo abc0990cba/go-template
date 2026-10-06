@@ -27,7 +27,7 @@ automatically by the `observability` compose profile:
   already has (outbox backlog, DLQ depth, breaker open, limiter
   fail-open, blackbox probe). Every alert carries a summary and a
   description that names the first diagnostic step.
-- **SLO layer** (`rules/slo.yml` + `docs/slo.md`): 99.9% availability and
+- **SLO layer** (`rules/slo.yml` + `docs/operations/slo.md`): 99.9% availability and
   95%-under-500ms latency — the same latency number k6 enforces — with
   multi-window burn-rate alerts (14.4x page / 6x ticket).
 - **Alertmanager** in the observability profile; routing config with a
@@ -52,7 +52,7 @@ everything".
 **Negative:** dashboards drift with the metric catalog and must be
 updated when metrics change (same PR rule keeps this honest); template
 thresholds are guesses until a deployment baselines real traffic —
-documented in `docs/slo.md`; the Alertmanager receiver is a placeholder
+documented in `docs/operations/slo.md`; the Alertmanager receiver is a placeholder
 by design, adopters must wire real delivery before trusting paging.
 
 ## Alternatives considered

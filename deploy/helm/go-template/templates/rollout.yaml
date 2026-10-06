@@ -4,7 +4,7 @@
      (templates/analysis.yaml) against Prometheus, and a failed metric
      aborts the rollout back to stable with zero manual intervention.
      Requires argo-rollouts in the cluster (scripts/kind-demo.sh walks
-     through it locally; docs/gitops.md covers the GitOps path). */}}
+     through it locally; docs/deployment/gitops.md covers the GitOps path). */}}
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:

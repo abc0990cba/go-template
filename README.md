@@ -19,6 +19,8 @@ analytics, observability, and Helm charts — in **one binary** you can read end
 
 *The prerendered SEO landing at `/` — one of two UIs the binary serves (available in English, Russian, French, and German).*
 
+**New here?** Start with the **[documentation map](docs/README.md)** — reading order, tracks by role, and a find-by-task table. For the one-command VPS deploy, see [Deploy](#-deploy-to-a-vps-one-command) below.
+
 </div>
 
 ---
@@ -73,12 +75,12 @@ Captured from the seeded demo dataset with the English UI.
 
 ### Authentication & identity
 
-- **Sessions, OAuth, MFA** — cookie sessions, OAuth identity links, TOTP two-factor (QR enrollment, login challenge step, single-use hashed recovery codes, an `mfa.required` policy flag, admin reset) — [docs/mfa.md](docs/mfa.md)
+- **Sessions, OAuth, MFA** — cookie sessions, OAuth identity links, TOTP two-factor (QR enrollment, login challenge step, single-use hashed recovery codes, an `mfa.required` policy flag, admin reset) — [docs/guides/mfa.md](docs/guides/mfa.md)
 - **Email flows** — password reset and email verification with single-use hashed tokens; SMTP or Mailpit in dev, log fallback without config
 - **API keys** — personal `gtpl_…` Bearer tokens with scope narrowing (`obj:act`), shown once, revocable
-- **JWT token grants** — OAuth-style password/mfa/refresh grants with rotation and reuse-detection families for mobile & API clients — [docs/token-auth.md](docs/token-auth.md)
+- **JWT token grants** — OAuth-style password/mfa/refresh grants with rotation and reuse-detection families for mobile & API clients — [docs/guides/token-auth.md](docs/guides/token-auth.md)
 - **Impersonation** — admin "sign in as" with a visible banner, audited start/stop, and user notification
-- **Org invitations** — email offers with single-use tokens; acceptance lands membership plus the domain role in one step — [docs/invitations.md](docs/invitations.md)
+- **Org invitations** — email offers with single-use tokens; acceptance lands membership plus the domain role in one step — [docs/guides/invitations.md](docs/guides/invitations.md)
 
 ### Authorization & multi-tenancy
 
@@ -88,24 +90,24 @@ Captured from the seeded demo dataset with the English UI.
 
 ### Tickets & approvals
 
-- **Request workflow in the spirit of Jira** — a state machine with distinct "withdrawn by requester" vs "rejected by approver" outcomes, configurable multi-step approval chains per ticket type, role-guarded decisions, and separate requester ("My Tickets") and approver ("Approvals") interfaces — [docs/tickets.md](docs/tickets.md)
+- **Request workflow in the spirit of Jira** — a state machine with distinct "withdrawn by requester" vs "rejected by approver" outcomes, configurable multi-step approval chains per ticket type, role-guarded decisions, and separate requester ("My Tickets") and approver ("Approvals") interfaces — [docs/guides/tickets.md](docs/guides/tickets.md)
 
 ### Platform services
 
 - **Background jobs** — a real worker process on Redis/asynq with idempotent enqueueing, retries, and a jobs queue with live status updates over Server-Sent Events
-- **Event streams** — user enrichment merged from two external systems, Kafka (`user-profile.v1`) and NATS JetStream (`users.contact.v1`), with exactly-once application (inbox dedupe + per-source sequence guards + row-locked field ownership), a transactional outbox relay, and a dead-letter queue with an admin replay console — [docs/enrichment-streams.md](docs/enrichment-streams.md)
+- **Event streams** — user enrichment merged from two external systems, Kafka (`user-profile.v1`) and NATS JetStream (`users.contact.v1`), with exactly-once application (inbox dedupe + per-source sequence guards + row-locked field ownership), a transactional outbox relay, and a dead-letter queue with an admin replay console — [docs/guides/enrichment-streams.md](docs/guides/enrichment-streams.md)
 - **Webhooks** — event subscriptions with HMAC-SHA256 signatures, queue-backed delivery and retries, a delivery log with a test-send button
 - **Notifications** — in-app notification center with an unread badge, live SSE toasts, and mark-read flows
-- **File storage & ticket attachments** — S3/MinIO (or in-memory) blobs, checksummed uploads, permission-scoped downloads, presigned URLs — [docs/files.md](docs/files.md)
-- **GDPR data export** — a queued job builds a ZIP of per-entity JSON, owner-only downloads, 7-day retention — [docs/data-export.md](docs/data-export.md)
-- **Caching & search** — read-through cache (memory/Redis, singleflight) for hot reads, ETag/304 on heavy lists, permission-scoped full-text search — [docs/caching-search.md](docs/caching-search.md)
+- **File storage & ticket attachments** — S3/MinIO (or in-memory) blobs, checksummed uploads, permission-scoped downloads, presigned URLs — [docs/guides/files.md](docs/guides/files.md)
+- **GDPR data export** — a queued job builds a ZIP of per-entity JSON, owner-only downloads, 7-day retention — [docs/guides/data-export.md](docs/guides/data-export.md)
+- **Caching & search** — read-through cache (memory/Redis, singleflight) for hot reads, ETag/304 on heavy lists, permission-scoped full-text search — [docs/guides/caching-search.md](docs/guides/caching-search.md)
 
 ### Operations & reliability
 
 - **Resilience toolkit** — circuit breakers around every outbound call (`app_cb_state` metrics), Redis-backed distributed rate limiting with in-memory fallback, and `Idempotency-Key` middleware that turns client retries into replays
-- **Transport hardening** — inbound server spans, pgx pool tuning, chunked-safe body caps, HSTS, `_FILE` secrets, per-identity rate limits, maintenance mode — [docs/reliability.md](docs/reliability.md)
-- **Observability** — structured logs with trace↔log correlation, Prometheus metrics (RED, pool stats, resilience machinery), OpenTelemetry traces across every boundary (HTTP, asynq, Kafka/NATS, pgx, Redis, ClickHouse, outbound HTTP), configurable sampling, continuous profiling (Pyroscope), dashboards + alert rules + SLO burn-rate alerts + Alertmanager shipped as code, blackbox synthetic checks — [docs/observability.md](docs/observability.md), [docs/slo.md](docs/slo.md)
-- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) with an SLO-gated canary option (Argo Rollouts, auto-rollback), GitOps manifests, a Nomad alternative, a one-command self-hosted **VPS stack** (Ansible + Nomad + Caddy + own CI/registry + monitoring + backups), and a signed, scanned, SBOM'd, SLSA-attested release pipeline — [docs/vps/QUICKSTART.md](docs/vps/QUICKSTART.md), [docs/deployment.md](docs/deployment.md), [docs/orchestrators.md](docs/orchestrators.md), [docs/gitops.md](docs/gitops.md)
+- **Transport hardening** — inbound server spans, pgx pool tuning, chunked-safe body caps, HSTS, `_FILE` secrets, per-identity rate limits, maintenance mode — [docs/operations/reliability.md](docs/operations/reliability.md)
+- **Observability** — structured logs with trace↔log correlation, Prometheus metrics (RED, pool stats, resilience machinery), OpenTelemetry traces across every boundary (HTTP, asynq, Kafka/NATS, pgx, Redis, ClickHouse, outbound HTTP), configurable sampling, continuous profiling (Pyroscope), dashboards + alert rules + SLO burn-rate alerts + Alertmanager shipped as code, blackbox synthetic checks — [docs/operations/observability.md](docs/operations/observability.md), [docs/operations/slo.md](docs/operations/slo.md)
+- **Deployment** — Helm chart (HPA/PDB/probes/secrets mounts) with an SLO-gated canary option (Argo Rollouts, auto-rollback), GitOps manifests, a Nomad alternative, a one-command self-hosted **VPS stack** (Ansible + Nomad + Caddy + own CI/registry + monitoring + backups), and a signed, scanned, SBOM'd, SLSA-attested release pipeline — [docs/deployment/vps/QUICKSTART.md](docs/deployment/vps/QUICKSTART.md), [docs/deployment/README.md](docs/deployment/README.md), [docs/deployment/orchestrators.md](docs/deployment/orchestrators.md), [docs/deployment/gitops.md](docs/deployment/gitops.md)
 - **Reliability rules throughout** — graceful shutdown, context propagation, bounded concurrency, retry limits, and health checks
 
 ### Frontend & developer experience
@@ -114,15 +116,15 @@ Captured from the seeded demo dataset with the English UI.
 - **i18n** — English/Russian in-app toggle (EN shell + RU translations)
 - **Modern SPA stack** — React 19, Vite, TanStack Router/Query/Table, shadcn/ui, Tailwind v4, Gin HTTP API behind the same origin, OpenAPI contract with generated TypeScript clients
 - **Local stream tooling** — `make demo-up` brings up Redpanda + NATS; `cmd/devtools` publishes events into both brokers, reads relayed output, and drives the breaker / rate-limit / idempotency demos (`make demo-enrichment`, `demo-dlq`, `demo-breaker`, …)
-- **Regression** — `scripts/regression-walkthrough.sh` drives every feature against a live stack; the full gauntlet is documented in [docs/regression-checklist.md](docs/regression-checklist.md)
-- **Application map** — every component with file paths and a hand-check per piece: [docs/application-overview.md](docs/application-overview.md)
+- **Regression** — `scripts/regression-walkthrough.sh` drives every feature against a live stack; the full gauntlet is documented in [docs/testing/regression-checklist.md](docs/testing/regression-checklist.md)
+- **Application map** — every component with file paths and a hand-check per piece: [docs/guides/application-overview.md](docs/guides/application-overview.md)
 - **Engineering workflow** — OpenSpec change proposals, sqlc migrations, CI (GitHub Actions) with vet, golangci-lint, and race-enabled tests, unit/integration/e2e/performance test structure, PostgreSQL migrations and sqlc query layout, ClickHouse analytics schema
 
 ## 🚀 Run locally
 
 ```bash
 make docker-up          # full stack
-# or the hybrid dev mode - see docs/quickstart.md
+# or the hybrid dev mode - see docs/getting-started/quickstart.md
 docker compose up -d postgres redis
 APP_DATABASE_URL="postgres://app:app@127.0.0.1:55432/app?sslmode=disable" \
 APP_REDIS_ADDR="127.0.0.1:6379" \
@@ -132,7 +134,7 @@ APP_COOKIE_SECURE=0 \
 go run ./cmd/api
 ```
 
-Demo account (seeded at startup when `APP_DEMO_EMAIL`/`APP_DEMO_PASSWORD` are set): `demo@go-template.local` / `demo-password-123`. With `APP_DEMO_SEED=1` the api also loads a demo dataset — 120 users (ten of them login-able with `password123`), OAuth identities, jobs in every status, reports, enrichment profiles, and 30 days of event history for the charts. Re-seed anytime with `make seed-demo` / `make seed-demo-reset`. Full runbook: [docs/quickstart.md](docs/quickstart.md).
+Demo account (seeded at startup when `APP_DEMO_EMAIL`/`APP_DEMO_PASSWORD` are set): `demo@go-template.local` / `demo-password-123`. With `APP_DEMO_SEED=1` the api also loads a demo dataset — 500 users (ten of them login-able with `password123`), 3 organizations, 120 tickets, jobs in every status, reports, enrichment profiles, and 90 days of event history for the charts. Re-seed anytime with `make seed-demo` / `make seed-demo-reset`. Full runbook: [docs/getting-started/quickstart.md](docs/getting-started/quickstart.md).
 
 Then open:
 
@@ -144,9 +146,9 @@ Then open:
 | http://localhost:8080/version | Version |
 | http://localhost:8080/health/live | Liveness |
 
-Sign in with the demo credentials, then explore: the admin dashboard (KPIs, 30-day charts, live event feed), users with switchable offset/cursor/keyset pagination, the jobs queue with live status updates over SSE, enrichment, reports, analytics, and the in-app Getting Started tour. Each page explains itself via the banner on top. Frontend details: [docs/frontend.md](docs/frontend.md).
+Sign in with the demo credentials, then explore: the admin dashboard (KPIs, 30-day charts, live event feed), users with switchable offset/cursor/keyset pagination, the jobs queue with live status updates over SSE, enrichment, reports, analytics, and the in-app Getting Started tour. Each page explains itself via the banner on top. Frontend details: [docs/guides/frontend.md](docs/guides/frontend.md).
 
-The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` and `APP_REDIS_ADDR` (see [.env.example](.env.example)) — or run `make docker-up` — for PostgreSQL (pgx + sqlc + startup migrations) and the Redis/asynq queue with a real worker process. Add `--profile observability` for Jaeger, Prometheus, and Grafana; see [docs/observability.md](docs/observability.md). ClickHouse analytics power the event charts when `APP_CLICKHOUSE_ADDR` is set; without it the app degrades to the in-memory event trail. For the enrichment streams, `make demo-up` adds Redpanda (Kafka API) and NATS with JetStream; the workers start consuming and the outbox relay starts publishing automatically.
+The default run uses an in-memory repository so the app can be explored immediately. Set `APP_DATABASE_URL` and `APP_REDIS_ADDR` (see [.env.example](.env.example)) — or run `make docker-up` — for PostgreSQL (pgx + sqlc + startup migrations) and the Redis/asynq queue with a real worker process. Add `--profile observability` for Jaeger, Prometheus, and Grafana; see [docs/operations/observability.md](docs/operations/observability.md). ClickHouse analytics power the event charts when `APP_CLICKHOUSE_ADDR` is set; without it the app degrades to the in-memory event trail. For the enrichment streams, `make demo-up` adds Redpanda (Kafka API) and NATS with JetStream; the workers start consuming and the outbox relay starts publishing automatically.
 
 ## 🌍 Deploy to a VPS (one command)
 
@@ -157,7 +159,7 @@ make vps-setup     # once: guided questions -> generated secrets -> encrypted va
 make vps-deploy    # zero to https://your-domain in ~20 minutes (idempotent forever after)
 ```
 
-Details: [docs/vps/QUICKSTART.md](docs/vps/QUICKSTART.md) · reference: [docs/vps/deployment.md](docs/vps/deployment.md) · ops: [docs/vps/runbook.md](docs/vps/runbook.md).
+Details: [docs/deployment/vps/QUICKSTART.md](docs/deployment/vps/QUICKSTART.md) · reference: [docs/deployment/vps/deployment.md](docs/deployment/vps/deployment.md) · ops: [docs/deployment/vps/runbook.md](docs/deployment/vps/runbook.md).
 
 ## 👤 Demo accounts
 
@@ -178,9 +180,20 @@ Full flow to try: sign in as **u-0004**, file and submit an Expense ticket → *
 
 ## 📚 Documentation
 
-- **[docs/architecture/](docs/architecture/)** — the master architecture set: C4 diagrams (context → containers → components), every flow as a sequence/state diagram (auth, MFA, JWT rotation, approvals, streams/outbox/DLQ, files, export, webhooks, idempotency), the data model ER, the full technology stack with rationale, security model, operations, testing strategy, and a template adoption guide.
-- **[docs/architecture/decisions/](docs/architecture/decisions/)** — 26 ADRs recording every significant architectural choice (hexagonal architecture, monolith-first, sqlc over ORM, sessions vs JWT, exactly-once consumption, transactional outbox, distroless supply chain, …).
-- Feature guides: [application overview](docs/application-overview.md), [quickstart](docs/quickstart.md), [tickets](docs/tickets.md), [MFA](docs/mfa.md), [token auth](docs/token-auth.md), [RBAC](docs/rbac.md), [invitations](docs/invitations.md), [files](docs/files.md), [data export](docs/data-export.md), [enrichment streams](docs/enrichment-streams.md), [caching & search](docs/caching-search.md), [jobs](docs/jobs.md), [database](docs/database.md), [observability](docs/observability.md), [SLOs](docs/slo.md), [reliability](docs/reliability.md), [chaos lab](docs/chaos.md), [deployment](docs/deployment.md), [orchestrators](docs/orchestrators.md), [GitOps](docs/gitops.md), [frontend](docs/frontend.md), [testing](docs/testing.md), [regression checklist](docs/regression-checklist.md).
+**Start here: [docs/README.md](docs/README.md)** — the documentation map: how everything is organized, a detailed reading order, tracks by role (backend / frontend / DevOps / student), and a find-by-task table.
+
+The set is organized into seven categories:
+
+| Category | What's inside |
+|---|---|
+| [getting-started](docs/getting-started/quickstart.md) | quickstart, prerequisites, daily development workflow, a guided study path, troubleshooting |
+| [guides](docs/guides/application-overview.md) | one guide per feature — auth/MFA/tokens, RBAC, tickets, webhooks, streams, files, caching, frontend… |
+| [reference](docs/reference/configuration.md) | every env var, every make target, CLI tools, API contract, project structure |
+| [deployment](docs/deployment/README.md) | which-path decision guide + Docker, VPS (Ansible+Nomad), Kubernetes/Helm, GitOps, CI/CD |
+| [operations](docs/operations/observability.md) | observability, SLOs, reliability, chaos lab, runbooks for all 24 alerts |
+| [testing](docs/testing/README.md) | test strategy + the four traceability matrices |
+| [architecture](docs/architecture/README.md) | the master set: 15 chapters (C4, flows, data model, security) + [26 ADRs](docs/architecture/decisions/README.md) |
+| [roadmap](docs/roadmap/roadmap.md) | what's next, and the [known-issues registry](docs/roadmap/known-issues.md) with root-cause analysis |
 
 ## 🛠️ Development commands
 

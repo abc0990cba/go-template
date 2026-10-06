@@ -2,10 +2,10 @@
 
 One-VPS production deployment: Ansible provisions, Nomad orchestrates.
 
-- **Start here:** [docs/vps/QUICKSTART.md](../../docs/vps/QUICKSTART.md)
+- **Start here:** [docs/deployment/vps/QUICKSTART.md](../../docs/deployment/vps/QUICKSTART.md)
   (`make vps-setup` once, then `make vps-deploy`)
-- **Reference:** [docs/vps/deployment.md](../../docs/vps/deployment.md)
-- **Operations:** [docs/vps/runbook.md](../../docs/vps/runbook.md)
+- **Reference:** [docs/deployment/vps/deployment.md](../../docs/deployment/vps/deployment.md)
+- **Operations:** [docs/deployment/vps/runbook.md](../../docs/deployment/vps/runbook.md)
 
 Cheat sheet:
 

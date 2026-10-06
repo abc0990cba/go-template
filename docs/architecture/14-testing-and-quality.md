@@ -99,7 +99,7 @@ Run via `make perf-*` targets (`BASE_URL` overridable); `seed` + `cmd/seed`
 ## 14.6 The regression walkthrough — the human gate
 
 `scripts/regression-walkthrough.sh` (also documented step-by-step in
-[docs/regression-checklist.md](../regression-checklist.md)) drives a live
+[docs/testing/regression-checklist.md](../testing/regression-checklist.md)) drives a live
 stack through 33 checks in 10 phases: login, MFA enroll → challenge →
 disable, JWT grants with rotation + reuse-detection, org invitations
 (double-accept → 409), files (upload → download → attach → presign 501 →
@@ -121,7 +121,7 @@ demos (see [10 §10.5](10-flows-event-streams.md)).
 | Contract + integration containers | CI `integration` |
 | Production image builds | CI `docker` (no push) |
 | OpenSpec change required per feature | repo rule (ADR [0019](decisions/0019-openspec-workflow.md)) — `openspec/changes/<name>/{proposal,specs,tasks}` |
-| Traceability matrices | `docs/requirements-matrix.md`, `docs/traceability-matrix.md`, `docs/test-matrix.md`, `docs/performance-matrix.md` updated before "done" |
+| Traceability matrices | `docs/testing/requirements-matrix.md`, `docs/testing/traceability-matrix.md`, `docs/testing/test-matrix.md`, `docs/testing/performance-matrix.md` updated before "done" |
 
 The working rule of thumb, stated in the README and enforced by review:
 **no feature is complete until its tests, OpenAPI, migrations/queries and

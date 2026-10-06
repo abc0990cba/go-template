@@ -10,8 +10,8 @@ idempotency *before* any handler runs.
 
 > Updated 2026-10-01: the codebase was reorganized from package-by-layer to
 > **package-by-feature** (ADR [0021](decisions/0021-package-by-feature.md),
-> the [assessment](16-current-architecture-assessment.md) and
-> [roadmap](18-migration-roadmap.md) record the before/after). Each feature
+> the [assessment](history/16-current-architecture-assessment.md) and
+> [roadmap](history/18-migration-roadmap.md) record the before/after). Each feature
 > now owns one package: its types, business logic, HTTP handlers, and its
 > store interface.
 

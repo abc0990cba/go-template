@@ -104,7 +104,7 @@ down this ladder purely by environment variables:
 | Mode | Command | Uses | Good for |
 |---|---|---|---|
 | **Zero-dependency** | `go run ./cmd/api` | In-memory store, in-process ticker queue (2 s poll), memory cache/limits, log mailer, no streams | Reading the code, tests, demos |
-| **Hybrid dev** | `docker compose up -d postgres redis` + `go run ./cmd/api` | Real PG + Redis; hot-reload of Go code | Everyday feature work (`docs/quickstart.md`) |
+| **Hybrid dev** | `docker compose up -d postgres redis` + `go run ./cmd/api` | Real PG + Redis; hot-reload of Go code | Everyday feature work (`docs/getting-started/quickstart.md`) |
 | **Full compose** | `make docker-up` (+ `--profile observability`, `--profile mail`, `--profile files`, brokers overlay `make demo-up`) | Everything, including demo dataset | Integration checks, regression walkthrough |
 | **Kubernetes** | Helm chart (`deploy/helm/go-template`) | Platform-provided PG/Redis/CH; HPA 2–10 api replicas, PDB, probes, secret mounts | Production shape |
 

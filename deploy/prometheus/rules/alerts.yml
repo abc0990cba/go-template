@@ -4,7 +4,7 @@
 # the Alertmanager UI at localhost:9093.
 #
 # Thresholds are template defaults, not laws: tune them per deployment once
-# a week of baseline data exists (docs/slo.md explains the budget math).
+# a week of baseline data exists (docs/operations/slo.md explains the budget math).
 
 groups:
   # --- process availability -------------------------------------------------
@@ -51,7 +51,7 @@ groups:
           severity: warning
         annotations:
           summary: "5xx ratio above 1% for 15 minutes"
-          description: "Elevated but below fast-burn; likely a slow-burn budget drain (see docs/slo.md)."
+          description: "Elevated but below fast-burn; likely a slow-burn budget drain (see docs/operations/slo.md)."
 
       - alert: HTTPLatencyHigh
         expr: |
@@ -62,7 +62,7 @@ groups:
           severity: warning
         annotations:
           summary: "p95 latency above the 500ms k6 budget for 10 minutes"
-          description: "The load-test budget from docs/performance.md is being missed under live traffic. Check in-flight saturation, pg pool wait time, and breaker state."
+          description: "The load-test budget from docs/testing/performance.md is being missed under live traffic. Check in-flight saturation, pg pool wait time, and breaker state."
 
   # --- jobs, outbox, dead letters ------------------------------------------
   - name: go-template-jobs
@@ -146,7 +146,7 @@ groups:
         annotations:
           summary: "Postgres pool is saturated — acquires are waiting"
           description: "More than one acquire per second is finding no idle connection. Either the pool limit is too small for traffic (APP_PG_MAX_CONNS) or queries got slower. Sustained saturation turns into request timeouts."
-          runbook_url: "docs/runbooks/alerts.md#pgpoolwaiters"
+          runbook_url: "docs/operations/runbooks/alerts.md#pgpoolwaiters"
 
       - alert: PgPoolExhausted
         expr: app_pgpool_acquired_conns >= app_pgpool_max_conns
@@ -156,7 +156,7 @@ groups:
         annotations:
           summary: "Postgres pool pinned at its max connection limit"
           description: "Every pool connection is checked out. New requests queue behind the pool and surface as 504s. Look for leaked connections or a slow query holding slots."
-          runbook_url: "docs/runbooks/alerts.md#pgpoolexhausted"
+          runbook_url: "docs/operations/runbooks/alerts.md#pgpoolexhausted"
 
       - alert: LoadShedding
         expr: increase(app_load_shed_rejected_total[10m]) > 0
@@ -166,7 +166,7 @@ groups:
         annotations:
           summary: "The load shedder rejected requests"
           description: "Concurrency crossed the cap (APP_LOADSHED_MAX_INFLIGHT). Occasional bursts are fine; sustained shedding means capacity is below traffic. Check which lane: low = reports/analytics, normal = interactive traffic."
-          runbook_url: "docs/runbooks/alerts.md#loadshedding"
+          runbook_url: "docs/operations/runbooks/alerts.md#loadshedding"
 
       - alert: ContractValidationFailures
         expr: increase(app_http_validation_failures_total{kind="request"}[15m]) > 10
@@ -176,7 +176,7 @@ groups:
         annotations:
           summary: "Requests are failing runtime OpenAPI validation"
           description: "A client is sending off-contract requests (or a handler's documented shape drifted). Mostly one source: identify it by route in the api logs before loosening the spec."
-          runbook_url: "docs/runbooks/alerts.md#contractvalidationfailures"
+          runbook_url: "docs/operations/runbooks/alerts.md#contractvalidationfailures"
 
       - alert: BulkheadRejected
         expr: increase(app_bulkhead_rejected_total[10m]) > 0
@@ -186,7 +186,7 @@ groups:
         annotations:
           summary: "Bulkhead rejections — an outbound dependency is saturated"
           description: "Calls to a wrapped outbound dependency (HTTP enrichment, brokers) hit the concurrency cap. Fast backpressure by design; sustained rejections mean the dependency or its bulkhead limit needs attention."
-          runbook_url: "docs/runbooks/alerts.md#bulkheadrejected"
+          runbook_url: "docs/operations/runbooks/alerts.md#bulkheadrejected"
 
   # --- realtime, email delivery, account security ---------------------------
   - name: go-template-features
@@ -199,7 +199,7 @@ groups:
         annotations:
           summary: "WebSocket connections are being dropped server-side"
           description: "slow_consumer drops mean clients (or a proxy) stopped reading; unresponsive drops mean heartbeats are timing out. A spike after a proxy change usually means buffered streaming got enabled."
-          runbook_url: "docs/runbooks/alerts.md#websocketmassdrops"
+          runbook_url: "docs/operations/runbooks/alerts.md#websocketmassdrops"
 
       - alert: EmailDeliveriesDead
         expr: increase(app_email_messages_total{result="dead"}[30m]) > 0
@@ -209,7 +209,7 @@ groups:
         annotations:
           summary: "Outbound email exhausted its retry budget"
           description: "Messages parked as dead after 5 failed attempts — password resets and verification mail is not going out. Inspect the delivery log (GET /api/emails) for last_error, then retry once SMTP is healthy."
-          runbook_url: "docs/runbooks/alerts.md#emaildeliveriesdead"
+          runbook_url: "docs/operations/runbooks/alerts.md#emaildeliveriesdead"
 
       - alert: LockoutStorm
         expr: increase(app_auth_lockouts_total[15m]) > 5
@@ -219,4 +219,4 @@ groups:
         annotations:
           summary: "Many accounts hit progressive lockout"
           description: "A burst of accounts locking usually means credential stuffing against /auth/login (the per-IP rate limit caps one source; a distributed attempt spreads across IPs). Check auth logs for the failing sources."
-          runbook_url: "docs/runbooks/alerts.md#lockoutstorm"
+          runbook_url: "docs/operations/runbooks/alerts.md#lockoutstorm"

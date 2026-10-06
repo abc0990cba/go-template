@@ -1,8 +1,8 @@
 # SLO recording rules and burn-rate alerts.
 #
-# Objective (docs/slo.md): 99.9% of requests succeed with status < 500, and
+# Objective (docs/operations/slo.md): 99.9% of requests succeed with status < 500, and
 # 95% of requests complete within 500 ms — the same number the k6 suite
-# enforces in CI (docs/performance.md). Recording rules keep the multi-window
+# enforces in CI (docs/testing/performance.md). Recording rules keep the multi-window
 # math in one place; alerts fire on error-budget burn, not on raw errors, so
 # a quiet Tuesday never pages and a real outage always does.
 #

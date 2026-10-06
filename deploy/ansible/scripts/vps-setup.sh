@@ -15,7 +15,7 @@ VAULT_PASS="$ANSIBLE_DIR/.vault-pass"
 if [ -f "$SECRETS_FILE" ]; then
   die "secrets.yml already exists for site '$VPS_SITE'. Setup already ran.
 To change domains/versions edit group_vars/vps/{main.yml,site.yml} and re-run 'make vps-deploy'.
-To rotate a secret edit it with 'ansible-vault edit' (docs/vps/runbook.md)."
+To rotate a secret edit it with 'ansible-vault edit' (docs/deployment/vps/runbook.md)."
 fi
 
 # --- 0. Prerequisites ---------------------------------------------------------

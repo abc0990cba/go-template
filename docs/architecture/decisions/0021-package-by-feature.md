@@ -1,10 +1,10 @@
 # ADR 0021 — Reorganize to Package-by-Feature (Vertical Slices)
 
-**Status:** Accepted — Implemented 2026-10-01 (all 19 feature packages migrated in one session; the compact changelog lives in the [Migration Record](../19-migration-record.md), the plan in the [roadmap](../18-migration-roadmap.md), the layout in [04 §4.1](../04-components-and-code-map.md))
+**Status:** Accepted — Implemented 2026-10-01 (all 19 feature packages migrated in one session; the compact changelog lives in the [Migration Record](../history/19-migration-record.md), the plan in the [roadmap](../history/18-migration-roadmap.md), the layout in [04 §4.1](../04-components-and-code-map.md))
 
 ## Context
 
-The codebase is a disciplined layered monolith ([assessment](../16-current-architecture-assessment.md)):
+The codebase is a disciplined layered monolith ([assessment](../history/16-current-architecture-assessment.md)):
 business logic imports no infrastructure, memory and Postgres adapters are
 contract-proven equivalent, errors map centrally. But measured reality
 shows three organizational costs against the project's stated goals —
@@ -33,7 +33,7 @@ minimal ceremony.
 ## Decision
 
 Adopt **package-by-feature vertical slices** as the target structure and
-migrate incrementally per the [roadmap](../18-migration-roadmap.md):
+migrate incrementally per the [roadmap](../history/18-migration-roadmap.md):
 
 - Each feature owns `internal/<feature>/` containing its domain types,
   service logic (split along natural seams to respect the ≤ 400-line

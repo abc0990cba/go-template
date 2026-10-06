@@ -102,5 +102,5 @@ if [ "$FAIL" -eq 0 ]; then
   printf "\033[0;32mALL %s CHECKS PASSED\033[0m\n" "$PASS"
   exit 0
 fi
-printf "\033[0;31m%s of %s checks failed\033[0m — see docs/vps/runbook.md#troubleshooting\n" "$FAIL" "$((PASS+FAIL))"
+printf "\033[0;31m%s of %s checks failed\033[0m — see docs/deployment/vps/runbook.md#troubleshooting\n" "$FAIL" "$((PASS+FAIL))"
 exit 1

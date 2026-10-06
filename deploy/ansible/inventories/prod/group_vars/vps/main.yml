@@ -9,7 +9,7 @@
 # connects as. Root login is disabled by the hardening step.
 vps_deploy_user: deploy
 # TLS: 'acme' = Let's Encrypt via Caddy (production). 'internal' = Caddy's
-# built-in CA for local rehearsal (docs/vps/LOCAL-REHEARSAL.md).
+# built-in CA for local rehearsal (docs/deployment/vps/LOCAL-REHEARSAL.md).
 tls_mode: acme
 # 'full' = complete production hardening; 'light' skips apt-upgrade/fail2ban/
 # unattended-upgrades/UFW (used by the local OrbStack rehearsal).
@@ -25,7 +25,7 @@ acme_email: admin@example.com
 acme_staging: true
 
 # --- CI (Woodpecker) ----------------------------------------------------------
-# Set false on a small VPS (see docs/vps/deployment.md#sizing). The OAuth
+# Set false on a small VPS (see docs/deployment/vps/deployment.md#sizing). The OAuth
 # client id/secret for the GitHub forge live in secrets.yml; the server starts
 # without them and the docs explain the one-time GitHub OAuth app setup.
 ci_enabled: true
@@ -33,7 +33,7 @@ ci_enabled: true
 # user becomes admin). Optional; set after you know your GitHub login.
 woodpecker_admin_user: ""
 # Repository the bootstrap build clones for the first image build (before CI
-# exists). Public URL; for a private repo see docs/vps/deployment.md#private-repos.
+# exists). Public URL; for a private repo see docs/deployment/vps/deployment.md#private-repos.
 bootstrap_repo_url: https://github.com/your-org/go-template.git
 
 # --- Observability ------------------------------------------------------------

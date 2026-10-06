@@ -41,7 +41,7 @@ provisioned Grafana dashboards (`deploy/grafana/dashboards/` — API RED +
 pool + runtime, worker queues, resilience), alert rules
 (`deploy/prometheus/rules/alerts.yml`) routed through Alertmanager, and an
 SLO layer (99.9% availability, 95% under 500 ms) with multi-window
-burn-rate alerts — thresholds documented in `docs/slo.md`.
+burn-rate alerts — thresholds documented in `docs/operations/slo.md`.
 
 ### Traces (OpenTelemetry)
 A server span per request (`HTTP <method>` → renamed to the route

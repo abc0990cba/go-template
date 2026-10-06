@@ -230,7 +230,7 @@
   when: not bootstrap_token_file.stat.exists
   changed_when: acl_bootstrap.rc == 0
   # If this fails with "ACL bootstrap already done", the token file was lost:
-  # follow docs/vps/runbook.md "recover a lost management token" (nomad acl reset).
+  # follow docs/deployment/vps/runbook.md "recover a lost management token" (nomad acl reset).
   failed_when: acl_bootstrap.rc != 0
 
 - name: Read back the management token for subsequent tasks
@@ -307,4 +307,4 @@
     msg: >-
       CI deploy token: /etc/nomad.d/tokens/deploy.token (root-only).
       CA certificate: /etc/nomad.d/tls/ca.pem.
-      Both go into Woodpecker secrets after CI is up — see docs/vps/deployment.md.
+      Both go into Woodpecker secrets after CI is up — see docs/deployment/vps/deployment.md.

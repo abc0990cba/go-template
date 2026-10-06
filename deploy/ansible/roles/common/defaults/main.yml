@@ -4,5 +4,5 @@
 #          security upgrades, UFW, sshd hardening (default).
 #   light — local rehearsal (OrbStack machine): skips exactly those four
 #           time-consuming/OS-level pieces; everything app- and stack-related
-#           is identical. See docs/vps/LOCAL-REHEARSAL.md.
+#           is identical. See docs/deployment/vps/LOCAL-REHEARSAL.md.
 hardening_level: full

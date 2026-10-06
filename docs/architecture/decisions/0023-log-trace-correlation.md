@@ -58,7 +58,7 @@ and asynq's own Web UI instead); profiling adds a background uploader
   a dependency to save 50 lines fails the template's taste test.
 - *Tail-based sampling* (keep slow/error traces only) — strictly better
   signal-per-byte but needs the OTel Collector with tail processing;
-  named as the production next step in `docs/observability.md`.
+  named as the production next step in `docs/operations/observability.md`.
 - *eBPF profiling (Grafana Beyla/otel-profiles)* — zero-instrumentation
   and fashionable, but the pull-based Go SDK keeps the teaching surface
   inside the code the reader already owns.

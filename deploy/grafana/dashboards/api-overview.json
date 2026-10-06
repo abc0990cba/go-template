@@ -135,7 +135,7 @@
     {
       "type": "stat",
       "title": "p95 latency",
-      "description": "k6 budget: p95 < 0.5s (docs/performance.md).",
+      "description": "k6 budget: p95 < 0.5s (docs/testing/performance.md).",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"

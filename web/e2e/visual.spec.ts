@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
  *
  * Baselines are generated on Linux (the CI platform) inside the
  * mcr.microsoft.com/playwright container against a server started on the
- * host — see docs/testing.md. On other platforms the spec self-skips:
+ * host — see docs/testing/testing.md. On other platforms the spec self-skips:
  * font rasterization differs across operating systems, so only
  * like-for-like comparisons are meaningful.
  */

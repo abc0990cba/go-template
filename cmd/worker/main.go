@@ -99,7 +99,7 @@ func main() {
 		go pruneLoop(ctx, repos.Idempotency, logger)
 	}
 
-	// GDPR export ZIPs expire after export.Retention (docs/data-export.md);
+	// GDPR export ZIPs expire after export.Retention (docs/guides/data-export.md);
 	// the builder exposes the sweep, this loop schedules it.
 	if services.Exports != nil {
 		go exportPruneLoop(ctx, services.Exports, logger)

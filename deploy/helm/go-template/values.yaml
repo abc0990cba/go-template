@@ -26,7 +26,7 @@ config:
     # APP_S3_BUCKET: app-files
 
 # Sensitive values become a Secret; keys ending in _file are mounted as
-# files and wired through the <VAR>_FILE pattern (see docs/reliability.md).
+# files and wired through the <VAR>_FILE pattern (see docs/operations/reliability.md).
 secrets:
   # stringData-style entries; prefer `existingSecret` in real deployments.
   data: {}

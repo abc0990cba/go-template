@@ -53,10 +53,10 @@ The set follows **world-standard documentation conventions**:
 | 13 | [Deployment & Operations](13-deployment-and-operations.md) | How is it built, shipped, configured, scaled? |
 | 14 | [Testing & Quality](14-testing-and-quality.md) | How is correctness proven at every level? |
 | 15 | [Template Guide](15-template-guide.md) | How do I turn this into *my* application and add feature #1? |
-| 16 | [Current Architecture Assessment](16-current-architecture-assessment.md) | How is the code organized *today* — folders, layers, real dependency directions, file sizes? |
-| 17 | [Architecture Options](17-architecture-options.md) | DDD, modular monolith, vertical slices, Clean Architecture — which fits best and why? |
-| 18 | [Migration Roadmap](18-migration-roadmap.md) | How do we get to the target structure step by step, and what does "add a feature" look like after? |
-| 19 | [Migration Record](19-migration-record.md) | The compact changelog of the package-by-feature migration: what moved where, why, and how it was verified. |
+| 16 | [Current Architecture Assessment](history/16-current-architecture-assessment.md) | How is the code organized *today* — folders, layers, real dependency directions, file sizes? |
+| 17 | [Architecture Options](history/17-architecture-options.md) | DDD, modular monolith, vertical slices, Clean Architecture — which fits best and why? |
+| 18 | [Migration Roadmap](history/18-migration-roadmap.md) | How do we get to the target structure step by step, and what does "add a feature" look like after? |
+| 19 | [Migration Record](history/19-migration-record.md) | The compact changelog of the package-by-feature migration: what moved where, why, and how it was verified. |
 
 ### Decisions
 
@@ -79,14 +79,14 @@ distroless supply chain, and more). Start from
 ## Feature-level documentation
 
 Short, per-feature guides live one level up in [`docs/`](../) — e.g.
-[tickets](../tickets.md), [mfa](../mfa.md),
-[enrichment-streams](../enrichment-streams.md), [files](../files.md),
-[data-export](../data-export.md), [rbac](../rbac.md),
-[token-auth](../token-auth.md), [invitations](../invitations.md),
-[caching-search](../caching-search.md), [deployment](../deployment.md),
-[quickstart](../quickstart.md),
-[application-overview](../application-overview.md) (component map with
+[tickets](../guides/tickets.md), [mfa](../guides/mfa.md),
+[enrichment-streams](../guides/enrichment-streams.md), [files](../guides/files.md),
+[data-export](../guides/data-export.md), [rbac](../guides/rbac.md),
+[token-auth](../guides/token-auth.md), [invitations](../guides/invitations.md),
+[caching-search](../guides/caching-search.md), [deployment](../deployment/README.md),
+[quickstart](../getting-started/quickstart.md),
+[application-overview](../guides/application-overview.md) (component map with
 hands-on verification for every component), and
-[regression-checklist](../regression-checklist.md) (the 33-check live
+[regression-checklist](../testing/regression-checklist.md) (the 33-check live
 walkthrough). These architecture chapters give the deep, connected picture;
 the feature docs give the focused how-to.

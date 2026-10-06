@@ -14,7 +14,7 @@
     content: |
       #!/bin/sh
       # Weekly registry GC. Runs while the registry is up; delete-mode races are
-      # theoretically possible but tolerable on a single-node VPS (docs/vps/runbook.md).
+      # theoretically possible but tolerable on a single-node VPS (docs/deployment/vps/runbook.md).
       docker run --rm \
         -v /opt/go-template/data/registry:/var/lib/registry \
         -e REGISTRY_STORAGE_DELETE_ENABLED=true \
